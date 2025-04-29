@@ -1,3 +1,4 @@
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -13,42 +14,42 @@
     --popover: 0 0% 100%;
     --popover-foreground: 222.2 84% 4.9%;
 
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
+    /* Dark Cyan */
+    --primary: 180 100% 27%;
+    --primary-foreground: 0 0% 98%;
 
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
+    /* Steel Blue */
+    --secondary: 180 33% 50%;
+    --secondary-foreground: 0 0% 98%;
 
-    --muted: 210 40% 96.1%;
+    --muted: 0 0% 86%;
     --muted-foreground: 215.4 16.3% 46.9%;
 
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    /* Light Gray */
+    --accent: 0 0% 86%;
+    --accent-foreground: 180 100% 27%;
 
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
+    --border: 0 0% 86%;
+    --input: 0 0% 86%;
+    --ring: 180 100% 27%;
 
     --radius: 0.5rem;
 
     --sidebar-background: 0 0% 98%;
-
-    --sidebar-foreground: 240 5.3% 26.1%;
-
-    --sidebar-primary: 240 5.9% 10%;
-
+    --sidebar-foreground: 180 33% 50%;
+    --sidebar-primary: 180 100% 27%;
     --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 0 0% 96%;
+    --sidebar-accent-foreground: 180 100% 27%;
+    --sidebar-border: 0 0% 86%;
+    --sidebar-ring: 180 33% 50%;
 
-    --sidebar-accent: 240 4.8% 95.9%;
-
-    --sidebar-accent-foreground: 240 5.9% 10%;
-
-    --sidebar-border: 220 13% 91%;
-
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    /* Dark Green for success elements */
+    --success: 120 100% 20%;
+    --success-foreground: 0 0% 98%;
   }
 
   .dark {
@@ -61,11 +62,11 @@
     --popover: 222.2 84% 4.9%;
     --popover-foreground: 210 40% 98%;
 
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
+    --primary: 180 100% 27%;
+    --primary-foreground: 0 0% 98%;
 
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
+    --secondary: 180 33% 50%;
+    --secondary-foreground: 0 0% 98%;
 
     --muted: 217.2 32.6% 17.5%;
     --muted-foreground: 215 20.2% 65.1%;
@@ -79,14 +80,9 @@
     --border: 217.2 32.6% 17.5%;
     --input: 217.2 32.6% 17.5%;
     --ring: 212.7 26.8% 83.9%;
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+
+    --success: 120 100% 20%;
+    --success-foreground: 0 0% 98%;
   }
 }
 
@@ -96,6 +92,37 @@
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply bg-white text-foreground;
+  }
+}
+
+/* Custom classes for the recruitment platform */
+@layer components {
+  .hrm-container {
+    @apply container mx-auto px-4 md:px-6 py-8;
+  }
+
+  .page-title {
+    @apply text-3xl font-bold text-hrm-dark-cyan mb-6;
+  }
+
+  .section-title {
+    @apply text-xl font-semibold text-hrm-steel-blue mb-4;
+  }
+
+  .status-badge {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+  }
+
+  .status-badge-active {
+    @apply bg-hrm-dark-green/20 text-hrm-dark-green;
+  }
+
+  .status-badge-inactive {
+    @apply bg-hrm-light-gray text-gray-600;
+  }
+
+  .status-badge-pending {
+    @apply bg-yellow-100 text-yellow-800;
   }
 }
