@@ -42,16 +42,16 @@ const mockJobs: JobType[] = [
 
 const JobsList = () => {
   const [searchQuery, setSearchQuery] = useState('');
-  const [locationFilter, setLocationFilter] = useState('');
-  const [departmentFilter, setDepartmentFilter] = useState('');
+  const [locationFilter, setLocationFilter] = useState('all');
+  const [departmentFilter, setDepartmentFilter] = useState('all');
   
   const filteredJobs = mockJobs.filter(job => 
     job.status === 'open' &&
     (searchQuery === '' || 
       job.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
       job.department.toLowerCase().includes(searchQuery.toLowerCase())) &&
-    (locationFilter === '' || job.location.includes(locationFilter)) &&
-    (departmentFilter === '' || job.department === departmentFilter)
+    (locationFilter === 'all' || job.location.includes(locationFilter)) &&
+    (departmentFilter === 'all' || job.department === departmentFilter)
   );
 
   // Extract unique departments and locations for filters
@@ -86,7 +86,7 @@ const JobsList = () => {
                 <SelectValue placeholder="Ubicación" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Todas las ubicaciones</SelectItem>
+                <SelectItem value="all">Todas las ubicaciones</SelectItem>
                 {locations.map(location => (
                   <SelectItem key={location} value={location}>{location}</SelectItem>
                 ))}
@@ -100,7 +100,7 @@ const JobsList = () => {
                 <SelectValue placeholder="Departamento" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Todos los departamentos</SelectItem>
+                <SelectItem value="all">Todos los departamentos</SelectItem>
                 {departments.map(department => (
                   <SelectItem key={department} value={department}>{department}</SelectItem>
                 ))}
@@ -123,8 +123,8 @@ const JobsList = () => {
               variant="outline" 
               onClick={() => {
                 setSearchQuery('');
-                setLocationFilter('');
-                setDepartmentFilter('');
+                setLocationFilter('all');
+                setDepartmentFilter('all');
               }}
             >
               Limpiar filtros
