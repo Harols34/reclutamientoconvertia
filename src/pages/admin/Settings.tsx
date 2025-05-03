@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -46,6 +45,19 @@ const chatbotSettingsSchema = z.object({
 type GeneralSettingsValues = z.infer<typeof generalSettingsSchema>;
 type ChatbotSettingsValues = z.infer<typeof chatbotSettingsSchema>;
 
+interface SystemSettings {
+  company_name: string;
+  default_language: string;
+  email_notifications: boolean;
+  admin_email?: string;
+  company_description?: string;
+}
+
+interface ChatbotResponses {
+  welcome: string;
+  faq: string[];
+}
+
 const Settings = () => {
   const [isLoadingGeneral, setIsLoadingGeneral] = useState(false);
   const [isLoadingChatbot, setIsLoadingChatbot] = useState(false);
@@ -90,13 +102,30 @@ const Settings = () => {
         if (systemError) throw systemError;
         
         if (systemSettings) {
-          // Extraer los valores del objeto settings, asegurándonos de que sean del tipo correcto
-          const settings = typeof systemSettings.settings === 'object' ? systemSettings.settings : {};
+          // Parse system settings
+          let settings: SystemSettings = {
+            company_name: "HRM AI",
+            default_language: "es",
+            email_notifications: true,
+            admin_email: "",
+            company_description: ""
+          };
+          
+          if (typeof systemSettings.settings === 'object') {
+            const settingsObj = systemSettings.settings as Record<string, any>;
+            settings = {
+              company_name: settingsObj.company_name || "HRM AI",
+              default_language: settingsObj.default_language || "es",
+              email_notifications: settingsObj.email_notifications !== false,
+              admin_email: settingsObj.admin_email || "",
+              company_description: settingsObj.company_description || ""
+            };
+          }
           
           generalForm.reset({
-            company_name: settings.company_name || "HRM AI",
-            default_language: settings.default_language || "es",
-            email_notifications: settings.email_notifications !== false,
+            company_name: settings.company_name,
+            default_language: settings.default_language,
+            email_notifications: settings.email_notifications,
             admin_email: settings.admin_email || "",
             company_description: settings.company_description || "",
           });
@@ -112,18 +141,40 @@ const Settings = () => {
         if (chatbotError) throw chatbotError;
         
         if (chatbotSettings) {
-          // Extraer los valores de las respuestas, asegurándonos de que sean del tipo correcto
-          const adminResponses = typeof chatbotSettings.admin_responses === 'object' ? chatbotSettings.admin_responses : {};
-          const publicResponses = typeof chatbotSettings.public_responses === 'object' ? chatbotSettings.public_responses : {};
+          // Parse admin and public responses
+          let adminResponses: ChatbotResponses = {
+            welcome: "¡Hola! Soy tu asistente IA.",
+            faq: ["Para crear una nueva vacante, ve a la sección 'Vacantes' y haz clic en 'Nueva Vacante'."]
+          };
           
-          const adminFaq = Array.isArray(adminResponses.faq) ? adminResponses.faq.join("\n") : "";
-          const publicFaq = Array.isArray(publicResponses.faq) ? publicResponses.faq.join("\n") : "";
+          let publicResponses: ChatbotResponses = {
+            welcome: "¡Hola! Soy tu asistente IA.",
+            faq: ["Puedes ver todas las vacantes disponibles en la sección 'Vacantes'."]
+          };
+          
+          // Parse admin responses if they exist
+          if (typeof chatbotSettings.admin_responses === 'object') {
+            const adminObj = chatbotSettings.admin_responses as Record<string, any>;
+            adminResponses = {
+              welcome: adminObj.welcome || "¡Hola! Soy tu asistente IA.",
+              faq: Array.isArray(adminObj.faq) ? adminObj.faq : ["Para crear una nueva vacante, ve a la sección 'Vacantes'"]
+            };
+          }
+          
+          // Parse public responses if they exist
+          if (typeof chatbotSettings.public_responses === 'object') {
+            const publicObj = chatbotSettings.public_responses as Record<string, any>;
+            publicResponses = {
+              welcome: publicObj.welcome || "¡Hola! Soy tu asistente IA.",
+              faq: Array.isArray(publicObj.faq) ? publicObj.faq : ["Puedes ver todas las vacantes disponibles en la sección 'Vacantes'."]
+            };
+          }
           
           chatbotForm.reset({
-            admin_welcome: adminResponses.welcome || "¡Hola! Soy tu asistente IA.",
-            public_welcome: publicResponses.welcome || "¡Hola! Soy tu asistente IA.",
-            admin_responses: adminFaq || "Para crear una nueva vacante, ve a la sección 'Vacantes' y haz clic en 'Nueva Vacante'.",
-            public_responses: publicFaq || "Puedes ver todas las vacantes disponibles en la sección 'Vacantes'.",
+            admin_welcome: adminResponses.welcome,
+            public_welcome: publicResponses.welcome,
+            admin_responses: adminResponses.faq.join("\n"),
+            public_responses: publicResponses.faq.join("\n"),
           });
         }
         

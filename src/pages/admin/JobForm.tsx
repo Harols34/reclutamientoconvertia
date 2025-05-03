@@ -63,16 +63,28 @@ const JobForm = () => {
     try {
       let result;
       
+      // Asegurarnos que todos los campos requeridos estén presentes
+      const jobData = {
+        title: values.title,
+        department: values.department,
+        location: values.location,
+        type: values.type,
+        description: values.description,
+        status: values.status === "draft" ? "open" : values.status, // Manejar tipo draft para base de datos
+        requirements: values.requirements || null,
+        responsibilities: values.responsibilities || null,
+        salary_range: values.salary_range || null,
+      };
+      
       if (isEditing) {
         result = await supabase
           .from('jobs')
-          .update(values)
+          .update(jobData)
           .eq('id', id);
       } else {
         result = await supabase
           .from('jobs')
-          .insert(values)
-          .select();
+          .insert(jobData);
       }
       
       if (result.error) {
@@ -117,15 +129,15 @@ const JobForm = () => {
         if (data) {
           // Asegurar que los valores cumplan con el esquema antes de establecerlos en el formulario
           form.reset({
-            title: data.title,
-            department: data.department,
-            location: data.location,
-            type: data.type as "full-time" | "part-time" | "contract" | "internship" | "temporary",
-            status: data.status as "open" | "in_progress" | "closed" | "draft", 
-            description: data.description,
-            requirements: data.requirements || '',
-            responsibilities: data.responsibilities || '',
-            salary_range: data.salary_range || '',
+            title: data.title || "",
+            department: data.department || "",
+            location: data.location || "",
+            type: data.type || "full-time",
+            status: data.status || "open",
+            description: data.description || "",
+            requirements: data.requirements || "",
+            responsibilities: data.responsibilities || "",
+            salary_range: data.salary_range || "",
           });
         }
       } catch (error) {

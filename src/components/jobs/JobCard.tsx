@@ -13,11 +13,11 @@ export interface JobType {
   location: string;
   type: 'full-time' | 'part-time' | 'contract' | 'internship' | 'temporary';
   status: 'open' | 'in_progress' | 'closed' | 'draft';
-  created_at?: string; // Cambiado de createdAt a created_at para coincidir con Supabase
-  createdAt?: Date; // Mantenido por compatibilidad con código existente
+  created_at?: string; 
+  createdAt?: Date; 
   updated_at?: string;
   applicants?: number;
-  applications?: Array<any>; // Para manejar la relación en consultas join
+  applications?: Array<any>; 
   description?: string;
   requirements?: string | null;
   responsibilities?: string | null;

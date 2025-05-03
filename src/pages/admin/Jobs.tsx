@@ -37,7 +37,9 @@ const Jobs = () => {
         const transformedJobs: JobType[] = data?.map(job => ({
           ...job,
           applicants: job.applications?.length || 0,
-          createdAt: job.created_at ? new Date(job.created_at) : new Date(), // Convertir a Date
+          createdAt: job.created_at ? new Date(job.created_at) : new Date(), 
+          status: job.status as JobType['status'], // Asegurar que el tipo sea correcto
+          type: job.type as JobType['type']        // Asegurar que el tipo sea correcto
         })) || [];
         
         setJobs(transformedJobs);

@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
+import { Json } from '@/integrations/supabase/types';
 
 interface ChatbotProps {
   userType: 'admin' | 'public';
@@ -18,15 +19,14 @@ interface Message {
   timestamp: Date;
 }
 
+interface ChatbotResponseObject {
+  welcome: string;
+  faq: string[];
+}
+
 interface ChatbotConfig {
-  admin_responses: {
-    welcome: string;
-    faq: string[];
-  };
-  public_responses: {
-    welcome: string;
-    faq: string[];
-  };
+  admin_responses: ChatbotResponseObject;
+  public_responses: ChatbotResponseObject;
   id?: number;
   updated_at?: string;
 }
@@ -52,17 +52,25 @@ const Chatbot: React.FC<ChatbotProps> = ({ userType }) => {
           return;
         }
         
-        // Asegurar que las respuestas tengan la estructura correcta
+        // Parse JSON responses
+        const adminResponses = typeof data.admin_responses === 'object' ? data.admin_responses : {};
+        const publicResponses = typeof data.public_responses === 'object' ? data.public_responses : {};
+        
+        // Create properly typed config object
         const parsedConfig: ChatbotConfig = {
           id: data.id,
           updated_at: data.updated_at,
           admin_responses: {
-            welcome: typeof data.admin_responses === 'object' ? data.admin_responses.welcome || "Bienvenido administrador" : "Bienvenido administrador",
-            faq: Array.isArray(data.admin_responses?.faq) ? data.admin_responses.faq : ["No hay preguntas frecuentes configuradas para administradores"]
+            welcome: (adminResponses as any)?.welcome || "Bienvenido administrador",
+            faq: Array.isArray((adminResponses as any)?.faq) 
+              ? (adminResponses as any).faq 
+              : ["No hay preguntas frecuentes configuradas para administradores"]
           },
           public_responses: {
-            welcome: typeof data.public_responses === 'object' ? data.public_responses.welcome || "Bienvenido" : "Bienvenido",
-            faq: Array.isArray(data.public_responses?.faq) ? data.public_responses.faq : ["No hay preguntas frecuentes configuradas"]
+            welcome: (publicResponses as any)?.welcome || "Bienvenido",
+            faq: Array.isArray((publicResponses as any)?.faq) 
+              ? (publicResponses as any).faq 
+              : ["No hay preguntas frecuentes configuradas"]
           }
         };
         
@@ -104,7 +112,7 @@ const Chatbot: React.FC<ChatbotProps> = ({ userType }) => {
     setMessages((prev) => [...prev, userMessage]);
     setInput('');
 
-    // Simulate bot response - in a real application, this would call an API
+    // Simulate bot response
     setTimeout(() => {
       let responses: string[] = [];
       
