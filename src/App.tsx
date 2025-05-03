@@ -1,4 +1,5 @@
 
+import { StrictMode } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -30,40 +31,42 @@ import Settings from "./pages/admin/Settings";
 const queryClient = new QueryClient();
 
 const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <Routes>
-          {/* Public Routes */}
-          <Route path="/" element={<PublicLayout />}>
-            <Route index element={<Home />} />
-            <Route path="jobs" element={<JobsList />} />
-            <Route path="postularse/:jobId" element={<ApplicationForm />} />
-            <Route path="gracias" element={<ThankYou />} />
-          </Route>
+  <StrictMode>
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <Routes>
+            {/* Public Routes */}
+            <Route path="/" element={<PublicLayout />}>
+              <Route index element={<Home />} />
+              <Route path="jobs" element={<JobsList />} />
+              <Route path="postularse/:jobId" element={<ApplicationForm />} />
+              <Route path="gracias" element={<ThankYou />} />
+            </Route>
 
-          {/* Admin Routes */}
-          <Route path="/admin/login" element={<Login />} />
-          <Route path="/admin" element={<AdminLayout />}>
-            <Route path="dashboard" element={<Dashboard />} />
-            <Route path="jobs" element={<Jobs />} />
-            <Route path="jobs/new" element={<JobForm />} />
-            <Route path="jobs/:id/edit" element={<JobForm />} />
-            <Route path="campaigns" element={<Campaigns />} />
-            <Route path="candidates" element={<Candidates />} />
-            <Route path="chatbot" element={<ChatbotManager />} />
-            <Route path="reports" element={<Reports />} />
-            <Route path="settings" element={<Settings />} />
-          </Route>
+            {/* Admin Routes */}
+            <Route path="/admin/login" element={<Login />} />
+            <Route path="/admin" element={<AdminLayout />}>
+              <Route path="dashboard" element={<Dashboard />} />
+              <Route path="jobs" element={<Jobs />} />
+              <Route path="jobs/new" element={<JobForm />} />
+              <Route path="jobs/:id/edit" element={<JobForm />} />
+              <Route path="campaigns" element={<Campaigns />} />
+              <Route path="candidates" element={<Candidates />} />
+              <Route path="chatbot" element={<ChatbotManager />} />
+              <Route path="reports" element={<Reports />} />
+              <Route path="settings" element={<Settings />} />
+            </Route>
 
-          {/* Catch all */}
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </BrowserRouter>
-    </TooltipProvider>
-  </QueryClientProvider>
+            {/* Catch all */}
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </BrowserRouter>
+      </TooltipProvider>
+    </QueryClientProvider>
+  </StrictMode>
 );
 
 export default App;
