@@ -11,11 +11,18 @@ export interface JobType {
   title: string;
   department: string;
   location: string;
-  type: 'full-time' | 'part-time' | 'contract';
-  status: 'open' | 'closed' | 'draft';
-  createdAt: Date;
-  applicants: number;
+  type: 'full-time' | 'part-time' | 'contract' | 'internship' | 'temporary';
+  status: 'open' | 'in_progress' | 'closed' | 'draft';
+  created_at?: string; // Cambiado de createdAt a created_at para coincidir con Supabase
+  createdAt?: Date; // Mantenido por compatibilidad con código existente
+  updated_at?: string;
+  applicants?: number;
+  applications?: Array<any>; // Para manejar la relación en consultas join
   description?: string;
+  requirements?: string | null;
+  responsibilities?: string | null;
+  salary_range?: string | null;
+  campaign_id?: string | null;
 }
 
 interface JobCardProps {
@@ -28,19 +35,37 @@ const JobCard: React.FC<JobCardProps> = ({ job, isAdmin = false }) => {
     open: 'bg-hrm-dark-green/20 text-hrm-dark-green',
     closed: 'bg-red-100 text-red-800',
     draft: 'bg-yellow-100 text-yellow-800',
+    in_progress: 'bg-blue-100 text-blue-800',
   };
 
   const jobTypeLabels = {
     'full-time': 'Tiempo Completo',
     'part-time': 'Medio Tiempo',
     'contract': 'Contrato',
+    'internship': 'Pasantía',
+    'temporary': 'Temporal',
   };
 
   const jobStatusLabels = {
     'open': 'Abierta',
     'closed': 'Cerrada',
     'draft': 'Borrador',
+    'in_progress': 'En Proceso',
   };
+
+  // Función para manejar las diferentes formas en que puede venir la fecha
+  const getFormattedDate = () => {
+    if (job.createdAt instanceof Date) {
+      return job.createdAt.toLocaleDateString();
+    } else if (job.created_at) {
+      return new Date(job.created_at).toLocaleDateString();
+    } else {
+      return 'Fecha desconocida';
+    }
+  };
+
+  // Cantidad de postulantes (puede venir de diferentes fuentes)
+  const applicantsCount = job.applicants || (job.applications?.length || 0);
 
   return (
     <Card className="overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-200">
@@ -52,7 +77,9 @@ const JobCard: React.FC<JobCardProps> = ({ job, isAdmin = false }) => {
             </CardTitle>
             <p className="text-sm text-gray-500">{job.department}</p>
           </div>
-          <Badge className={jobStatusColors[job.status]}>{jobStatusLabels[job.status]}</Badge>
+          <Badge className={jobStatusColors[job.status] || jobStatusColors.open}>
+            {jobStatusLabels[job.status] || 'Abierta'}
+          </Badge>
         </div>
       </CardHeader>
       <CardContent className="pb-2">
@@ -63,17 +90,17 @@ const JobCard: React.FC<JobCardProps> = ({ job, isAdmin = false }) => {
           </div>
           <div className="flex items-center text-sm text-gray-500">
             <Calendar className="mr-2 h-4 w-4" />
-            <span>Publicado: {job.createdAt.toLocaleDateString()}</span>
+            <span>Publicado: {getFormattedDate()}</span>
           </div>
           {(isAdmin || job.status === 'open') && (
             <div className="flex items-center text-sm text-gray-500">
               <Users className="mr-2 h-4 w-4" />
-              <span>{job.applicants} {job.applicants === 1 ? 'Candidato' : 'Candidatos'}</span>
+              <span>{applicantsCount} {applicantsCount === 1 ? 'Candidato' : 'Candidatos'}</span>
             </div>
           )}
           <div className="mt-3">
             <Badge variant="outline" className="text-xs">
-              {jobTypeLabels[job.type]}
+              {jobTypeLabels[job.type] || 'Tiempo Completo'}
             </Badge>
           </div>
         </div>

@@ -27,6 +27,8 @@ interface ChatbotConfig {
     welcome: string;
     faq: string[];
   };
+  id?: number;
+  updated_at?: string;
 }
 
 const Chatbot: React.FC<ChatbotProps> = ({ userType }) => {
@@ -50,12 +52,26 @@ const Chatbot: React.FC<ChatbotProps> = ({ userType }) => {
           return;
         }
         
-        setConfig(data);
+        // Asegurar que las respuestas tengan la estructura correcta
+        const parsedConfig: ChatbotConfig = {
+          id: data.id,
+          updated_at: data.updated_at,
+          admin_responses: {
+            welcome: typeof data.admin_responses === 'object' ? data.admin_responses.welcome || "Bienvenido administrador" : "Bienvenido administrador",
+            faq: Array.isArray(data.admin_responses?.faq) ? data.admin_responses.faq : ["No hay preguntas frecuentes configuradas para administradores"]
+          },
+          public_responses: {
+            welcome: typeof data.public_responses === 'object' ? data.public_responses.welcome || "Bienvenido" : "Bienvenido",
+            faq: Array.isArray(data.public_responses?.faq) ? data.public_responses.faq : ["No hay preguntas frecuentes configuradas"]
+          }
+        };
         
-        // Initialize with welcome message
+        setConfig(parsedConfig);
+        
+        // Inicializar con el mensaje de bienvenida
         const welcomeMessage = userType === 'admin' 
-          ? data.admin_responses.welcome 
-          : data.public_responses.welcome;
+          ? parsedConfig.admin_responses.welcome
+          : parsedConfig.public_responses.welcome;
             
         setMessages([{
           id: '1',
@@ -90,7 +106,7 @@ const Chatbot: React.FC<ChatbotProps> = ({ userType }) => {
 
     // Simulate bot response - in a real application, this would call an API
     setTimeout(() => {
-      let responses;
+      let responses: string[] = [];
       
       if (config) {
         responses = userType === 'admin' 
@@ -106,7 +122,7 @@ const Chatbot: React.FC<ChatbotProps> = ({ userType }) => {
       const randomIndex = Math.floor(Math.random() * responses.length);
       const botMessage: Message = {
         id: Date.now().toString(),
-        text: responses[randomIndex],
+        text: responses[randomIndex] || "Lo siento, no tengo una respuesta para eso en este momento.",
         sender: 'bot',
         timestamp: new Date(),
       };

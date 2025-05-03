@@ -33,12 +33,14 @@ const Jobs = () => {
           return;
         }
         
-        const jobsWithApplicants = data?.map(job => ({
+        // Transformar los datos para que coincidan con el tipo JobType
+        const transformedJobs: JobType[] = data?.map(job => ({
           ...job,
-          applicants: job.applications?.length || 0
-        }));
+          applicants: job.applications?.length || 0,
+          createdAt: job.created_at ? new Date(job.created_at) : new Date(), // Convertir a Date
+        })) || [];
         
-        setJobs(jobsWithApplicants || []);
+        setJobs(transformedJobs);
       } catch (err) {
         console.error('Error:', err);
       } finally {

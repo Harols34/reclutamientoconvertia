@@ -35,7 +35,14 @@ const JobsList = () => {
           return;
         }
         
-        setJobs(data || []);
+        // Transformar los datos para que coincidan con el tipo JobType
+        const transformedJobs = data?.map(job => ({
+          ...job,
+          applicants: 0, // Inicializa con 0 si no hay datos
+          createdAt: job.created_at ? new Date(job.created_at) : new Date(), // Convertir string a Date
+        })) || [];
+        
+        setJobs(transformedJobs);
       } catch (err) {
         console.error('Error:', err);
       } finally {

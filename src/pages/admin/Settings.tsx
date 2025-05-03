@@ -90,12 +90,15 @@ const Settings = () => {
         if (systemError) throw systemError;
         
         if (systemSettings) {
+          // Extraer los valores del objeto settings, asegurándonos de que sean del tipo correcto
+          const settings = typeof systemSettings.settings === 'object' ? systemSettings.settings : {};
+          
           generalForm.reset({
-            company_name: systemSettings.settings.company_name || "HRM AI",
-            default_language: systemSettings.settings.default_language || "es",
-            email_notifications: systemSettings.settings.email_notifications !== false,
-            admin_email: systemSettings.settings.admin_email || "",
-            company_description: systemSettings.settings.company_description || "",
+            company_name: settings.company_name || "HRM AI",
+            default_language: settings.default_language || "es",
+            email_notifications: settings.email_notifications !== false,
+            admin_email: settings.admin_email || "",
+            company_description: settings.company_description || "",
           });
         }
         
@@ -109,11 +112,18 @@ const Settings = () => {
         if (chatbotError) throw chatbotError;
         
         if (chatbotSettings) {
+          // Extraer los valores de las respuestas, asegurándonos de que sean del tipo correcto
+          const adminResponses = typeof chatbotSettings.admin_responses === 'object' ? chatbotSettings.admin_responses : {};
+          const publicResponses = typeof chatbotSettings.public_responses === 'object' ? chatbotSettings.public_responses : {};
+          
+          const adminFaq = Array.isArray(adminResponses.faq) ? adminResponses.faq.join("\n") : "";
+          const publicFaq = Array.isArray(publicResponses.faq) ? publicResponses.faq.join("\n") : "";
+          
           chatbotForm.reset({
-            admin_welcome: chatbotSettings.admin_responses.welcome || "",
-            public_welcome: chatbotSettings.public_responses.welcome || "",
-            admin_responses: chatbotSettings.admin_responses.faq?.join("\n") || "",
-            public_responses: chatbotSettings.public_responses.faq?.join("\n") || "",
+            admin_welcome: adminResponses.welcome || "¡Hola! Soy tu asistente IA.",
+            public_welcome: publicResponses.welcome || "¡Hola! Soy tu asistente IA.",
+            admin_responses: adminFaq || "Para crear una nueva vacante, ve a la sección 'Vacantes' y haz clic en 'Nueva Vacante'.",
+            public_responses: publicFaq || "Puedes ver todas las vacantes disponibles en la sección 'Vacantes'.",
           });
         }
         

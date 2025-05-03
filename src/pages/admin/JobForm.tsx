@@ -20,12 +20,13 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
 
+// Definiendo un esquema que coincide con los tipos de Supabase
 const formSchema = z.object({
   title: z.string().min(2, "El título debe tener al menos 2 caracteres"),
   department: z.string().min(2, "El departamento es requerido"),
   location: z.string().min(2, "La ubicación es requerida"),
-  type: z.enum(["full-time", "part-time", "contract"]),
-  status: z.enum(["open", "closed", "draft"]),
+  type: z.enum(["full-time", "part-time", "contract", "internship", "temporary"]),
+  status: z.enum(["open", "in_progress", "closed", "draft"]),
   description: z.string().min(10, "La descripción debe tener al menos 10 caracteres"),
   requirements: z.string().optional(),
   responsibilities: z.string().optional(),
@@ -48,7 +49,7 @@ const JobForm = () => {
       department: "",
       location: "",
       type: "full-time",
-      status: "draft",
+      status: "open",
       description: "",
       requirements: "",
       responsibilities: "",
@@ -70,7 +71,7 @@ const JobForm = () => {
       } else {
         result = await supabase
           .from('jobs')
-          .insert([values])
+          .insert(values)
           .select();
       }
       
@@ -114,12 +115,13 @@ const JobForm = () => {
         if (error) throw error;
         
         if (data) {
+          // Asegurar que los valores cumplan con el esquema antes de establecerlos en el formulario
           form.reset({
             title: data.title,
             department: data.department,
             location: data.location,
-            type: data.type,
-            status: data.status,
+            type: data.type as "full-time" | "part-time" | "contract" | "internship" | "temporary",
+            status: data.status as "open" | "in_progress" | "closed" | "draft", 
             description: data.description,
             requirements: data.requirements || '',
             responsibilities: data.responsibilities || '',
@@ -207,6 +209,8 @@ const JobForm = () => {
                         <SelectItem value="full-time">Tiempo Completo</SelectItem>
                         <SelectItem value="part-time">Medio Tiempo</SelectItem>
                         <SelectItem value="contract">Contrato</SelectItem>
+                        <SelectItem value="internship">Pasantía</SelectItem>
+                        <SelectItem value="temporary">Temporal</SelectItem>
                       </SelectContent>
                     </Select>
                     <FormMessage />
@@ -228,6 +232,7 @@ const JobForm = () => {
                       </FormControl>
                       <SelectContent>
                         <SelectItem value="open">Abierta</SelectItem>
+                        <SelectItem value="in_progress">En Proceso</SelectItem>
                         <SelectItem value="closed">Cerrada</SelectItem>
                         <SelectItem value="draft">Borrador</SelectItem>
                       </SelectContent>
