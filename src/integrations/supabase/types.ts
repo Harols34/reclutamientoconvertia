@@ -9,7 +9,352 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      [_ in never]: never
+      applications: {
+        Row: {
+          candidate_id: string
+          cover_letter: string | null
+          created_at: string
+          id: string
+          job_id: string
+          notes: string | null
+          score: number | null
+          status: Database["public"]["Enums"]["application_status"]
+          updated_at: string
+        }
+        Insert: {
+          candidate_id: string
+          cover_letter?: string | null
+          created_at?: string
+          id?: string
+          job_id: string
+          notes?: string | null
+          score?: number | null
+          status?: Database["public"]["Enums"]["application_status"]
+          updated_at?: string
+        }
+        Update: {
+          candidate_id?: string
+          cover_letter?: string | null
+          created_at?: string
+          id?: string
+          job_id?: string
+          notes?: string | null
+          score?: number | null
+          status?: Database["public"]["Enums"]["application_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "applications_candidate_id_fkey"
+            columns: ["candidate_id"]
+            isOneToOne: false
+            referencedRelation: "candidates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "applications_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      campaigns: {
+        Row: {
+          created_at: string
+          description: string | null
+          end_date: string | null
+          id: string
+          name: string
+          start_date: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          end_date?: string | null
+          id?: string
+          name: string
+          start_date: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          end_date?: string | null
+          id?: string
+          name?: string
+          start_date?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      candidates: {
+        Row: {
+          analysis_summary: string | null
+          created_at: string
+          email: string
+          experience_years: number | null
+          first_name: string
+          id: string
+          last_name: string
+          location: string | null
+          phone: string | null
+          phone_country: string | null
+          resume_url: string | null
+          skills: string[] | null
+          updated_at: string
+        }
+        Insert: {
+          analysis_summary?: string | null
+          created_at?: string
+          email: string
+          experience_years?: number | null
+          first_name: string
+          id?: string
+          last_name: string
+          location?: string | null
+          phone?: string | null
+          phone_country?: string | null
+          resume_url?: string | null
+          skills?: string[] | null
+          updated_at?: string
+        }
+        Update: {
+          analysis_summary?: string | null
+          created_at?: string
+          email?: string
+          experience_years?: number | null
+          first_name?: string
+          id?: string
+          last_name?: string
+          location?: string | null
+          phone?: string | null
+          phone_country?: string | null
+          resume_url?: string | null
+          skills?: string[] | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      chat_messages: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          sender_id: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          sender_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          sender_id?: string
+        }
+        Relationships: []
+      }
+      chatbot_configurations: {
+        Row: {
+          admin_responses: Json
+          id: number
+          public_responses: Json
+          updated_at: string
+        }
+        Insert: {
+          admin_responses?: Json
+          id?: number
+          public_responses?: Json
+          updated_at?: string
+        }
+        Update: {
+          admin_responses?: Json
+          id?: number
+          public_responses?: Json
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      interactions: {
+        Row: {
+          application_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          notes: string | null
+          type: string
+        }
+        Insert: {
+          application_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          notes?: string | null
+          type: string
+        }
+        Update: {
+          application_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          notes?: string | null
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "interactions_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "applications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      jobs: {
+        Row: {
+          campaign_id: string | null
+          created_at: string
+          department: string
+          description: string
+          id: string
+          location: string
+          requirements: string | null
+          responsibilities: string | null
+          salary_range: string | null
+          status: Database["public"]["Enums"]["job_status"]
+          title: string
+          type: Database["public"]["Enums"]["job_type"]
+          updated_at: string
+        }
+        Insert: {
+          campaign_id?: string | null
+          created_at?: string
+          department: string
+          description: string
+          id?: string
+          location: string
+          requirements?: string | null
+          responsibilities?: string | null
+          salary_range?: string | null
+          status?: Database["public"]["Enums"]["job_status"]
+          title: string
+          type: Database["public"]["Enums"]["job_type"]
+          updated_at?: string
+        }
+        Update: {
+          campaign_id?: string | null
+          created_at?: string
+          department?: string
+          description?: string
+          id?: string
+          location?: string
+          requirements?: string | null
+          responsibilities?: string | null
+          salary_range?: string | null
+          status?: Database["public"]["Enums"]["job_status"]
+          title?: string
+          type?: Database["public"]["Enums"]["job_type"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "jobs_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          email: string
+          first_name: string | null
+          id: string
+          last_name: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          first_name?: string | null
+          id: string
+          last_name?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          first_name?: string | null
+          id?: string
+          last_name?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      reports: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          name: string
+          parameters: Json
+          result: Json | null
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name: string
+          parameters?: Json
+          result?: Json | null
+          type: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name?: string
+          parameters?: Json
+          result?: Json | null
+          type?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      system_settings: {
+        Row: {
+          id: number
+          settings: Json
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          id?: number
+          settings?: Json
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          id?: number
+          settings?: Json
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -18,7 +363,21 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      application_status:
+        | "applied"
+        | "reviewing"
+        | "interview"
+        | "test"
+        | "offer"
+        | "hired"
+        | "rejected"
+      job_status: "open" | "in_progress" | "closed"
+      job_type:
+        | "full-time"
+        | "part-time"
+        | "contract"
+        | "internship"
+        | "temporary"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -133,6 +492,24 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      application_status: [
+        "applied",
+        "reviewing",
+        "interview",
+        "test",
+        "offer",
+        "hired",
+        "rejected",
+      ],
+      job_status: ["open", "in_progress", "closed"],
+      job_type: [
+        "full-time",
+        "part-time",
+        "contract",
+        "internship",
+        "temporary",
+      ],
+    },
   },
 } as const

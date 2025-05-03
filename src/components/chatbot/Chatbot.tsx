@@ -1,10 +1,11 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { MessageCircle, X, Send } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
+import { supabase } from '@/integrations/supabase/client';
 
 interface ChatbotProps {
   userType: 'admin' | 'public';
@@ -17,19 +18,60 @@ interface Message {
   timestamp: Date;
 }
 
+interface ChatbotConfig {
+  admin_responses: {
+    welcome: string;
+    faq: string[];
+  };
+  public_responses: {
+    welcome: string;
+    faq: string[];
+  };
+}
+
 const Chatbot: React.FC<ChatbotProps> = ({ userType }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: '1',
-      text: userType === 'admin' 
-        ? '¡Hola! Soy tu asistente IA. ¿Cómo puedo ayudarte a gestionar tu plataforma de reclutamiento?' 
-        : '¡Hola! Soy tu asistente IA. ¿Cómo puedo ayudarte con las ofertas de trabajo?',
-      sender: 'bot',
-      timestamp: new Date(),
-    },
-  ]);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
+  const [config, setConfig] = useState<ChatbotConfig | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchChatbotConfig = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('chatbot_configurations')
+          .select('*')
+          .limit(1)
+          .single();
+          
+        if (error) {
+          console.error('Error fetching chatbot config:', error);
+          return;
+        }
+        
+        setConfig(data);
+        
+        // Initialize with welcome message
+        const welcomeMessage = userType === 'admin' 
+          ? data.admin_responses.welcome 
+          : data.public_responses.welcome;
+            
+        setMessages([{
+          id: '1',
+          text: welcomeMessage,
+          sender: 'bot',
+          timestamp: new Date(),
+        }]);
+      } catch (err) {
+        console.error('Error:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchChatbotConfig();
+  }, [userType]);
 
   const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault();
@@ -48,25 +90,23 @@ const Chatbot: React.FC<ChatbotProps> = ({ userType }) => {
 
     // Simulate bot response - in a real application, this would call an API
     setTimeout(() => {
-      const botResponses = {
-        admin: [
-          "Puedo ayudarte a gestionar candidatos, vacantes y campañas.",
-          "Para crear una nueva vacante, ve a la sección 'Vacantes' y haz clic en 'Nueva Vacante'.",
-          "Los reportes se actualizan automáticamente cada día a medianoche.",
-          "¿Necesitas ayuda con alguna función específica?",
-        ],
-        public: [
-          "Puedes ver todas las vacantes disponibles en la sección 'Vacantes'.",
-          "Para aplicar, haz clic en 'Postularse' en la vacante que te interese.",
-          "Necesitarás subir tu CV en formato PDF, DOC o DOCX.",
-          "¿Tienes alguna pregunta sobre el proceso de aplicación?",
-        ],
-      };
+      let responses;
+      
+      if (config) {
+        responses = userType === 'admin' 
+          ? config.admin_responses.faq
+          : config.public_responses.faq;
+      } else {
+        // Fallback responses if config isn't loaded
+        responses = userType === 'admin' 
+          ? ["Puedo ayudarte a gestionar candidatos, vacantes y campañas."]
+          : ["Puedes ver todas las vacantes disponibles en la sección 'Vacantes'."];
+      }
 
-      const randomIndex = Math.floor(Math.random() * botResponses[userType].length);
+      const randomIndex = Math.floor(Math.random() * responses.length);
       const botMessage: Message = {
         id: Date.now().toString(),
-        text: botResponses[userType][randomIndex],
+        text: responses[randomIndex],
         sender: 'bot',
         timestamp: new Date(),
       };
@@ -74,6 +114,10 @@ const Chatbot: React.FC<ChatbotProps> = ({ userType }) => {
       setMessages((prev) => [...prev, botMessage]);
     }, 1000);
   };
+
+  if (loading) {
+    return null; // Don't render until config is loaded
+  }
 
   return (
     <>

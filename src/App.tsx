@@ -20,6 +20,9 @@ import ApplicationForm from "./components/candidates/ApplicationForm";
 import Login from "./pages/admin/Login";
 import Dashboard from "./pages/admin/Dashboard";
 import Jobs from "./pages/admin/Jobs";
+import JobForm from "./pages/admin/JobForm";
+import Reports from "./pages/admin/Reports";
+import Settings from "./pages/admin/Settings";
 
 const queryClient = new QueryClient();
 
@@ -43,11 +46,13 @@ const App = () => (
           <Route path="/admin" element={<AdminLayout />}>
             <Route path="dashboard" element={<Dashboard />} />
             <Route path="jobs" element={<Jobs />} />
+            <Route path="jobs/new" element={<JobForm />} />
+            <Route path="jobs/:id/edit" element={<JobForm />} />
             <Route path="campaigns" element={<Dashboard />} /> {/* Placeholder */}
             <Route path="candidates" element={<Dashboard />} /> {/* Placeholder */}
             <Route path="chatbot" element={<Dashboard />} /> {/* Placeholder */}
-            <Route path="reports" element={<Dashboard />} /> {/* Placeholder */}
-            <Route path="settings" element={<Dashboard />} /> {/* Placeholder */}
+            <Route path="reports" element={<Reports />} />
+            <Route path="settings" element={<Settings />} />
           </Route>
 
           {/* Catch all */}
