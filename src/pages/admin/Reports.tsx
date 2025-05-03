@@ -19,6 +19,7 @@ interface Report {
 const Reports = () => {
   const [reports, setReports] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true);
+  const [generatingReport, setGeneratingReport] = useState<string | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -49,18 +50,67 @@ const Reports = () => {
 
   const generateReport = async (type: string) => {
     try {
-      setLoading(true);
+      setGeneratingReport(type);
       
-      // Generate default report data
-      const reportData = {
+      // Generate sample report data
+      let reportData: any = {
         name: `${type.charAt(0).toUpperCase() + type.slice(1)} Report - ${format(new Date(), 'yyyy-MM-dd')}`,
         type,
         parameters: {},
-        result: {
-          summary: "Este es un reporte de ejemplo",
-          data: []
-        }
       };
+      
+      // Create different sample data based on report type
+      if (type === 'candidates') {
+        reportData.result = {
+          summary: "Análisis de candidatos activos",
+          total_candidates: 25,
+          new_this_month: 8,
+          by_skill: {
+            "React": 12,
+            "Node.js": 9,
+            "Python": 7,
+            "UI/UX": 5
+          },
+          data: [
+            { name: "Candidato 1", position: "Frontend Developer", status: "Reviewing" },
+            { name: "Candidato 2", position: "Backend Developer", status: "Interview" }
+          ]
+        };
+      } else if (type === 'vacancies') {
+        reportData.result = {
+          summary: "Análisis de vacantes activas",
+          total_jobs: 12,
+          open_positions: 7,
+          most_applied: "Frontend Developer",
+          by_department: {
+            "Tecnología": 5,
+            "Marketing": 3,
+            "Ventas": 2,
+            "RRHH": 2
+          },
+          data: [
+            { title: "Frontend Developer", applicants: 15, status: "Open" },
+            { title: "Marketing Manager", applicants: 8, status: "Open" }
+          ]
+        };
+      } else if (type === 'analytics') {
+        reportData.result = {
+          summary: "Análisis de contrataciones",
+          avg_time_to_hire: "21 días",
+          cost_per_hire: "$1,200",
+          best_sources: ["LinkedIn", "Indeed", "Referrals"],
+          monthly_trend: {
+            "Enero": 3,
+            "Febrero": 4,
+            "Marzo": 2,
+            "Abril": 5
+          },
+          data: [
+            { position: "Full Stack Developer", time_to_hire: "18 días", source: "LinkedIn" },
+            { position: "Digital Marketing", time_to_hire: "24 días", source: "Indeed" }
+          ]
+        };
+      }
       
       // Insert the report into Supabase
       const { data, error } = await supabase
@@ -88,7 +138,36 @@ const Reports = () => {
         description: "No se pudo generar el reporte.",
       });
     } finally {
-      setLoading(false);
+      setGeneratingReport(null);
+    }
+  };
+
+  const downloadReport = (report: Report) => {
+    try {
+      // Create a JSON Blob with the report data
+      const data = JSON.stringify(report.result, null, 2);
+      const blob = new Blob([data], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      
+      // Create a temporary link and trigger download
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${report.name.replace(/\s+/g, '_')}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      toast({
+        title: "Reporte descargado",
+        description: "El reporte se ha descargado correctamente.",
+      });
+    } catch (error) {
+      console.error('Error downloading report:', error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "No se pudo descargar el reporte.",
+      });
     }
   };
 
@@ -120,11 +199,20 @@ const Reports = () => {
             <Button 
               size="sm" 
               onClick={() => generateReport('candidates')}
-              disabled={loading}
+              disabled={generatingReport !== null}
               className="w-full bg-hrm-dark-cyan hover:bg-hrm-steel-blue"
             >
-              <PlusCircle className="mr-2 h-4 w-4" />
-              Generar Reporte
+              {generatingReport === 'candidates' ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Generando...
+                </>
+              ) : (
+                <>
+                  <PlusCircle className="mr-2 h-4 w-4" />
+                  Generar Reporte
+                </>
+              )}
             </Button>
           </CardContent>
         </Card>
@@ -139,11 +227,20 @@ const Reports = () => {
             <Button 
               size="sm" 
               onClick={() => generateReport('vacancies')}
-              disabled={loading}
+              disabled={generatingReport !== null}
               className="w-full bg-hrm-dark-cyan hover:bg-hrm-steel-blue"
             >
-              <PlusCircle className="mr-2 h-4 w-4" />
-              Generar Reporte
+              {generatingReport === 'vacancies' ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Generando...
+                </>
+              ) : (
+                <>
+                  <PlusCircle className="mr-2 h-4 w-4" />
+                  Generar Reporte
+                </>
+              )}
             </Button>
           </CardContent>
         </Card>
@@ -158,11 +255,20 @@ const Reports = () => {
             <Button 
               size="sm" 
               onClick={() => generateReport('analytics')}
-              disabled={loading}
+              disabled={generatingReport !== null}
               className="w-full bg-hrm-dark-cyan hover:bg-hrm-steel-blue"
             >
-              <PlusCircle className="mr-2 h-4 w-4" />
-              Generar Reporte
+              {generatingReport === 'analytics' ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Generando...
+                </>
+              ) : (
+                <>
+                  <PlusCircle className="mr-2 h-4 w-4" />
+                  Generar Reporte
+                </>
+              )}
             </Button>
           </CardContent>
         </Card>
@@ -204,7 +310,11 @@ const Reports = () => {
                         {format(new Date(report.created_at), 'dd/MM/yyyy HH:mm')}
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button variant="outline" size="sm">
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => downloadReport(report)}
+                        >
                           <Download className="h-4 w-4 mr-2" />
                           Descargar
                         </Button>

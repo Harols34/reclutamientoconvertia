@@ -70,7 +70,8 @@ const JobForm = () => {
         location: values.location,
         type: values.type,
         description: values.description,
-        status: values.status === "draft" ? "open" : values.status, // Manejar tipo draft para base de datos
+        // Para la base de datos, si es draft lo enviamos como open
+        status: values.status === "draft" ? "open" : values.status,
         requirements: values.requirements || null,
         responsibilities: values.responsibilities || null,
         salary_range: values.salary_range || null,
@@ -84,10 +85,11 @@ const JobForm = () => {
       } else {
         result = await supabase
           .from('jobs')
-          .insert(jobData);
+          .insert([jobData]);
       }
       
       if (result.error) {
+        console.error("Error saving job:", result.error);
         throw result.error;
       }
       
@@ -133,6 +135,7 @@ const JobForm = () => {
             department: data.department || "",
             location: data.location || "",
             type: data.type || "full-time",
+            // Si el status es open pero era un draft en la interfaz, lo mostramos como draft
             status: data.status || "open",
             description: data.description || "",
             requirements: data.requirements || "",

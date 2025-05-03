@@ -35,11 +35,21 @@ const Jobs = () => {
         
         // Transformar los datos para que coincidan con el tipo JobType
         const transformedJobs: JobType[] = data?.map(job => ({
-          ...job,
+          id: job.id,
+          title: job.title,
+          department: job.department,
+          location: job.location,
+          status: job.status as JobType['status'], 
+          type: job.type as JobType['type'],
+          created_at: job.created_at,
+          updated_at: job.updated_at,
+          description: job.description,
+          requirements: job.requirements,
+          responsibilities: job.responsibilities,
+          salary_range: job.salary_range,
+          campaign_id: job.campaign_id,
           applicants: job.applications?.length || 0,
-          createdAt: job.created_at ? new Date(job.created_at) : new Date(), 
-          status: job.status as JobType['status'], // Asegurar que el tipo sea correcto
-          type: job.type as JobType['type']        // Asegurar que el tipo sea correcto
+          createdAt: job.created_at ? new Date(job.created_at) : new Date()
         })) || [];
         
         setJobs(transformedJobs);

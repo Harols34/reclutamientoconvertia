@@ -21,6 +21,9 @@ import Login from "./pages/admin/Login";
 import Dashboard from "./pages/admin/Dashboard";
 import Jobs from "./pages/admin/Jobs";
 import JobForm from "./pages/admin/JobForm";
+import Campaigns from "./pages/admin/Campaigns";
+import Candidates from "./pages/admin/Candidates";
+import ChatbotManager from "./pages/admin/ChatbotManager";
 import Reports from "./pages/admin/Reports";
 import Settings from "./pages/admin/Settings";
 
@@ -48,9 +51,9 @@ const App = () => (
             <Route path="jobs" element={<Jobs />} />
             <Route path="jobs/new" element={<JobForm />} />
             <Route path="jobs/:id/edit" element={<JobForm />} />
-            <Route path="campaigns" element={<Dashboard />} /> {/* Placeholder */}
-            <Route path="candidates" element={<Dashboard />} /> {/* Placeholder */}
-            <Route path="chatbot" element={<Dashboard />} /> {/* Placeholder */}
+            <Route path="campaigns" element={<Campaigns />} />
+            <Route path="candidates" element={<Candidates />} />
+            <Route path="chatbot" element={<ChatbotManager />} />
             <Route path="reports" element={<Reports />} />
             <Route path="settings" element={<Settings />} />
           </Route>

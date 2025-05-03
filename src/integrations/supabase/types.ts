@@ -372,6 +372,7 @@ export type Database = {
         | "hired"
         | "rejected"
       job_status: "open" | "in_progress" | "closed"
+      job_status_new: "open" | "in_progress" | "closed" | "draft"
       job_type:
         | "full-time"
         | "part-time"
@@ -503,6 +504,7 @@ export const Constants = {
         "rejected",
       ],
       job_status: ["open", "in_progress", "closed"],
+      job_status_new: ["open", "in_progress", "closed", "draft"],
       job_type: [
         "full-time",
         "part-time",

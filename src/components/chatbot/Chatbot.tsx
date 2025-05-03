@@ -6,7 +6,6 @@ import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
-import { Json } from '@/integrations/supabase/types';
 
 interface ChatbotProps {
   userType: 'admin' | 'public';
@@ -52,34 +51,59 @@ const Chatbot: React.FC<ChatbotProps> = ({ userType }) => {
           return;
         }
         
-        // Parse JSON responses
-        const adminResponses = typeof data.admin_responses === 'object' ? data.admin_responses : {};
-        const publicResponses = typeof data.public_responses === 'object' ? data.public_responses : {};
-        
-        // Create properly typed config object
-        const parsedConfig: ChatbotConfig = {
-          id: data.id,
-          updated_at: data.updated_at,
-          admin_responses: {
-            welcome: (adminResponses as any)?.welcome || "Bienvenido administrador",
-            faq: Array.isArray((adminResponses as any)?.faq) 
-              ? (adminResponses as any).faq 
-              : ["No hay preguntas frecuentes configuradas para administradores"]
-          },
-          public_responses: {
-            welcome: (publicResponses as any)?.welcome || "Bienvenido",
-            faq: Array.isArray((publicResponses as any)?.faq) 
-              ? (publicResponses as any).faq 
-              : ["No hay preguntas frecuentes configuradas"]
-          }
+        // Safety check
+        if (!data) {
+          console.error('No chatbot configuration found');
+          return;
+        }
+
+        // Parse responses ensuring proper types
+        const adminResponses: ChatbotResponseObject = {
+          welcome: "¡Hola! Soy tu asistente IA para administradores.",
+          faq: ["Para crear una vacante, ve a la sección 'Vacantes' y haz clic en 'Nueva Vacante'."]
         };
         
-        setConfig(parsedConfig);
+        const publicResponses: ChatbotResponseObject = {
+          welcome: "¡Hola! Soy tu asistente IA para candidatos.",
+          faq: ["Puedes ver todas las vacantes en la sección 'Vacantes'."]
+        };
         
-        // Inicializar con el mensaje de bienvenida
+        // Handle admin responses
+        if (data.admin_responses && typeof data.admin_responses === 'object') {
+          const adminData = data.admin_responses as Record<string, any>;
+          if (adminData.welcome && typeof adminData.welcome === 'string') {
+            adminResponses.welcome = adminData.welcome;
+          }
+          if (adminData.faq && Array.isArray(adminData.faq)) {
+            adminResponses.faq = adminData.faq.map(item => String(item));
+          }
+        }
+        
+        // Handle public responses
+        if (data.public_responses && typeof data.public_responses === 'object') {
+          const publicData = data.public_responses as Record<string, any>;
+          if (publicData.welcome && typeof publicData.welcome === 'string') {
+            publicResponses.welcome = publicData.welcome;
+          }
+          if (publicData.faq && Array.isArray(publicData.faq)) {
+            publicResponses.faq = publicData.faq.map(item => String(item));
+          }
+        }
+        
+        // Create config object
+        const chatbotConfig: ChatbotConfig = {
+          id: data.id,
+          updated_at: data.updated_at,
+          admin_responses: adminResponses,
+          public_responses: publicResponses
+        };
+        
+        setConfig(chatbotConfig);
+        
+        // Initialize with welcome message
         const welcomeMessage = userType === 'admin' 
-          ? parsedConfig.admin_responses.welcome
-          : parsedConfig.public_responses.welcome;
+          ? adminResponses.welcome
+          : publicResponses.welcome;
             
         setMessages([{
           id: '1',
@@ -88,7 +112,7 @@ const Chatbot: React.FC<ChatbotProps> = ({ userType }) => {
           timestamp: new Date(),
         }]);
       } catch (err) {
-        console.error('Error:', err);
+        console.error('Error loading chatbot configuration:', err);
       } finally {
         setLoading(false);
       }
