@@ -1,9 +1,9 @@
 
 import React from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, Link } from 'react-router-dom';
 import { 
-  Calendar, Database, File, Home, 
-  MessageCircle, Search, Settings, Users 
+  Calendar, Database, File, Home,
+  MessageCircle, Search, Settings, Users, ArrowLeft
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { 
@@ -12,6 +12,8 @@ import {
   SidebarFooter,
   SidebarHeader,
 } from '@/components/ui/sidebar';
+import { Button } from '@/components/ui/button';
+import ConvertIALogo from '@/assets/convert-ia-logo';
 
 const mainNavItems = [
   { 
@@ -56,7 +58,7 @@ const AdminSidebar = () => {
     <Sidebar className="border-r border-hrm-light-gray">
       <SidebarHeader className="h-14 border-b border-hrm-light-gray">
         <div className="flex items-center justify-center h-full">
-          <span className="text-xl font-bold text-hrm-dark-cyan">HRM AI</span>
+          <ConvertIALogo className="h-10" />
         </div>
       </SidebarHeader>
       <SidebarContent>
@@ -76,6 +78,10 @@ const AdminSidebar = () => {
               {item.label}
             </NavLink>
           ))}
+          <Link to="/" className="flex items-center px-4 py-2 text-sm font-medium rounded-md text-gray-600 hover:bg-hrm-light-gray hover:text-hrm-dark-cyan mt-4">
+            <ArrowLeft className="mr-3 h-5 w-5" />
+            Volver al inicio
+          </Link>
         </nav>
       </SidebarContent>
       <SidebarFooter className="border-t border-hrm-light-gray p-4">

@@ -16,6 +16,7 @@ export type Database = {
           created_at: string
           id: string
           job_id: string
+          job_type: string | null
           notes: string | null
           score: number | null
           status: Database["public"]["Enums"]["application_status"]
@@ -27,6 +28,7 @@ export type Database = {
           created_at?: string
           id?: string
           job_id: string
+          job_type?: string | null
           notes?: string | null
           score?: number | null
           status?: Database["public"]["Enums"]["application_status"]
@@ -38,6 +40,7 @@ export type Database = {
           created_at?: string
           id?: string
           job_id?: string
+          job_type?: string | null
           notes?: string | null
           score?: number | null
           status?: Database["public"]["Enums"]["application_status"]
@@ -50,6 +53,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "candidates"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "applications_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_applications_view"
+            referencedColumns: ["job_id"]
           },
           {
             foreignKeyName: "applications_job_id_fkey"
@@ -357,10 +367,56 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      job_applications_view: {
+        Row: {
+          application_count: number | null
+          campaign_id: string | null
+          campaign_name: string | null
+          created_at: string | null
+          department: string | null
+          description: string | null
+          job_id: string | null
+          location: string | null
+          requirements: string | null
+          responsibilities: string | null
+          salary_range: string | null
+          status: Database["public"]["Enums"]["job_status"] | null
+          title: string | null
+          type: Database["public"]["Enums"]["job_type"] | null
+          updated_at: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "jobs_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
-      [_ in never]: never
+      get_job_by_id: {
+        Args: { job_id: string }
+        Returns: {
+          id: string
+          title: string
+          department: string
+          location: string
+          description: string
+          requirements: string
+          responsibilities: string
+          salary_range: string
+          status: string
+          type: string
+          created_at: string
+          updated_at: string
+          campaign_id: string
+          campaign_name: string
+          application_count: number
+        }[]
+      }
     }
     Enums: {
       application_status:

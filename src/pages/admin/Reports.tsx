@@ -3,10 +3,20 @@ import React, { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
-import { PlusCircle, Download, BarChart, Users, FileText, Loader2 } from 'lucide-react';
+import { 
+  PlusCircle, Download, BarChart, Users, 
+  FileText, Loader2, FileSpreadsheet, FilePdf, FileText as FileTextIcon 
+} from 'lucide-react';
 import { format } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { exportData } from '@/utils/export';
 
 interface Report {
   id: string;
@@ -142,24 +152,52 @@ const Reports = () => {
     }
   };
 
-  const downloadReport = (report: Report) => {
+  const downloadReport = (report: Report, format: 'csv' | 'xlsx' | 'txt' | 'pdf' = 'json') => {
     try {
-      // Create a JSON Blob with the report data
-      const data = JSON.stringify(report.result, null, 2);
-      const blob = new Blob([data], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      
-      // Create a temporary link and trigger download
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `${report.name.replace(/\s+/g, '_')}.json`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      if (format === 'json') {
+        // Create a JSON Blob with the report data
+        const data = JSON.stringify(report.result, null, 2);
+        const blob = new Blob([data], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        
+        // Create a temporary link and trigger download
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `${report.name.replace(/\s+/g, '_')}.json`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      } else {
+        // Use our export utility for other formats
+        let dataToExport: any[] = [];
+        
+        // Convert the report data to a format suitable for export
+        if (report.result && report.result.data && Array.isArray(report.result.data)) {
+          dataToExport = report.result.data;
+        } else if (report.result) {
+          // If there's no data array, flatten the result object
+          const flattenedData = { ...report.result };
+          delete flattenedData.data;
+          
+          // Handle nested objects by converting them to strings
+          Object.keys(flattenedData).forEach(key => {
+            if (typeof flattenedData[key] === 'object' && flattenedData[key] !== null) {
+              flattenedData[key] = JSON.stringify(flattenedData[key]);
+            }
+          });
+          
+          dataToExport = [flattenedData];
+        }
+        
+        exportData(dataToExport, {
+          filename: report.name.replace(/\s+/g, '_'),
+          format
+        });
+      }
       
       toast({
         title: "Reporte descargado",
-        description: "El reporte se ha descargado correctamente.",
+        description: `El reporte se ha descargado en formato ${format.toUpperCase()}.`,
       });
     } catch (error) {
       console.error('Error downloading report:', error);
@@ -310,14 +348,35 @@ const Reports = () => {
                         {format(new Date(report.created_at), 'dd/MM/yyyy HH:mm')}
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={() => downloadReport(report)}
-                        >
-                          <Download className="h-4 w-4 mr-2" />
-                          Descargar
-                        </Button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                            >
+                              <Download className="h-4 w-4 mr-2" />
+                              Descargar
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => downloadReport(report, 'csv')}>
+                              <FileTextIcon className="h-4 w-4 mr-2" />
+                              <span>CSV</span>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => downloadReport(report, 'xlsx')}>
+                              <FileSpreadsheet className="h-4 w-4 mr-2" />
+                              <span>Excel (XLSX)</span>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => downloadReport(report, 'txt')}>
+                              <FileTextIcon className="h-4 w-4 mr-2" />
+                              <span>Texto (TXT)</span>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => downloadReport(report, 'pdf')}>
+                              <FilePdf className="h-4 w-4 mr-2" />
+                              <span>PDF</span>
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </TableCell>
                     </TableRow>
                   ))

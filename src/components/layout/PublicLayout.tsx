@@ -1,8 +1,8 @@
 
 import React from 'react';
-import { Outlet } from 'react-router-dom';
-import { Link } from 'react-router-dom';
+import { Outlet, Link } from 'react-router-dom';
 import Chatbot from '../chatbot/Chatbot';
+import ConvertIALogo from '@/assets/convert-ia-logo';
 
 const PublicLayout = () => {
   return (
@@ -10,7 +10,7 @@ const PublicLayout = () => {
       <header className="border-b border-hrm-light-gray">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           <Link to="/" className="flex items-center">
-            <span className="text-xl font-bold text-hrm-dark-cyan">HRM AI</span>
+            <ConvertIALogo className="h-10" />
           </Link>
           <nav>
             <ul className="flex space-x-6">
@@ -34,7 +34,7 @@ const PublicLayout = () => {
       <footer className="bg-gray-50 border-t border-hrm-light-gray">
         <div className="container mx-auto px-4 py-6">
           <p className="text-center text-gray-500 text-sm">
-            © {new Date().getFullYear()} HRM AI. Todos los derechos reservados.
+            CONVERT-IA RECLUTAMIENTO
           </p>
         </div>
       </footer>

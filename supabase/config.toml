@@ -1,1 +1,6 @@
+
+# This is the project ref
 project_id = "rlswwkisxwcjixzdjmiv"
+
+[functions.openai-assistant]
+verify_jwt = false
