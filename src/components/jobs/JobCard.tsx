@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Calendar, MapPin, Users } from 'lucide-react';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -73,7 +72,9 @@ const JobCard: React.FC<JobCardProps> = ({ job, isAdmin = false }) => {
         <div className="flex justify-between items-start">
           <div>
             <CardTitle className="text-lg font-semibold text-hrm-dark-cyan">
-              {job.title}
+              <Link to={isAdmin ? `/admin/jobs/${job.id}` : `/jobs/${job.id}`} className="hover:underline">
+                {job.title}
+              </Link>
             </CardTitle>
             <p className="text-sm text-gray-500">{job.department}</p>
           </div>
@@ -126,13 +127,23 @@ const JobCard: React.FC<JobCardProps> = ({ job, isAdmin = false }) => {
             </Button>
           </div>
         ) : (
-          <Button 
-            size="sm" 
-            className="w-full bg-hrm-dark-cyan hover:bg-hrm-steel-blue"
-            asChild
-          >
-            <Link to={`/postularse/${job.id}`}>Postularse</Link>
-          </Button>
+          <div className="w-full flex space-x-2">
+            <Button 
+              variant="outline"
+              size="sm" 
+              className="flex-1 border-hrm-steel-blue text-hrm-steel-blue hover:bg-hrm-steel-blue hover:text-white"
+              asChild
+            >
+              <Link to={`/jobs/${job.id}`}>Ver detalles</Link>
+            </Button>
+            <Button 
+              size="sm" 
+              className="flex-1 bg-hrm-dark-cyan hover:bg-hrm-steel-blue"
+              asChild
+            >
+              <Link to={`/postularse/${job.id}`}>Postularse</Link>
+            </Button>
+          </div>
         )}
       </CardFooter>
     </Card>

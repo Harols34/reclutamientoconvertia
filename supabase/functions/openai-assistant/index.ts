@@ -2,8 +2,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 
-const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
-
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -17,6 +15,15 @@ serve(async (req) => {
 
   try {
     const { prompt, type, context } = await req.json();
+    
+    // Get the OpenAI API key from environment variables
+    const openAIApiKey = Deno.env.get('OPENAI');
+    
+    if (!openAIApiKey) {
+      throw new Error('OpenAI API key is not configured');
+    }
+    
+    console.log("Using OpenAI API key:", openAIApiKey.substring(0, 5) + "...");
     
     let systemPrompt = "You are a helpful assistant for a recruitment platform.";
     

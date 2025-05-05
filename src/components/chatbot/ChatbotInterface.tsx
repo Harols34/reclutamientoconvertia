@@ -81,6 +81,7 @@ const ChatbotInterface: React.FC<ChatbotInterfaceProps> = ({ userType }) => {
         (userType === 'public' ? chatbotConfig.public_responses : chatbotConfig.admin_responses) : 
         {};
       
+      // Call the OpenAI edge function
       const { data, error } = await supabase.functions
         .invoke('openai-assistant', {
           body: {
@@ -90,7 +91,14 @@ const ChatbotInterface: React.FC<ChatbotInterfaceProps> = ({ userType }) => {
           }
         });
       
-      if (error) throw error;
+      if (error) {
+        console.error('Supabase function error:', error);
+        throw new Error('Error connecting to the AI assistant');
+      }
+      
+      if (!data || !data.response) {
+        throw new Error('Invalid response from AI assistant');
+      }
       
       const aiMessage = {
         id: crypto.randomUUID(),

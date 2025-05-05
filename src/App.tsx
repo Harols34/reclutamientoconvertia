@@ -14,6 +14,7 @@ import AdminLayout from "./components/layout/AdminLayout";
 // Public Pages
 import Home from "./pages/public/Home";
 import JobsList from "./pages/public/JobsList";
+import JobDetail from "./pages/public/JobDetail";
 import ThankYou from "./pages/public/ThankYou";
 import ApplicationForm from "./components/candidates/ApplicationForm";
 
@@ -42,6 +43,7 @@ const App = () => (
             <Route path="/" element={<PublicLayout />}>
               <Route index element={<Home />} />
               <Route path="jobs" element={<JobsList />} />
+              <Route path="jobs/:jobId" element={<JobDetail />} />
               <Route path="postularse/:jobId" element={<ApplicationForm />} />
               <Route path="gracias" element={<ThankYou />} />
             </Route>
@@ -55,6 +57,7 @@ const App = () => (
               <Route path="jobs/:id/edit" element={<JobForm />} />
               <Route path="campaigns" element={<Campaigns />} />
               <Route path="candidates" element={<Candidates />} />
+              <Route path="candidates/:id" element={<CandidateDetail />} />
               <Route path="chatbot" element={<ChatbotManager />} />
               <Route path="reports" element={<Reports />} />
               <Route path="settings" element={<Settings />} />

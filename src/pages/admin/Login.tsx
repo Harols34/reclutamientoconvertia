@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -23,6 +23,7 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
+import { ArrowLeft } from 'lucide-react';
 
 const formSchema = z.object({
   email: z.string().email({ message: 'Email inválido' }),
@@ -70,7 +71,15 @@ const Login = () => {
     <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
       <Card className="max-w-md w-full">
         <CardHeader>
-          <CardTitle className="text-hrm-dark-cyan text-center">HRM AI</CardTitle>
+          <div className="flex justify-between items-center mb-4">
+            <Button variant="outline" size="sm" asChild>
+              <Link to="/">
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Regresar al inicio
+              </Link>
+            </Button>
+          </div>
+          <CardTitle className="text-hrm-dark-cyan text-center">CONVERT-IA RECLUTAMIENTO</CardTitle>
           <CardDescription className="text-center">Accede a tu panel de administración</CardDescription>
         </CardHeader>
         <CardContent>
