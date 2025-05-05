@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -24,6 +24,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { ArrowLeft } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 
 const formSchema = z.object({
   email: z.string().email({ message: 'Email inválido' }),
@@ -35,6 +36,18 @@ const Login = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   
+  // Revisar si ya está autenticado
+  useEffect(() => {
+    const checkSession = async () => {
+      const { data } = await supabase.auth.getSession();
+      if (data.session) {
+        navigate('/admin/dashboard');
+      }
+    };
+    
+    checkSession();
+  }, [navigate]);
+  
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -43,28 +56,36 @@ const Login = () => {
     },
   });
   
-  const onSubmit = (values: z.infer<typeof formSchema>) => {
+  const onSubmit = async (values: z.infer<typeof formSchema>) => {
     setIsLoading(true);
     
-    // For demo purposes, accept any valid email/password
-    setTimeout(() => {
-      setIsLoading(false);
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email: values.email,
+        password: values.password,
+      });
       
-      // In a real app, this would validate against your authentication system
-      if (values.email === 'admin@example.com' && values.password === 'password') {
-        toast({
-          title: "¡Bienvenido!",
-          description: "Has iniciado sesión correctamente.",
-        });
-        navigate('/admin/dashboard');
-      } else {
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: "Credenciales incorrectas. Inténtalo de nuevo.",
-        });
+      if (error) {
+        throw error;
       }
-    }, 1500);
+      
+      toast({
+        title: "¡Bienvenido!",
+        description: "Has iniciado sesión correctamente.",
+      });
+      
+      navigate('/admin/dashboard');
+    } catch (error: any) {
+      console.error('Error de autenticación:', error);
+      
+      toast({
+        variant: "destructive",
+        title: "Error de inicio de sesión",
+        description: error.message || "Credenciales incorrectas. Inténtalo de nuevo.",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
   
   return (

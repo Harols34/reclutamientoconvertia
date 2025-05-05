@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Calendar, MapPin, Users } from 'lucide-react';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -72,9 +73,15 @@ const JobCard: React.FC<JobCardProps> = ({ job, isAdmin = false }) => {
         <div className="flex justify-between items-start">
           <div>
             <CardTitle className="text-lg font-semibold text-hrm-dark-cyan">
-              <Link to={isAdmin ? `/admin/jobs/${job.id}` : `/jobs/${job.id}`} className="hover:underline">
-                {job.title}
-              </Link>
+              {isAdmin ? (
+                <Link to={`/admin/jobs/${job.id}`} className="hover:underline">
+                  {job.title}
+                </Link>
+              ) : (
+                <Link to={`/jobs/${job.id}`} className="hover:underline">
+                  {job.title}
+                </Link>
+              )}
             </CardTitle>
             <p className="text-sm text-gray-500">{job.department}</p>
           </div>
