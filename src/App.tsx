@@ -25,6 +25,7 @@ import Jobs from "./pages/admin/Jobs";
 import JobForm from "./pages/admin/JobForm";
 import Campaigns from "./pages/admin/Campaigns";
 import Candidates from "./pages/admin/Candidates";
+import CandidateDetail from "./pages/admin/CandidateDetail";
 import ChatbotManager from "./pages/admin/ChatbotManager";
 import Reports from "./pages/admin/Reports";
 import Settings from "./pages/admin/Settings";
