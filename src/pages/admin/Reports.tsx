@@ -5,7 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
 import { 
   PlusCircle, Download, BarChart, Users, 
-  FileText, Loader2, FileSpreadsheet, FilePdf, FileText as FileTextIcon 
+  FileText, Loader2, FileSpreadsheet, FileText as FileTextIcon,
+  File 
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
@@ -152,23 +153,10 @@ const Reports = () => {
     }
   };
 
-  const downloadReport = (report: Report, format: 'csv' | 'xlsx' | 'txt' | 'pdf' = 'json') => {
+  const downloadReport = (report: Report, format: 'csv' | 'xlsx' | 'txt' | 'pdf') => {
     try {
-      if (format === 'json') {
-        // Create a JSON Blob with the report data
-        const data = JSON.stringify(report.result, null, 2);
-        const blob = new Blob([data], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        
-        // Create a temporary link and trigger download
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `${report.name.replace(/\s+/g, '_')}.json`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-      } else {
-        // Use our export utility for other formats
+      if (format === 'csv' || format === 'xlsx' || format === 'txt' || format === 'pdf') {
+        // Use our export utility for these formats
         let dataToExport: any[] = [];
         
         // Convert the report data to a format suitable for export
@@ -193,11 +181,24 @@ const Reports = () => {
           filename: report.name.replace(/\s+/g, '_'),
           format
         });
+      } else {
+        // Create a JSON Blob with the report data (fallback)
+        const data = JSON.stringify(report.result, null, 2);
+        const blob = new Blob([data], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        
+        // Create a temporary link and trigger download
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `${report.name.replace(/\s+/g, '_')}.json`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
       }
       
       toast({
         title: "Reporte descargado",
-        description: `El reporte se ha descargado en formato ${format.toUpperCase()}.`,
+        description: `El reporte se ha descargado correctamente.`,
       });
     } catch (error) {
       console.error('Error downloading report:', error);
@@ -372,7 +373,7 @@ const Reports = () => {
                               <span>Texto (TXT)</span>
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => downloadReport(report, 'pdf')}>
-                              <FilePdf className="h-4 w-4 mr-2" />
+                              <File className="h-4 w-4 mr-2" />
                               <span>PDF</span>
                             </DropdownMenuItem>
                           </DropdownMenuContent>
