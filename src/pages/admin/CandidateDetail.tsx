@@ -160,34 +160,41 @@ const CandidateDetail: React.FC = () => {
       }
 
       // First fetch the CV content from the URL
+      console.log("Fetching CV content from:", candidate.resume_url);
+      
+      const filename = candidate.resume_url.replace('resumes/', '');
+      
       const { data: fileData, error: fileError } = await supabase
         .storage
         .from('resumes')
-        .download(candidate.resume_url.replace('resumes/', ''));
+        .download(filename);
       
-      if (fileError) throw fileError;
-      
-      // Convert the file to text (simplified, in real app would need proper parsing)
-      let cvText = '';
-      try {
-        // For a text file
-        cvText = await fileData.text();
-      } catch (e) {
-        // If not text, just use a placeholder
-        cvText = `[CV Content from ${candidate.resume_url}]`;
+      if (fileError) {
+        console.error('Error downloading CV:', fileError);
+        throw fileError;
       }
       
+      // Read the file content
+      const fileContent = await fileData.text();
+      console.log("CV content length:", fileContent.length);
+      
       // Now call the OpenAI edge function for analysis
+      console.log("Calling OpenAI assistant for CV analysis");
       const { data, error } = await supabase.functions
         .invoke('openai-assistant', {
           body: {
-            prompt: cvText,
+            prompt: fileContent,
             type: 'cv-analysis',
             context: jobContext
           }
         });
       
-      if (error) throw error;
+      if (error) {
+        console.error('Error invoking OpenAI assistant:', error);
+        throw error;
+      }
+      
+      console.log("Analysis received successfully");
       
       // Update the candidate with the analysis
       const { error: updateError } = await supabase

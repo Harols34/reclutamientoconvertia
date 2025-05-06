@@ -68,7 +68,7 @@ serve(async (req) => {
       systemPrompt = `You are a helpful HR assistant. Please respond professionally.`
     }
     
-    console.log(`Making OpenAI API request for ${type} analysis`)
+    console.log(`Making OpenAI API request for ${type} analysis with prompt length: ${prompt.length}`)
     
     // Call OpenAI API
     const openAIResponse = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -78,7 +78,7 @@ serve(async (req) => {
         'Authorization': `Bearer ${apiKey}`
       },
       body: JSON.stringify({
-        model: 'gpt-4-turbo-preview',
+        model: 'gpt-4o-mini',  // Using the newer, more efficient model
         messages: [
           {
             role: 'system',
@@ -105,6 +105,8 @@ serve(async (req) => {
     
     const data = await openAIResponse.json()
     const response = data.choices[0].message.content
+    
+    console.log(`Successfully received OpenAI response for ${type} analysis`)
     
     return new Response(
       JSON.stringify({ response }),

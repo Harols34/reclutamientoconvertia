@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Filter, Loader2, Mail, Phone, MapPin } from 'lucide-react';
+import { Plus, Filter, Loader2, Mail, Phone, MapPin, RefreshCw } from 'lucide-react';
 import { format } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -21,6 +21,7 @@ interface Candidate {
   experience_years?: number;
   skills?: string[];
   created_at: string;
+  resume_url?: string;
   applications?: Array<any>;
 }
 
@@ -28,37 +29,63 @@ const Candidates = () => {
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('all');
+  const [refreshing, setRefreshing] = useState(false);
   const { toast } = useToast();
 
-  useEffect(() => {
-    const fetchCandidates = async () => {
-      try {
-        setLoading(true);
-        const { data, error } = await supabase
-          .from('candidates')
-          .select('*, applications(id, job_id, status)')
-          .order('created_at', { ascending: false });
-        
-        if (error) {
-          console.error('Error fetching candidates:', error);
-          toast({
-            title: "Error",
-            description: "No se pudieron cargar los candidatos.",
-            variant: "destructive"
-          });
-          return;
-        }
-        
-        setCandidates(data || []);
-      } catch (err) {
-        console.error('Error:', err);
-      } finally {
-        setLoading(false);
+  const fetchCandidates = async () => {
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('candidates')
+        .select('*, applications(id, job_id, status)')
+        .order('created_at', { ascending: false });
+      
+      if (error) {
+        console.error('Error fetching candidates:', error);
+        toast({
+          title: "Error",
+          description: "No se pudieron cargar los candidatos.",
+          variant: "destructive"
+        });
+        return;
       }
-    };
-    
+      
+      setCandidates(data || []);
+    } catch (err) {
+      console.error('Error:', err);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+  
+  useEffect(() => {
     fetchCandidates();
+    
+    // Set up subscription for real-time updates
+    const channel = supabase
+      .channel('candidates-changes')
+      .on('postgres_changes', 
+        { 
+          event: '*', 
+          schema: 'public', 
+          table: 'candidates' 
+        }, 
+        (payload) => {
+          console.log('Candidate change detected:', payload);
+          fetchCandidates(); // Refresh data when changes occur
+        })
+      .subscribe();
+      
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [toast]);
+
+  const handleRefresh = () => {
+    setRefreshing(true);
+    fetchCandidates();
+  };
 
   const getStatusBadge = (statusCount: number) => {
     if (statusCount === 0) return 'text-gray-500';
@@ -81,12 +108,23 @@ const Candidates = () => {
     <div>
       <div className="flex justify-between items-center mb-6">
         <h1 className="page-title">Candidatos</h1>
-        <Button className="bg-hrm-dark-cyan hover:bg-hrm-steel-blue" asChild>
-          <Link to="/admin/candidates/new">
-            <Plus className="mr-2 h-4 w-4" />
-            Nuevo Candidato
-          </Link>
-        </Button>
+        <div className="flex gap-2">
+          <Button 
+            variant="outline" 
+            onClick={handleRefresh} 
+            disabled={refreshing}
+            className="flex items-center gap-1"
+          >
+            <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+            Actualizar
+          </Button>
+          <Button className="bg-hrm-dark-cyan hover:bg-hrm-steel-blue" asChild>
+            <Link to="/admin/candidates/new">
+              <Plus className="mr-2 h-4 w-4" />
+              Nuevo Candidato
+            </Link>
+          </Button>
+        </div>
       </div>
       
       <div className="flex justify-between items-center mb-4">
@@ -142,6 +180,7 @@ const CandidatesTable: React.FC<CandidatesTableProps> = ({ candidates, loading }
                   <TableHead>Experiencia</TableHead>
                   <TableHead>Habilidades</TableHead>
                   <TableHead>Aplicaciones</TableHead>
+                  <TableHead>CV</TableHead>
                   <TableHead>Fecha de registro</TableHead>
                   <TableHead className="text-right">Acciones</TableHead>
                 </TableRow>
@@ -204,6 +243,17 @@ const CandidatesTable: React.FC<CandidatesTableProps> = ({ candidates, loading }
                         </span>
                       </TableCell>
                       <TableCell>
+                        {candidate.resume_url ? (
+                          <Badge variant="outline" className="bg-green-100 text-green-700 border-green-300">
+                            CV disponible
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="bg-gray-100 text-gray-500 border-gray-300">
+                            Sin CV
+                          </Badge>
+                        )}
+                      </TableCell>
+                      <TableCell>
                         {format(new Date(candidate.created_at), 'dd/MM/yyyy')}
                       </TableCell>
                       <TableCell className="text-right">
@@ -217,7 +267,7 @@ const CandidatesTable: React.FC<CandidatesTableProps> = ({ candidates, loading }
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-10 text-gray-500">
+                    <TableCell colSpan={8} className="text-center py-10 text-gray-500">
                       No hay candidatos disponibles en esta sección.
                     </TableCell>
                   </TableRow>
