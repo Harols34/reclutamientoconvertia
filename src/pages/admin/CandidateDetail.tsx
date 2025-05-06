@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { 
@@ -28,6 +29,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { Database } from '@/utils/supabase-helpers';
 
 interface Application {
   id: string;
@@ -124,7 +126,23 @@ const CandidateDetail: React.FC = () => {
             setCandidate(typedCandidate);
           } else {
             // If no applications, just set the candidate data directly
-            setCandidate(candidateData as Candidate);
+            setCandidate({
+              id: candidateData.id,
+              first_name: candidateData.first_name,
+              last_name: candidateData.last_name,
+              email: candidateData.email,
+              phone: candidateData.phone,
+              location: candidateData.location,
+              resume_url: candidateData.resume_url,
+              linkedin_url: candidateData.linkedin_url,
+              portfolio_url: candidateData.portfolio_url,
+              created_at: candidateData.created_at,
+              updated_at: candidateData.updated_at,
+              analysis_summary: candidateData.analysis_summary,
+              experience_years: candidateData.experience_years,
+              skills: candidateData.skills,
+              applications: []
+            });
           }
         }
       } catch (error) {

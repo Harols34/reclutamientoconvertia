@@ -73,7 +73,9 @@ export type Database = {
           portfolio_url: string | null;
           created_at: string;
           updated_at: string;
-          analysis_summary?: string | null;
+          analysis_summary: string | null;
+          experience_years: number | null;
+          skills: string[] | null;
         };
         Insert: {
           id?: string;
@@ -88,6 +90,8 @@ export type Database = {
           created_at?: string;
           updated_at?: string;
           analysis_summary?: string | null;
+          experience_years?: number | null;
+          skills?: string[] | null;
         };
         Update: {
           id?: string;
@@ -102,6 +106,8 @@ export type Database = {
           created_at?: string;
           updated_at?: string;
           analysis_summary?: string | null;
+          experience_years?: number | null;
+          skills?: string[] | null;
         };
       };
       applications: {
