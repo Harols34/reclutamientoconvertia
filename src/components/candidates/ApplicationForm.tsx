@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
@@ -86,13 +87,15 @@ const ApplicationForm = () => {
         }
 
         if (data && data.length > 0) {
+          // Fix TypeScript issues here - properly cast or handle the enums
           const jobData: JobType = {
             id: data[0].id,
             title: data[0].title,
             department: data[0].department,
             location: data[0].location,
-            status: data[0].status,
-            type: data[0].type,
+            // Use proper typing for status and type fields
+            status: data[0].status as "open" | "in_progress" | "closed" | "draft",
+            type: data[0].type as "full-time" | "part-time" | "contract" | "internship" | "temporary",
             created_at: data[0].created_at,
             updated_at: data[0].updated_at,
             description: data[0].description,
