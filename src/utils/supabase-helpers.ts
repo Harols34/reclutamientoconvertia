@@ -9,6 +9,9 @@ export const getTypedQuery = <T extends keyof SupabaseDatabase['public']['Tables
   return supabase.from(table);
 };
 
+// Re-export the Database type for backward compatibility
+export type { SupabaseDatabase as Database };
+
 // Types for commonly used tables
 export type AppDatabase = {
   public: {
