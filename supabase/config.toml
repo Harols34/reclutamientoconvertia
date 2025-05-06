@@ -1,1 +1,5 @@
+
 project_id = "kugocdtesaczbfrwblsi"
+
+[functions.regenerate-types]
+verify_jwt = true

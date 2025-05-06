@@ -25,9 +25,27 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { JobType } from '../jobs/JobCard';
-import { supabase } from '@/integrations/supabase/client';
 import { Loader2 } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { Database } from '@/utils/supabase-helpers';
+
+type JobType = {
+  id: string;
+  title: string;
+  department: string;
+  location: string;
+  status: 'open' | 'in_progress' | 'closed' | 'draft';
+  type: 'full-time' | 'part-time' | 'contract' | 'internship' | 'temporary';
+  created_at: string;
+  updated_at: string;
+  description: string;
+  requirements: string | null;
+  responsibilities: string | null;
+  salary_range: string | null;
+  campaign_id: string | null;
+  applicants: number;
+  createdAt: Date;
+};
 
 const phoneSchema = z
   .string()
@@ -146,25 +164,39 @@ const ApplicationForm = () => {
         }
       }
       
-      // Use the new create_or_update_application function
-      const { data, error } = await supabase.rpc('create_or_update_application', {
-        p_first_name: values.firstName,
-        p_last_name: values.lastName,
-        p_email: values.email,
-        p_phone: values.phone,
-        p_phone_country: values.phoneCountry,
-        p_job_id: jobId,
-        p_cover_letter: values.coverLetter || null,
-        p_job_type: job.type,
-        p_resume_url: resumeUrl
-      });
+      // Create candidate and application
+      const { data: candidateData, error: candidateError } = await supabase
+        .from('candidates')
+        .insert({
+          first_name: values.firstName,
+          last_name: values.lastName,
+          email: values.email,
+          phone: values.phone,
+          location: null,
+          resume_url: resumeUrl
+        })
+        .select()
+        .single();
       
-      if (error) {
-        console.error('Application submission error:', error);
-        throw error;
+      if (candidateError) {
+        console.error('Candidate creation error:', candidateError);
+        throw candidateError;
       }
       
-      console.log('Application submitted successfully:', data);
+      const { error: applicationError } = await supabase
+        .from('applications')
+        .insert({
+          candidate_id: candidateData.id,
+          job_id: jobId,
+          status: 'new'
+        });
+      
+      if (applicationError) {
+        console.error('Application creation error:', applicationError);
+        throw applicationError;
+      }
+      
+      console.log('Application submitted successfully');
       
       toast({
         title: "Aplicación enviada",
