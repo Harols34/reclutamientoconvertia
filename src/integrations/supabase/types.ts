@@ -397,8 +397,22 @@ export type Database = {
       }
     }
     Functions: {
+      create_or_update_application: {
+        Args: {
+          p_first_name: string
+          p_last_name: string
+          p_email: string
+          p_phone: string
+          p_phone_country: string
+          p_job_id: string
+          p_cover_letter: string
+          p_job_type: string
+          p_resume_url?: string
+        }
+        Returns: string
+      }
       get_job_by_id: {
-        Args: { job_id: string }
+        Args: { p_job_id: string }
         Returns: {
           id: string
           title: string

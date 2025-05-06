@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
@@ -76,35 +75,33 @@ const ApplicationForm = () => {
       
       try {
         setLoading(true);
-        // Using the job_applications_view to fetch job details
-        const { data, error } = await supabase
-          .from('jobs')
-          .select('*, applications(id)')
-          .eq('id', jobId)
-          .single();
+        // Use the updated RPC function to get job details
+        const { data, error } = await supabase.rpc('get_job_by_id', {
+          p_job_id: jobId
+        });
 
         if (error) {
           console.error('Error fetching job:', error);
           return;
         }
 
-        if (data) {
+        if (data && data.length > 0) {
           const jobData: JobType = {
-            id: data.id,
-            title: data.title,
-            department: data.department,
-            location: data.location,
-            status: data.status,
-            type: data.type,
-            created_at: data.created_at,
-            updated_at: data.updated_at,
-            description: data.description,
-            requirements: data.requirements,
-            responsibilities: data.responsibilities,
-            salary_range: data.salary_range,
-            campaign_id: data.campaign_id,
-            applicants: data.applications?.length || 0,
-            createdAt: data.created_at ? new Date(data.created_at) : new Date()
+            id: data[0].id,
+            title: data[0].title,
+            department: data[0].department,
+            location: data[0].location,
+            status: data[0].status,
+            type: data[0].type,
+            created_at: data[0].created_at,
+            updated_at: data[0].updated_at,
+            description: data[0].description,
+            requirements: data[0].requirements,
+            responsibilities: data[0].responsibilities,
+            salary_range: data[0].salary_range,
+            campaign_id: data[0].campaign_id,
+            applicants: data[0].application_count || 0,
+            createdAt: data[0].created_at ? new Date(data[0].created_at) : new Date()
           };
           setJob(jobData);
         }
@@ -119,79 +116,52 @@ const ApplicationForm = () => {
   }, [jobId]);
 
   const onSubmit = async (values: ApplicationFormValues) => {
-    if (!job) return;
+    if (!job || !jobId) return;
     
     setIsSubmitting(true);
     
     try {
-      // First, create a candidate
-      const { data: candidateData, error: candidateError } = await supabase
-        .from('candidates')
-        .insert([
-          {
-            first_name: values.firstName,
-            last_name: values.lastName,
-            email: values.email,
-            phone: values.phone,
-            phone_country: values.phoneCountry,
-          }
-        ])
-        .select();
-
-      if (candidateError) throw candidateError;
-      const candidateId = candidateData[0].id;
+      // Upload resume file to Supabase Storage
+      let resumeUrl = null;
       
-      // Now create the application
-      const { error: applicationError } = await supabase
-        .from('applications')
-        .insert([
-          {
-            job_id: jobId,
-            candidate_id: candidateId,
-            cover_letter: values.coverLetter || null,
-            status: 'applied',
-            job_type: job.type,
-          }
-        ]);
-
-      if (applicationError) throw applicationError;
-
-      // Now analyze the CV with OpenAI if resume is provided
       if (values.resume) {
-        // TODO: In a real app, you would upload the file and then analyze it
-        // For now, we'll just simulate the analysis
-        const reader = new FileReader();
-        reader.onload = async (e) => {
-          const text = e.target?.result;
-          if (typeof text === 'string') {
-            const resumeText = text.substring(0, 5000); // Limit text length
-            
-            // Call the OpenAI function to analyze the CV
-            try {
-              const { data: analysisData, error: analysisError } = await supabase.functions
-                .invoke('openai-assistant', {
-                  body: {
-                    prompt: resumeText,
-                    type: 'cv-analysis',
-                    context: job.requirements
-                  }
-                });
-                
-              if (analysisError) console.error('CV analysis error:', analysisError);
-              if (analysisData) {
-                // Update candidate with analysis
-                await supabase
-                  .from('candidates')
-                  .update({ analysis_summary: analysisData.response })
-                  .eq('id', candidateId);
-              }
-            } catch (err) {
-              console.error('Error analyzing CV:', err);
-            }
-          }
-        };
-        reader.readAsText(values.resume);
+        const fileExt = values.resume.name.split('.').pop();
+        const fileName = `${Date.now()}_${values.firstName.toLowerCase()}_${values.lastName.toLowerCase()}.${fileExt}`;
+        
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from('resumes')
+          .upload(fileName, values.resume);
+        
+        if (uploadError) {
+          console.error('Resume upload error:', uploadError);
+          throw new Error('Error al subir el currículum, por favor intenta de nuevo.');
+        }
+        
+        if (uploadData) {
+          resumeUrl = `resumes/${fileName}`;
+          console.log('Resume uploaded successfully:', resumeUrl);
+        }
       }
+      
+      // Use the new create_or_update_application function
+      const { data, error } = await supabase.rpc('create_or_update_application', {
+        p_first_name: values.firstName,
+        p_last_name: values.lastName,
+        p_email: values.email,
+        p_phone: values.phone,
+        p_phone_country: values.phoneCountry,
+        p_job_id: jobId,
+        p_cover_letter: values.coverLetter || null,
+        p_job_type: job.type,
+        p_resume_url: resumeUrl
+      });
+      
+      if (error) {
+        console.error('Application submission error:', error);
+        throw error;
+      }
+      
+      console.log('Application submitted successfully:', data);
       
       toast({
         title: "Aplicación enviada",
@@ -203,9 +173,9 @@ const ApplicationForm = () => {
     } catch (err) {
       console.error('Error submitting application:', err);
       toast({
+        variant: "destructive",
         title: "Error",
         description: "Hubo un problema al enviar tu aplicación. Por favor, inténtalo de nuevo.",
-        variant: "destructive",
       });
     } finally {
       setIsSubmitting(false);

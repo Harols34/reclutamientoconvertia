@@ -21,19 +21,30 @@ const JobDetail: React.FC = () => {
       try {
         setLoading(true);
         
-        // Use the RPC function to get job details
+        if (!id) {
+          setError('No se proporcionó un ID de vacante válido.');
+          setLoading(false);
+          return;
+        }
+        
+        console.log('Fetching job details for:', id);
+        
+        // Use the updated RPC function to get job details
         const { data, error } = await supabase.rpc('get_job_by_id', {
-          job_id: id
+          p_job_id: id
         });
         
         if (error) {
+          console.error('Error from get_job_by_id:', error);
           throw error;
         }
         
         if (data && data.length > 0) {
+          console.log('Job data retrieved:', data[0]);
           setJob(data[0]);
           setApplicantCount(data[0].application_count || 0);
         } else {
+          console.log('No job data found');
           setError('No se encontró la vacante solicitada.');
         }
       } catch (err) {

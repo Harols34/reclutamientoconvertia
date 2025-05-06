@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { 
@@ -58,7 +57,7 @@ interface Candidate {
 const CandidateDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const { toast } = useToast();
-  const [candidate, setCandidate] = useState<Candidate | null>(null);
+  const [candidate, setCandidate] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [analyzing, setAnalyzing] = useState(false);
   const [jobDetails, setJobDetails] = useState<any>(null);
@@ -78,6 +77,8 @@ const CandidateDetail: React.FC = () => {
         if (candidateError) throw candidateError;
         
         if (candidateData) {
+          console.log("Candidate data:", candidateData);
+          
           // If the candidate has applications, fetch the job details for each application
           if (candidateData.applications && candidateData.applications.length > 0) {
             const jobPromises = candidateData.applications.map(async (app: any) => {
@@ -219,6 +220,18 @@ const CandidateDetail: React.FC = () => {
     }
   };
 
+  // Helper function to get the public URL for a resume
+  const getResumeUrl = (path: string) => {
+    if (!path) return null;
+    
+    // If it's already a full URL, return it
+    if (path.startsWith('http')) return path;
+    
+    // If it's a path in the storage, get the public URL
+    const filename = path.replace('resumes/', '');
+    return supabase.storage.from('resumes').getPublicUrl(filename).data.publicUrl;
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center items-center py-20">
@@ -319,7 +332,10 @@ const CandidateDetail: React.FC = () => {
                     variant="outline" 
                     size="sm" 
                     className="w-full flex items-center justify-center"
-                    onClick={() => window.open(candidate.resume_url, '_blank')}
+                    onClick={() => {
+                      const url = getResumeUrl(candidate.resume_url);
+                      if (url) window.open(url, '_blank');
+                    }}
                   >
                     <FileText className="mr-2 h-4 w-4" />
                     Ver CV
