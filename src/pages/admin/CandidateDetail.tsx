@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { 
@@ -36,8 +35,8 @@ interface Application {
   job_id: string;
   job_title?: string;
   job_department?: string;
-  job_type: string;
   created_at: string;
+  job_type?: string;
 }
 
 interface Candidate {
@@ -53,6 +52,9 @@ interface Candidate {
   resume_url?: string;
   analysis_summary?: string;
   applications?: Application[];
+  linkedin_url?: string;
+  portfolio_url?: string;
+  updated_at: string;
 }
 
 const CandidateDetail: React.FC = () => {
@@ -72,7 +74,7 @@ const CandidateDetail: React.FC = () => {
         // Fetch candidate details with their applications
         const { data: candidateData, error: candidateError } = await supabase
           .from('candidates')
-          .select('*, applications(id, status, job_id, job_type, created_at)')
+          .select('*, applications(id, status, job_id, created_at)')
           .eq('id', id)
           .single();
         
@@ -86,22 +88,44 @@ const CandidateDetail: React.FC = () => {
             const jobPromises = candidateData.applications.map(async (app: any) => {
               const { data: jobData } = await supabase
                 .from('jobs')
-                .select('id, title, department')
+                .select('id, title, department, type')
                 .eq('id', app.job_id)
                 .single();
               
               return {
                 ...app,
-                job_title: jobData?.title,
-                job_department: jobData?.department
+                job_title: jobData?.title ?? 'Unknown Job',
+                job_department: jobData?.department ?? 'Unknown Department',
+                job_type: jobData?.type ?? 'full-time'
               };
             });
             
             const appsWithJobDetails = await Promise.all(jobPromises);
-            candidateData.applications = appsWithJobDetails;
+            
+            // Create a properly typed candidate object
+            const typedCandidate: Candidate = {
+              id: candidateData.id,
+              first_name: candidateData.first_name,
+              last_name: candidateData.last_name,
+              email: candidateData.email,
+              phone: candidateData.phone,
+              location: candidateData.location,
+              resume_url: candidateData.resume_url,
+              linkedin_url: candidateData.linkedin_url,
+              portfolio_url: candidateData.portfolio_url,
+              created_at: candidateData.created_at,
+              updated_at: candidateData.updated_at,
+              analysis_summary: candidateData.analysis_summary,
+              applications: appsWithJobDetails,
+              experience_years: candidateData.experience_years,
+              skills: candidateData.skills
+            };
+            
+            setCandidate(typedCandidate);
+          } else {
+            // If no applications, just set the candidate data directly
+            setCandidate(candidateData as Candidate);
           }
-          
-          setCandidate(candidateData);
         }
       } catch (error) {
         console.error('Error fetching candidate details:', error);
@@ -210,10 +234,13 @@ const CandidateDetail: React.FC = () => {
       if (updateError) throw updateError;
       
       // Update local state
-      setCandidate(prev => prev ? { 
-        ...prev, 
-        analysis_summary: data.response 
-      } : null);
+      setCandidate(prev => {
+        if (!prev) return null;
+        return { 
+          ...prev, 
+          analysis_summary: data.response 
+        };
+      });
       
       toast({
         title: "Análisis completado",
@@ -345,7 +372,7 @@ const CandidateDetail: React.FC = () => {
                     size="sm" 
                     className="w-full flex items-center justify-center"
                     onClick={() => {
-                      const url = getResumeUrl(candidate.resume_url);
+                      const url = getResumeUrl(candidate.resume_url!);
                       if (url) window.open(url, '_blank');
                     }}
                   >

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Search, MapPin } from 'lucide-react';
 import { Input } from '@/components/ui/input';
@@ -36,9 +35,11 @@ const JobsList = () => {
         }
         
         // Transformar los datos para que coincidan con el tipo JobType
-        const transformedJobs = data?.map(job => ({
+        const transformedJobs: JobType[] = data?.map(job => ({
           ...job,
           applicants: 0, // Inicializa con 0 si no hay datos
+          type: job.type as 'full-time' | 'part-time' | 'contract' | 'internship' | 'temporary',
+          status: job.status as 'open' | 'closed' | 'draft' | 'in_progress',
           createdAt: job.created_at ? new Date(job.created_at) : new Date(), // Convertir string a Date
         })) || [];
         

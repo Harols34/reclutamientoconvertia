@@ -1,9 +1,9 @@
 
 import { supabase } from '@/integrations/supabase/client';
-import type { Database } from '@/integrations/supabase/types';
+import type { Database as SupabaseDatabase } from '@/integrations/supabase/types';
 
 // Helper function for typed queries
-export const getTypedQuery = <T extends keyof Database['public']['Tables']>(
+export const getTypedQuery = <T extends keyof SupabaseDatabase['public']['Tables']>(
   table: T
 ) => {
   return supabase.from(table);
@@ -73,6 +73,7 @@ export type Database = {
           portfolio_url: string | null;
           created_at: string;
           updated_at: string;
+          analysis_summary?: string | null;
         };
         Insert: {
           id?: string;
@@ -86,6 +87,7 @@ export type Database = {
           portfolio_url?: string | null;
           created_at?: string;
           updated_at?: string;
+          analysis_summary?: string | null;
         };
         Update: {
           id?: string;
@@ -218,6 +220,38 @@ export type Database = {
           created_at?: string;
         };
       };
+      system_settings: {
+        Row: {
+          id: string;
+          company_name: string;
+          email_notifications: boolean;
+          language: string;
+          theme: string;
+          created_at: string;
+          updated_at: string;
+          settings?: Record<string, any>;
+        };
+        Insert: {
+          id?: string;
+          company_name?: string;
+          email_notifications?: boolean;
+          language?: string;
+          theme?: string;
+          created_at?: string;
+          updated_at?: string;
+          settings?: Record<string, any>;
+        };
+        Update: {
+          id?: string;
+          company_name?: string;
+          email_notifications?: boolean;
+          language?: string;
+          theme?: string;
+          created_at?: string;
+          updated_at?: string;
+          settings?: Record<string, any>;
+        };
+      };
     };
   };
 };
@@ -229,4 +263,16 @@ export interface Report {
   type: string;
   created_at: string;
   result: any;
+}
+
+// Update SystemSettings type to match the database schema
+export interface SystemSettings {
+  id: string;
+  company_name: string;
+  email_notifications: boolean;
+  language: string;
+  theme: string;
+  created_at: string;
+  updated_at: string;
+  settings?: Record<string, any>;
 }
