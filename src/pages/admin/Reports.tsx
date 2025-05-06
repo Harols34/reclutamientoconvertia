@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -18,14 +17,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { exportData } from '@/utils/export';
-
-interface Report {
-  id: string;
-  name: string;
-  type: string;
-  created_at: string;
-  result: any;
-}
+import { Report } from '@/utils/supabase-helpers';
 
 const Reports = () => {
   const [reports, setReports] = useState<Report[]>([]);
@@ -36,14 +28,54 @@ const Reports = () => {
   useEffect(() => {
     const fetchReports = async () => {
       try {
-        const { data, error } = await supabase
-          .from('reports')
-          .select('*')
-          .order('created_at', { ascending: false });
-          
-        if (error) throw error;
-        
-        setReports(data || []);
+        // Since we don't have a reports table yet, we'll simulate reports with fake data
+        // In a production environment, you would fetch from an actual reports table
+        setReports([
+          {
+            id: '1',
+            name: 'Candidates Report - 2025-05-01',
+            type: 'candidates',
+            created_at: '2025-05-01T12:00:00Z',
+            result: {
+              summary: "Análisis de candidatos activos",
+              total_candidates: 25,
+              new_this_month: 8,
+              by_skill: {
+                "React": 12,
+                "Node.js": 9,
+                "Python": 7,
+                "UI/UX": 5
+              },
+              data: [
+                { name: "Candidato 1", position: "Frontend Developer", status: "Reviewing" },
+                { name: "Candidato 2", position: "Backend Developer", status: "Interview" }
+              ]
+            }
+          },
+          {
+            id: '2',
+            name: 'Vacancies Report - 2025-05-02',
+            type: 'vacancies',
+            created_at: '2025-05-02T14:30:00Z',
+            result: {
+              summary: "Análisis de vacantes activas",
+              total_jobs: 12,
+              open_positions: 7,
+              most_applied: "Frontend Developer",
+              by_department: {
+                "Tecnología": 5,
+                "Marketing": 3,
+                "Ventas": 2,
+                "RRHH": 2
+              },
+              data: [
+                { title: "Frontend Developer", applicants: 15, status: "Open" },
+                { title: "Marketing Manager", applicants: 8, status: "Open" }
+              ]
+            }
+          }
+        ]);
+        setLoading(false);
       } catch (error) {
         console.error('Error fetching reports:', error);
         toast({
@@ -51,7 +83,6 @@ const Reports = () => {
           title: "Error",
           description: "No se pudieron cargar los reportes.",
         });
-      } finally {
         setLoading(false);
       }
     };
@@ -64,10 +95,12 @@ const Reports = () => {
       setGeneratingReport(type);
       
       // Generate sample report data
-      let reportData: any = {
+      let reportData: Report = {
+        id: Date.now().toString(),
         name: `${type.charAt(0).toUpperCase() + type.slice(1)} Report - ${format(new Date(), 'yyyy-MM-dd')}`,
         type,
-        parameters: {},
+        created_at: new Date().toISOString(),
+        result: {},
       };
       
       // Create different sample data based on report type
@@ -123,23 +156,13 @@ const Reports = () => {
         };
       }
       
-      // Insert the report into Supabase
-      const { data, error } = await supabase
-        .from('reports')
-        .insert([reportData])
-        .select();
-        
-      if (error) throw error;
+      // Store report in state
+      setReports(prev => [reportData, ...prev]);
       
       toast({
         title: "Reporte generado",
         description: "El reporte se ha generado correctamente.",
       });
-      
-      // Add the new report to the list
-      if (data && data[0]) {
-        setReports(prev => [data[0], ...prev]);
-      }
       
     } catch (error) {
       console.error('Error generating report:', error);

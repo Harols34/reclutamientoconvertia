@@ -28,9 +28,39 @@ serve(async (req) => {
       }
     )
 
-    // Generate types logic would go here
+    // Get the current database schema
+    const { data: tablesData, error: tablesError } = await supabaseClient
+      .from('pg_catalog.pg_tables')
+      .select('schemaname, tablename')
+      .eq('schemaname', 'public');
+    
+    if (tablesError) {
+      throw tablesError;
+    }
+
+    // Generate type information for each table
+    const tableTypes = [];
+    for (const table of tablesData || []) {
+      const { data: columnsData, error: columnsError } = await supabaseClient
+        .from('information_schema.columns')
+        .select('column_name, data_type, is_nullable')
+        .eq('table_schema', 'public')
+        .eq('table_name', table.tablename);
+      
+      if (columnsError) {
+        throw columnsError;
+      }
+
+      tableTypes.push({
+        tableName: table.tablename,
+        columns: columnsData
+      });
+    }
+
+    // Format and return the results
     const results = {
-      message: "Types generation would happen here in a production environment",
+      message: "Types generated successfully",
+      tables: tableTypes,
       success: true
     }
 

@@ -19,7 +19,7 @@ interface Campaign {
   description?: string;
   status: string;
   created_at: string;
-  jobs?: any[];
+  jobs?: any[] | null;
 }
 
 const Campaigns = () => {
@@ -31,13 +31,14 @@ const Campaigns = () => {
     const fetchCampaigns = async () => {
       try {
         setLoading(true);
-        const { data, error } = await supabase
+        // First fetch campaigns
+        const { data: campaignsData, error: campaignsError } = await supabase
           .from('campaigns')
-          .select('*, jobs(id, title, status)')
+          .select('*')
           .order('created_at', { ascending: false });
           
-        if (error) {
-          console.error('Error fetching campaigns:', error);
+        if (campaignsError) {
+          console.error('Error fetching campaigns:', campaignsError);
           toast({
             variant: "destructive",
             title: "Error",
@@ -45,8 +46,23 @@ const Campaigns = () => {
           });
           return;
         }
+
+        // Then fetch jobs for each campaign
+        const campaignsWithJobs = await Promise.all(
+          (campaignsData || []).map(async (campaign) => {
+            const { data: jobsData } = await supabase
+              .from('jobs')
+              .select('id, title, status')
+              .eq('campaign_id', campaign.id);
+            
+            return {
+              ...campaign,
+              jobs: jobsData || []
+            };
+          })
+        );
         
-        setCampaigns(data || []);
+        setCampaigns(campaignsWithJobs);
       } catch (error) {
         console.error('Error:', error);
       } finally {

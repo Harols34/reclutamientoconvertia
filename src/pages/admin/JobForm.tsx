@@ -20,13 +20,17 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
 
-// Definiendo un esquema que coincide con los tipos de Supabase
+// Define job types and statuses as const arrays to use in the schema and component
+const JOB_TYPES = ['full-time', 'part-time', 'contract', 'internship', 'temporary'] as const;
+const JOB_STATUSES = ['open', 'in_progress', 'closed', 'draft'] as const;
+
+// Define the schema with explicit types
 const formSchema = z.object({
   title: z.string().min(2, "El título debe tener al menos 2 caracteres"),
   department: z.string().min(2, "El departamento es requerido"),
   location: z.string().min(2, "La ubicación es requerida"),
-  type: z.enum(["full-time", "part-time", "contract", "internship", "temporary"]),
-  status: z.enum(["open", "in_progress", "closed", "draft"]),
+  type: z.enum(JOB_TYPES),
+  status: z.enum(JOB_STATUSES),
   description: z.string().min(10, "La descripción debe tener al menos 10 caracteres"),
   requirements: z.string().optional(),
   responsibilities: z.string().optional(),
@@ -63,14 +67,14 @@ const JobForm = () => {
     try {
       let result;
       
-      // Asegurarnos que todos los campos requeridos estén presentes
+      // Ensure all required fields are present
       const jobData = {
         title: values.title,
         department: values.department,
         location: values.location,
         type: values.type,
         description: values.description,
-        // Para la base de datos, si es draft lo enviamos como open
+        // For the database, if is draft we send it as open
         status: values.status === "draft" ? "open" : values.status,
         requirements: values.requirements || null,
         responsibilities: values.responsibilities || null,
@@ -129,14 +133,13 @@ const JobForm = () => {
         if (error) throw error;
         
         if (data) {
-          // Asegurar que los valores cumplan con el esquema antes de establecerlos en el formulario
+          // Cast the values to ensure they match the schema types
           form.reset({
             title: data.title || "",
             department: data.department || "",
             location: data.location || "",
-            type: data.type || "full-time",
-            // Si el status es open pero era un draft en la interfaz, lo mostramos como draft
-            status: data.status || "open",
+            type: data.type as typeof JOB_TYPES[number] || "full-time",
+            status: data.status as typeof JOB_STATUSES[number] || "open",
             description: data.description || "",
             requirements: data.requirements || "",
             responsibilities: data.responsibilities || "",

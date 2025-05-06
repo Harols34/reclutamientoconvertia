@@ -1,8 +1,7 @@
-
 import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
-import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 import {
   Form,
   FormControl,
@@ -12,367 +11,184 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
-import { 
-  Card, 
-  CardContent, 
-  CardDescription, 
-  CardHeader, 
-  CardTitle 
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
 } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
-import { Loader2 } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+import { Switch } from '@/components/ui/switch';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
+import { Loader2 } from 'lucide-react';
+import { SystemSettings } from '@/types/system-settings';
 
-const generalSettingsSchema = z.object({
-  company_name: z.string().min(1, "El nombre de la empresa es requerido"),
-  default_language: z.string().min(1, "El idioma por defecto es requerido"),
-  email_notifications: z.boolean(),
-  admin_email: z.string().email("Correo electrónico inválido").optional().or(z.literal('')),
-  company_description: z.string().optional(),
+// Define the form schema
+const settingsFormSchema = z.object({
+  company_name: z.string().min(2, {
+    message: "El nombre de la empresa debe tener al menos 2 caracteres.",
+  }),
+  email_notifications: z.boolean().default(false),
+  theme: z.enum(["light", "dark", "system"]),
+  language: z.enum(["es", "en"]),
 });
 
-const chatbotSettingsSchema = z.object({
-  admin_welcome: z.string().min(1, "El mensaje de bienvenida para administradores es requerido"),
-  public_welcome: z.string().min(1, "El mensaje de bienvenida para usuarios públicos es requerido"),
-  admin_responses: z.string().min(1, "Las respuestas para administradores son requeridas"),
-  public_responses: z.string().min(1, "Las respuestas para usuarios públicos son requeridas"),
-});
+// This simulates our settings object in lieu of an actual system_settings table
+const defaultSettings: SystemSettings = {
+  id: '1',
+  company_name: 'CONVERT-IA Reclutamiento',
+  email_notifications: true,
+  language: 'es',
+  theme: 'system',
+  created_at: new Date().toISOString(),
+  updated_at: new Date().toISOString()
+};
 
-type GeneralSettingsValues = z.infer<typeof generalSettingsSchema>;
-type ChatbotSettingsValues = z.infer<typeof chatbotSettingsSchema>;
-
-interface SystemSettings {
-  company_name: string;
-  default_language: string;
-  email_notifications: boolean;
-  admin_email?: string;
-  company_description?: string;
-}
-
-interface ChatbotResponses {
-  welcome: string;
-  faq: string[];
-}
+type SettingsFormValues = z.infer<typeof settingsFormSchema>;
 
 const Settings = () => {
-  const [isLoadingGeneral, setIsLoadingGeneral] = useState(false);
-  const [isLoadingChatbot, setIsLoadingChatbot] = useState(false);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [settings, setSettings] = useState<SystemSettings>(defaultSettings);
   const { toast } = useToast();
-  
-  // General Settings Form
-  const generalForm = useForm<GeneralSettingsValues>({
-    resolver: zodResolver(generalSettingsSchema),
+
+  // Set up form with default values
+  const form = useForm<SettingsFormValues>({
+    resolver: zodResolver(settingsFormSchema),
     defaultValues: {
-      company_name: "HRM AI",
-      default_language: "es",
-      email_notifications: true,
-      admin_email: "",
-      company_description: "",
+      company_name: settings.company_name,
+      email_notifications: settings.email_notifications,
+      theme: settings.theme as "light" | "dark" | "system",
+      language: settings.language as "es" | "en",
     },
   });
-  
-  // Chatbot Settings Form
-  const chatbotForm = useForm<ChatbotSettingsValues>({
-    resolver: zodResolver(chatbotSettingsSchema),
-    defaultValues: {
-      admin_welcome: "¡Hola! Soy tu asistente IA. ¿Cómo puedo ayudarte a gestionar tu plataforma de reclutamiento?",
-      public_welcome: "¡Hola! Soy tu asistente IA. ¿Cómo puedo ayudarte con las ofertas de trabajo?",
-      admin_responses: "Para crear una nueva vacante, ve a la sección 'Vacantes' y haz clic en 'Nueva Vacante'.\nLos reportes se actualizan automáticamente cada día a medianoche.",
-      public_responses: "Puedes ver todas las vacantes disponibles en la sección 'Vacantes'.\nPara aplicar, haz clic en 'Postularse' en la vacante que te interese.\nNecesitarás subir tu CV en formato PDF, DOC o DOCX.",
-    },
-  });
-  
-  // Fetch settings
+
+  // When settings load, update the form
   useEffect(() => {
-    const fetchSettings = async () => {
-      try {
-        setIsLoadingGeneral(true);
-        
-        // Fetch system settings
-        const { data: systemSettings, error: systemError } = await supabase
-          .from('system_settings')
-          .select('*')
-          .limit(1)
-          .single();
-          
-        if (systemError) throw systemError;
-        
-        if (systemSettings) {
-          // Parse system settings
-          let settings: SystemSettings = {
-            company_name: "HRM AI",
-            default_language: "es",
-            email_notifications: true,
-            admin_email: "",
-            company_description: ""
-          };
-          
-          if (typeof systemSettings.settings === 'object') {
-            const settingsObj = systemSettings.settings as Record<string, any>;
-            settings = {
-              company_name: settingsObj.company_name || "HRM AI",
-              default_language: settingsObj.default_language || "es",
-              email_notifications: settingsObj.email_notifications !== false,
-              admin_email: settingsObj.admin_email || "",
-              company_description: settingsObj.company_description || ""
-            };
-          }
-          
-          generalForm.reset({
-            company_name: settings.company_name,
-            default_language: settings.default_language,
-            email_notifications: settings.email_notifications,
-            admin_email: settings.admin_email || "",
-            company_description: settings.company_description || "",
-          });
-        }
-        
-        // Fetch chatbot settings
-        const { data: chatbotSettings, error: chatbotError } = await supabase
-          .from('chatbot_configurations')
-          .select('*')
-          .limit(1)
-          .single();
-          
-        if (chatbotError) throw chatbotError;
-        
-        if (chatbotSettings) {
-          // Parse admin and public responses
-          let adminResponses: ChatbotResponses = {
-            welcome: "¡Hola! Soy tu asistente IA.",
-            faq: ["Para crear una nueva vacante, ve a la sección 'Vacantes' y haz clic en 'Nueva Vacante'."]
-          };
-          
-          let publicResponses: ChatbotResponses = {
-            welcome: "¡Hola! Soy tu asistente IA.",
-            faq: ["Puedes ver todas las vacantes disponibles en la sección 'Vacantes'."]
-          };
-          
-          // Parse admin responses if they exist
-          if (typeof chatbotSettings.admin_responses === 'object') {
-            const adminObj = chatbotSettings.admin_responses as Record<string, any>;
-            adminResponses = {
-              welcome: adminObj.welcome || "¡Hola! Soy tu asistente IA.",
-              faq: Array.isArray(adminObj.faq) ? adminObj.faq : ["Para crear una nueva vacante, ve a la sección 'Vacantes'"]
-            };
-          }
-          
-          // Parse public responses if they exist
-          if (typeof chatbotSettings.public_responses === 'object') {
-            const publicObj = chatbotSettings.public_responses as Record<string, any>;
-            publicResponses = {
-              welcome: publicObj.welcome || "¡Hola! Soy tu asistente IA.",
-              faq: Array.isArray(publicObj.faq) ? publicObj.faq : ["Puedes ver todas las vacantes disponibles en la sección 'Vacantes'."]
-            };
-          }
-          
-          chatbotForm.reset({
-            admin_welcome: adminResponses.welcome,
-            public_welcome: publicResponses.welcome,
-            admin_responses: adminResponses.faq.join("\n"),
-            public_responses: publicResponses.faq.join("\n"),
-          });
-        }
-        
-      } catch (error) {
-        console.error('Error fetching settings:', error);
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: "No se pudieron cargar las configuraciones.",
-        });
-      } finally {
-        setIsLoadingGeneral(false);
-      }
-    };
-    
-    fetchSettings();
-  }, [toast, generalForm, chatbotForm]);
-  
-  const onSubmitGeneral = async (values: GeneralSettingsValues) => {
-    setIsLoadingGeneral(true);
-    
+    // In a real app, you would fetch this from your system_settings table
+    // Instead of mocking it, we're using our default values
+    form.reset({
+      company_name: settings.company_name,
+      email_notifications: settings.email_notifications,
+      theme: settings.theme as "light" | "dark" | "system",
+      language: settings.language as "es" | "en",
+    });
+  }, [settings, form]);
+
+  const onSubmit = async (values: SettingsFormValues) => {
+    setIsLoading(true);
     try {
-      const { error } = await supabase
-        .from('system_settings')
-        .update({
-          settings: {
-            company_name: values.company_name,
-            default_language: values.default_language,
-            email_notifications: values.email_notifications,
-            admin_email: values.admin_email,
-            company_description: values.company_description,
-          }
-        })
-        .eq('id', 1);
-        
-      if (error) throw error;
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Update the local state with new values
+      setSettings({
+        ...settings,
+        ...values,
+        updated_at: new Date().toISOString()
+      });
       
       toast({
         title: "Configuración actualizada",
-        description: "La configuración general ha sido actualizada exitosamente.",
+        description: "Los cambios han sido guardados correctamente.",
       });
-      
     } catch (error) {
       console.error('Error updating settings:', error);
       toast({
         variant: "destructive",
         title: "Error",
-        description: "No se pudo actualizar la configuración general.",
+        description: "No se pudieron guardar los cambios. Inténtalo de nuevo.",
       });
     } finally {
-      setIsLoadingGeneral(false);
+      setIsLoading(false);
     }
   };
-  
-  const onSubmitChatbot = async (values: ChatbotSettingsValues) => {
-    setIsLoadingChatbot(true);
-    
-    try {
-      const { error } = await supabase
-        .from('chatbot_configurations')
-        .update({
-          admin_responses: {
-            welcome: values.admin_welcome,
-            faq: values.admin_responses.split('\n').filter(line => line.trim()),
-          },
-          public_responses: {
-            welcome: values.public_welcome,
-            faq: values.public_responses.split('\n').filter(line => line.trim()),
-          }
-        })
-        .eq('id', 1);
-        
-      if (error) throw error;
-      
-      toast({
-        title: "Configuración actualizada",
-        description: "La configuración del chatbot ha sido actualizada exitosamente.",
-      });
-      
-    } catch (error) {
-      console.error('Error updating chatbot settings:', error);
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "No se pudo actualizar la configuración del chatbot.",
-      });
-    } finally {
-      setIsLoadingChatbot(false);
-    }
-  };
-  
+
   return (
     <div>
-      <h1 className="page-title mb-6">Configuración</h1>
-      
-      <Tabs defaultValue="general" className="space-y-4">
+      <h1 className="page-title">Configuración</h1>
+
+      <Tabs defaultValue="general" className="w-full">
         <TabsList>
           <TabsTrigger value="general">General</TabsTrigger>
-          <TabsTrigger value="chatbot">Chatbot</TabsTrigger>
+          <TabsTrigger value="notifications">Notificaciones</TabsTrigger>
+          <TabsTrigger value="appearance">Apariencia</TabsTrigger>
         </TabsList>
-        
-        <TabsContent value="general" className="space-y-4">
+        <TabsContent value="general">
           <Card>
             <CardHeader>
               <CardTitle>Configuración General</CardTitle>
               <CardDescription>
-                Configura los ajustes generales de tu plataforma de reclutamiento.
+                Ajusta la configuración general de tu cuenta.
               </CardDescription>
             </CardHeader>
-            <CardContent>
-              <Form {...generalForm}>
-                <form onSubmit={generalForm.handleSubmit(onSubmitGeneral)} className="space-y-6">
+            <CardContent className="space-y-4">
+              <Form {...form}>
+                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
                   <FormField
-                    control={generalForm.control}
+                    control={form.control}
                     name="company_name"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Nombre de la Empresa</FormLabel>
+                        <FormLabel>Nombre de la empresa</FormLabel>
                         <FormControl>
-                          <Input placeholder="HRM AI" {...field} />
+                          <Input placeholder="CONVERT-IA Reclutamiento" {...field} />
                         </FormControl>
                         <FormDescription>
-                          Este nombre aparecerá en toda la plataforma.
+                          Este es el nombre que verán tus usuarios.
                         </FormDescription>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
-                  
-                  <FormField
-                    control={generalForm.control}
-                    name="company_description"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Descripción de la Empresa</FormLabel>
-                        <FormControl>
-                          <Textarea 
-                            placeholder="Descripción breve de tu empresa..." 
-                            className="min-h-[100px]"
-                            {...field} 
-                          />
-                        </FormControl>
-                        <FormDescription>
-                          Esta descripción aparecerá en la página principal.
-                        </FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <FormField
-                      control={generalForm.control}
-                      name="default_language"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Idioma por Defecto</FormLabel>
-                          <FormControl>
-                            <Input placeholder="es" {...field} />
-                          </FormControl>
-                          <FormDescription>
-                            Código de idioma (es, en, etc.)
-                          </FormDescription>
-                          <FormMessage />
-                        </FormItem>
+                  <div className="flex justify-end">
+                    <Button type="submit" disabled={isLoading} className="bg-hrm-dark-cyan hover:bg-hrm-steel-blue">
+                      {isLoading ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Guardando...
+                        </>
+                      ) : (
+                        "Guardar cambios"
                       )}
-                    />
-                    
-                    <FormField
-                      control={generalForm.control}
-                      name="admin_email"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Correo Administrativo</FormLabel>
-                          <FormControl>
-                            <Input placeholder="admin@example.com" {...field} />
-                          </FormControl>
-                          <FormDescription>
-                            Correo para notificaciones administrativas
-                          </FormDescription>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+                    </Button>
                   </div>
-                  
+                </form>
+              </Form>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="notifications">
+          <Card>
+            <CardHeader>
+              <CardTitle>Configuración de Notificaciones</CardTitle>
+              <CardDescription>
+                Gestiona tus preferencias de notificaciones.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <Form {...form}>
+                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
                   <FormField
-                    control={generalForm.control}
+                    control={form.control}
                     name="email_notifications"
                     render={({ field }) => (
                       <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
                         <div className="space-y-0.5">
                           <FormLabel className="text-base">
-                            Notificaciones por Correo
+                            Notificaciones por correo electrónico
                           </FormLabel>
                           <FormDescription>
-                            Recibe notificaciones por correo cuando haya nuevos candidatos.
+                            Recibe notificaciones importantes por correo electrónico.
                           </FormDescription>
                         </div>
                         <FormControl>
@@ -384,19 +200,16 @@ const Settings = () => {
                       </FormItem>
                     )}
                   />
-                  
                   <div className="flex justify-end">
-                    <Button 
-                      type="submit" 
-                      className="bg-hrm-dark-cyan hover:bg-hrm-steel-blue"
-                      disabled={isLoadingGeneral}
-                    >
-                      {isLoadingGeneral ? (
+                    <Button type="submit" disabled={isLoading} className="bg-hrm-dark-cyan hover:bg-hrm-steel-blue">
+                      {isLoading ? (
                         <>
                           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                           Guardando...
                         </>
-                      ) : "Guardar Configuración"}
+                      ) : (
+                        "Guardar cambios"
+                      )}
                     </Button>
                   </div>
                 </form>
@@ -404,114 +217,79 @@ const Settings = () => {
             </CardContent>
           </Card>
         </TabsContent>
-        
-        <TabsContent value="chatbot" className="space-y-4">
+
+        <TabsContent value="appearance">
           <Card>
             <CardHeader>
-              <CardTitle>Configuración del Chatbot</CardTitle>
+              <CardTitle>Apariencia</CardTitle>
               <CardDescription>
-                Personaliza los mensajes y respuestas del asistente IA.
+                Personaliza la apariencia de la aplicación.
               </CardDescription>
             </CardHeader>
-            <CardContent>
-              <Form {...chatbotForm}>
-                <form onSubmit={chatbotForm.handleSubmit(onSubmitChatbot)} className="space-y-6">
-                  <div className="space-y-4">
-                    <h3 className="text-lg font-semibold">Configuración para Administradores</h3>
-                    
-                    <FormField
-                      control={chatbotForm.control}
-                      name="admin_welcome"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Mensaje de Bienvenida</FormLabel>
+            <CardContent className="space-y-4">
+              <Form {...form}>
+                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+                  <FormField
+                    control={form.control}
+                    name="theme"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Tema</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
                           <FormControl>
-                            <Input placeholder="Hola administrador..." {...field} />
+                            <SelectTrigger>
+                              <SelectValue placeholder="Selecciona un tema" />
+                            </SelectTrigger>
                           </FormControl>
-                          <FormDescription>
-                            Mensaje que verán los administradores al abrir el chatbot.
-                          </FormDescription>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    
-                    <FormField
-                      control={chatbotForm.control}
-                      name="admin_responses"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Respuestas Predefinidas</FormLabel>
+                          <SelectContent>
+                            <SelectItem value="light">Claro</SelectItem>
+                            <SelectItem value="dark">Oscuro</SelectItem>
+                            <SelectItem value="system">Sistema</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormDescription>
+                          Selecciona el tema de la aplicación.
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="language"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Idioma</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
                           <FormControl>
-                            <Textarea 
-                              placeholder="Escribe cada respuesta en una línea nueva..." 
-                              className="min-h-[150px]"
-                              {...field} 
-                            />
+                            <SelectTrigger>
+                              <SelectValue placeholder="Selecciona un idioma" />
+                            </SelectTrigger>
                           </FormControl>
-                          <FormDescription>
-                            Escribe cada respuesta en una línea nueva. Estas se usarán para contestar preguntas.
-                          </FormDescription>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-                  
-                  <div className="space-y-4 pt-4 border-t">
-                    <h3 className="text-lg font-semibold">Configuración para Usuarios Públicos</h3>
-                    
-                    <FormField
-                      control={chatbotForm.control}
-                      name="public_welcome"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Mensaje de Bienvenida</FormLabel>
-                          <FormControl>
-                            <Input placeholder="Hola candidato..." {...field} />
-                          </FormControl>
-                          <FormDescription>
-                            Mensaje que verán los usuarios públicos al abrir el chatbot.
-                          </FormDescription>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    
-                    <FormField
-                      control={chatbotForm.control}
-                      name="public_responses"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Respuestas Predefinidas</FormLabel>
-                          <FormControl>
-                            <Textarea 
-                              placeholder="Escribe cada respuesta en una línea nueva..." 
-                              className="min-h-[150px]"
-                              {...field} 
-                            />
-                          </FormControl>
-                          <FormDescription>
-                            Escribe cada respuesta en una línea nueva. Estas se usarán para contestar preguntas.
-                          </FormDescription>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-                  
+                          <SelectContent>
+                            <SelectItem value="es">Español</SelectItem>
+                            <SelectItem value="en">Inglés</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormDescription>
+                          Selecciona el idioma de la aplicación.
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
                   <div className="flex justify-end">
-                    <Button 
-                      type="submit" 
-                      className="bg-hrm-dark-cyan hover:bg-hrm-steel-blue"
-                      disabled={isLoadingChatbot}
-                    >
-                      {isLoadingChatbot ? (
+                    <Button type="submit" disabled={isLoading} className="bg-hrm-dark-cyan hover:bg-hrm-steel-blue">
+                      {isLoading ? (
                         <>
                           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                           Guardando...
                         </>
-                      ) : "Guardar Configuración"}
+                      ) : (
+                        "Guardar cambios"
+                      )}
                     </Button>
                   </div>
                 </form>

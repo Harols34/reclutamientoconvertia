@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { 
@@ -57,10 +58,11 @@ interface Candidate {
 const CandidateDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const { toast } = useToast();
-  const [candidate, setCandidate] = useState<any>(null);
+  const [candidate, setCandidate] = useState<Candidate | null>(null);
   const [loading, setLoading] = useState(true);
   const [analyzing, setAnalyzing] = useState(false);
   const [jobDetails, setJobDetails] = useState<any>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchCandidate = async () => {
@@ -103,6 +105,7 @@ const CandidateDetail: React.FC = () => {
         }
       } catch (error) {
         console.error('Error fetching candidate details:', error);
+        setError('No se pudieron cargar los detalles del candidato.');
         toast({
           variant: "destructive",
           title: "Error",
@@ -199,7 +202,9 @@ const CandidateDetail: React.FC = () => {
       // Update the candidate with the analysis
       const { error: updateError } = await supabase
         .from('candidates')
-        .update({ analysis_summary: data.response })
+        .update({ 
+          analysis_summary: data.response 
+        })
         .eq('id', candidate.id);
       
       if (updateError) throw updateError;
