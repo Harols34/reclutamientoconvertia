@@ -29,7 +29,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { Database } from '@/utils/supabase-helpers';
+import { AppDatabase } from '@/utils/supabase-helpers';
 
 interface Application {
   id: string;

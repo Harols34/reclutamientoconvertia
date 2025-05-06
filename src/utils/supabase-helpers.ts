@@ -10,7 +10,7 @@ export const getTypedQuery = <T extends keyof SupabaseDatabase['public']['Tables
 };
 
 // Types for commonly used tables
-export type Database = {
+export type AppDatabase = {
   public: {
     Tables: {
       jobs: {
