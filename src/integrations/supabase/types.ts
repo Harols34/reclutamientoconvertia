@@ -422,8 +422,8 @@ export type Database = {
           requirements: string
           responsibilities: string
           salary_range: string
-          status: string
-          type: string
+          status: Database["public"]["Enums"]["job_status"]
+          type: Database["public"]["Enums"]["job_type"]
           created_at: string
           updated_at: string
           campaign_id: string

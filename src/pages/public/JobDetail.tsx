@@ -28,7 +28,6 @@ const JobDetail: React.FC = () => {
         
         console.log('Fetching job details for:', jobId);
         
-        // Use the updated RPC function to get job details
         const { data, error } = await supabase.rpc('get_job_by_id', {
           p_job_id: jobId
         });
