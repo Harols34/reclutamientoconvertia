@@ -46,6 +46,53 @@ serve(async (req) => {
     let systemPrompt = ''
     let jobsData = []
     
+    // Special handling for CV text extraction
+    if (type === 'extract-cv-text') {
+      console.log('Extracción de texto solicitada para URL: ', prompt);
+      
+      let resumeText = '';
+      
+      try {
+        // Extract filename from URL
+        let filename = prompt;
+        if (prompt.includes('/')) {
+          const parts = prompt.split('/');
+          filename = parts[parts.length - 1];
+        }
+        
+        console.log('Intentando leer archivo:', filename);
+        
+        // Try to download the file from storage
+        const { data: fileData, error: fileError } = await supabaseClient
+          .storage
+          .from('resumes')
+          .download(filename);
+        
+        if (fileError) {
+          console.error('Error descargando CV para extracción:', fileError);
+          throw fileError;
+        }
+        
+        if (!fileData) {
+          throw new Error('No se pudo descargar el CV');
+        }
+        
+        // Convert PDF to text using OpenAI
+        resumeText = await extractTextWithOpenAI(apiKey, fileData);
+        
+        return new Response(
+          JSON.stringify({ response: resumeText }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      } catch (error) {
+        console.error('Error extrayendo texto del CV:', error);
+        return new Response(
+          JSON.stringify({ error: 'Error extracting CV text', details: error.message }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
+        );
+      }
+    }
+    
     // Fetch active jobs data to provide to the chatbot context
     if (type === 'chatbot') {
       try {
@@ -168,3 +215,60 @@ serve(async (req) => {
     )
   }
 })
+
+// Function to extract text from PDF using OpenAI
+async function extractTextWithOpenAI(apiKey: string, fileData: Blob): Promise<string> {
+  try {
+    console.log("Usando OpenAI para extraer texto");
+
+    // Convert blob to base64
+    const arrayBuffer = await fileData.arrayBuffer();
+    const base64data = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+    
+    // Use OpenAI's vision model to extract text from PDF
+    const visionResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model: "gpt-4o",
+        messages: [
+          {
+            role: "system",
+            content: "Eres un asistente experto en extraer información de documentos. Tu tarea es extraer todo el texto e información relevante del documento que te mostraré. El documento es un CV y necesito que extraigas toda la información que encuentres incluyendo: datos personales, experiencia laboral, habilidades, educación, certificaciones y cualquier otra información relevante. Presenta la información de forma estructurada y completa."
+          },
+          {
+            role: "user",
+            content: [
+              {
+                type: "image_url",
+                image_url: {
+                  url: `data:application/pdf;base64,${base64data}`
+                }
+              }
+            ]
+          }
+        ],
+        temperature: 0.2,
+        max_tokens: 4000
+      })
+    });
+    
+    if (!visionResponse.ok) {
+      const errorData = await visionResponse.json();
+      console.error("Error en API de OpenAI Vision:", errorData);
+      throw new Error(`Error en API Vision: ${JSON.stringify(errorData)}`);
+    }
+    
+    const visionResult = await visionResponse.json();
+    const extractedText = visionResult.choices[0].message.content;
+    
+    console.log("Texto extraído con éxito, longitud:", extractedText.length);
+    return extractedText;
+  } catch (error) {
+    console.error("Error en extractTextWithOpenAI:", error);
+    throw error;
+  }
+}

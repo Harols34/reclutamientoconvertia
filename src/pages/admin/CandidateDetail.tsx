@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { 
@@ -29,6 +30,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { AppDatabase } from '@/utils/supabase-helpers';
+import PDFViewer from '@/components/ui/pdf-viewer';
 
 interface Application {
   id: string;
@@ -66,6 +68,8 @@ const CandidateDetail: React.FC = () => {
   const [analyzing, setAnalyzing] = useState(false);
   const [jobDetails, setJobDetails] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
+  const [pdfViewerOpen, setPdfViewerOpen] = useState(false);
+  const [resumeContent, setResumeContent] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchCandidate = async () => {
@@ -162,6 +166,43 @@ const CandidateDetail: React.FC = () => {
     }
   }, [id, toast]);
 
+  const extractTextFromPDF = async (resumeUrl: string): Promise<string> => {
+    try {
+      console.log("Intentando extraer contenido del CV:", resumeUrl);
+      
+      // Extract the filename from the URL or path
+      let filename = resumeUrl;
+      if (resumeUrl.includes('/')) {
+        const parts = resumeUrl.split('/');
+        filename = parts[parts.length - 1];
+      }
+      
+      // Call the OpenAI edge function with a special type for extracting text
+      const response = await fetch('https://kugocdtesaczbfrwblsi.supabase.co/functions/v1/openai-assistant', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          prompt: resumeUrl,
+          type: 'extract-cv-text',
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Error al extraer texto: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      console.log("Extracción de texto exitosa:", data);
+      
+      return data.response || '';
+    } catch (error) {
+      console.error('Error extrayendo texto del CV:', error);
+      throw error;
+    }
+  };
+
   const analyzeCV = async (applicationId?: string) => {
     if (!candidate?.resume_url) {
       toast({
@@ -207,61 +248,32 @@ const CandidateDetail: React.FC = () => {
       const resumeUrl = candidate.resume_url;
       console.log("Resume URL:", resumeUrl);
       
-      // Extract the filename from the URL or path
-      let filename = resumeUrl;
-      if (resumeUrl.includes('/')) {
-        const parts = resumeUrl.split('/');
-        filename = parts[parts.length - 1];
-      }
-      
-      console.log("Intentando descargar CV:", filename);
-      
-      let fileContent = '';
+      // First, extract text or fetch content from the PDF
+      let cvContent;
       try {
-        // Try to download the file from storage
-        const { data: fileData, error: fileError } = await supabase
-          .storage
-          .from('resumes')
-          .download(filename);
-        
-        if (fileError) {
-          console.error('Error descargando CV:', fileError);
-          throw new Error(`Error al descargar el CV: ${fileError.message}`);
-        }
-        
-        if (!fileData) {
-          throw new Error('No se pudo descargar el CV');
-        }
-        
-        // For binary data like PDFs, we need to convert to base64 or extract text
-        // Here we'll try to get some text representation
-        const arrayBuffer = await fileData.arrayBuffer();
-        // Convert to a string representation that will contain some readable text
-        // This won't perfectly extract text from a PDF but will help the AI find patterns
-        fileContent = Array.from(new Uint8Array(arrayBuffer))
-          .map(b => String.fromCharCode(b))
-          .join('');
-        
-        console.log("CV contenido obtenido, longitud:", fileContent.length);
-        
-        if (fileContent.length < 10) {
-          throw new Error('El contenido del CV parece estar vacío o corrupto');
-        }
-      } catch (textError) {
-        console.error('Error procesando el CV:', textError);
-        // We'll still try to analyze with whatever we have
-        fileContent = `Archivo CV: ${filename}. No se pudo extraer el contenido completo.`;
+        cvContent = await extractTextFromPDF(resumeUrl);
+        setResumeContent(cvContent);
+      } catch (extractError) {
+        console.error("Error extracting CV content:", extractError);
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "No se pudo extraer el contenido del CV. Intentando analizar con información limitada."
+        });
+        // Use a fallback approach - let the OpenAI function handle it directly
+        cvContent = `CV URL: ${resumeUrl}`;
       }
       
-      // Call the OpenAI edge function for analysis
-      console.log("Llamando al asistente OpenAI para análisis de CV");
+      // Now send the extracted content to OpenAI for analysis
+      console.log("Enviando contenido del CV para análisis:", cvContent.length, "caracteres");
+      
       const response = await fetch('https://kugocdtesaczbfrwblsi.supabase.co/functions/v1/openai-assistant', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          prompt: fileContent.substring(0, 15000), // Limit to 15000 characters
+          prompt: cvContent.substring(0, 15000), // Limit to 15000 characters
           type: 'cv-analysis',
           context: jobContext
         })
@@ -362,6 +374,8 @@ const CandidateDetail: React.FC = () => {
     );
   }
 
+  const pdfUrl = candidate.resume_url ? getResumeUrl(candidate.resume_url) : null;
+
   return (
     <div>
       <div className="mb-6 flex items-center justify-between">
@@ -431,10 +445,7 @@ const CandidateDetail: React.FC = () => {
                     variant="outline" 
                     size="sm" 
                     className="w-full flex items-center justify-center"
-                    onClick={() => {
-                      const url = getResumeUrl(candidate.resume_url!);
-                      if (url) window.open(url, '_blank');
-                    }}
+                    onClick={() => setPdfViewerOpen(true)}
                   >
                     <FileText className="mr-2 h-4 w-4" />
                     Ver CV
@@ -590,6 +601,16 @@ const CandidateDetail: React.FC = () => {
           </Tabs>
         </div>
       </div>
+      
+      {/* PDF Viewer Dialog */}
+      {pdfUrl && (
+        <PDFViewer
+          url={pdfUrl}
+          isOpen={pdfViewerOpen}
+          onOpenChange={setPdfViewerOpen}
+          title={`CV de ${candidate.first_name} ${candidate.last_name}`}
+        />
+      )}
     </div>
   );
 };

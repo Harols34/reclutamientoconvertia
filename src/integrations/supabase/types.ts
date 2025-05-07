@@ -222,6 +222,45 @@ export type Database = {
         }
         Relationships: []
       }
+      chatbot_training_codes: {
+        Row: {
+          active: boolean | null
+          client_name: string | null
+          client_personality: string | null
+          code: string
+          created_at: string | null
+          expires_at: string | null
+          id: string
+          interest_level: string | null
+          objections: string | null
+          product: string | null
+        }
+        Insert: {
+          active?: boolean | null
+          client_name?: string | null
+          client_personality?: string | null
+          code: string
+          created_at?: string | null
+          expires_at?: string | null
+          id?: string
+          interest_level?: string | null
+          objections?: string | null
+          product?: string | null
+        }
+        Update: {
+          active?: boolean | null
+          client_name?: string | null
+          client_personality?: string | null
+          code?: string
+          created_at?: string | null
+          expires_at?: string | null
+          id?: string
+          interest_level?: string | null
+          objections?: string | null
+          product?: string | null
+        }
+        Relationships: []
+      }
       jobs: {
         Row: {
           campaign_id: string | null

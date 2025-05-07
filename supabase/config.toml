@@ -6,3 +6,5 @@ verify_jwt = false
 
 [functions.openai-assistant]
 verify_jwt = false
+timeout_seconds = 60
+
