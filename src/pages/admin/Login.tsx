@@ -100,8 +100,15 @@ const Login = () => {
               </Link>
             </Button>
           </div>
-          <CardTitle className="text-hrm-dark-cyan text-center">CONVERT-IA RECLUTAMIENTO</CardTitle>
-          <CardDescription className="text-center">Accede a tu panel de administración</CardDescription>
+          <div className="flex flex-col items-center">
+            <img 
+              src="/lovable-uploads/e0944ff1-6821-41aa-840e-6412963e6eaa.png" 
+              alt="Convert-IA Logo" 
+              className="h-16 w-16 mb-4" 
+            />
+            <CardTitle className="text-hrm-dark-cyan">CONVERT-IA RECLUTAMIENTO</CardTitle>
+            <CardDescription className="text-center">Accede a tu panel de administración</CardDescription>
+          </div>
         </CardHeader>
         <CardContent>
           <Form {...form}>
