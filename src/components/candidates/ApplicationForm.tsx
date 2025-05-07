@@ -74,6 +74,7 @@ const ApplicationForm = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [job, setJob] = useState<JobType | null>(null);
   const [loading, setLoading] = useState(true);
+  const [uploadingResume, setUploadingResume] = useState(false);
   
   const form = useForm<ApplicationFormValues>({
     resolver: zodResolver(applicationSchema),
@@ -135,6 +136,55 @@ const ApplicationForm = () => {
     fetchJob();
   }, [jobId]);
 
+  const uploadResume = async (file?: File) => {
+    if (!file) return null;
+    
+    try {
+      setUploadingResume(true);
+      // Check if the 'resumes' bucket exists
+      const { data: bucketExists, error: bucketCheckError } = await supabase.storage
+        .getBucket('resumes');
+        
+      if (bucketCheckError) {
+        console.info('Resumes bucket does not exist. It needs to be created via SQL.');
+        throw new Error('Error en la configuración del almacenamiento');
+      }
+      
+      const fileExt = file.name.split('.').pop() || '';
+      const sanitizedFileName = file.name.replace(/[^a-zA-Z0-9._]/g, '_');
+      const fileName = `${Date.now()}_${sanitizedFileName}`;
+
+      console.info('Starting file upload to resumes bucket');
+      
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('resumes')
+        .upload(fileName, file, {
+          cacheControl: '3600',
+          upsert: false
+        });
+      
+      if (uploadError) {
+        console.error('Resume upload error:', uploadError);
+        throw new Error('Error al subir el currículum');
+      }
+      
+      // Get the public URL for the file
+      const { data: publicUrlData } = supabase.storage
+        .from('resumes')
+        .getPublicUrl(fileName);
+        
+      const resumeUrl = publicUrlData?.publicUrl;
+      console.info('Resume uploaded successfully:', resumeUrl);
+      
+      return resumeUrl;
+    } catch (err) {
+      console.error('Error uploading resume:', err);
+      throw err;
+    } finally {
+      setUploadingResume(false);
+    }
+  };
+
   const onSubmit = async (values: ApplicationFormValues) => {
     if (!job || !jobId) return;
     
@@ -145,42 +195,16 @@ const ApplicationForm = () => {
       let resumeUrl = null;
       
       if (values.resume) {
-        const fileExt = values.resume.name.split('.').pop();
-        const fileName = `${Date.now()}_${values.firstName.toLowerCase()}_${values.lastName.toLowerCase()}.${fileExt}`;
-        
-        // Upload file to storage
-        console.log('Starting file upload to resumes bucket');
-        const { data: uploadData, error: uploadError } = await supabase.storage
-          .from('resumes')
-          .upload(fileName, values.resume, {
-            cacheControl: '3600',
-            upsert: false
-          });
-        
-        if (uploadError) {
-          console.error('Resume upload error:', uploadError);
-          throw new Error('Error al subir el currículum, por favor intenta de nuevo.');
-        }
-        
-        if (uploadData) {
-          // Get the public URL for the file
-          const { data: publicUrl } = supabase.storage
-            .from('resumes')
-            .getPublicUrl(fileName);
-            
-          resumeUrl = publicUrl?.publicUrl || fileName;
-          console.log('Resume uploaded successfully:', resumeUrl);
-        }
+        resumeUrl = await uploadResume(values.resume);
       }
       
-      console.log('Submitting application with resumeUrl:', resumeUrl);
+      console.info('Submitting application with resumeUrl:', resumeUrl);
       
       // Call our edge function to create the application
       const response = await fetch('https://kugocdtesaczbfrwblsi.supabase.co/functions/v1/create-application', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${supabase.auth.getSession().then(res => res.data.session?.access_token)}`
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({
           firstName: values.firstName,
@@ -200,7 +224,7 @@ const ApplicationForm = () => {
         throw new Error(responseData.error || 'Error al enviar la aplicación');
       }
       
-      console.log('Application submitted successfully:', responseData);
+      console.info('Application submitted successfully:', responseData);
       
       toast({
         title: "Aplicación enviada",
@@ -351,8 +375,11 @@ const ApplicationForm = () => {
                         type="file" 
                         accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" 
                         onChange={(e) => {
-                          console.log('File selected:', e.target.files?.[0]?.name);
-                          onChange(e.target.files?.[0]);
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            console.info('File selected:', file.name);
+                            onChange(file);
+                          }
                         }}
                         {...rest}
                       />
@@ -383,9 +410,11 @@ const ApplicationForm = () => {
               <Button 
                 type="submit" 
                 className="w-full bg-hrm-dark-cyan hover:bg-hrm-steel-blue"
-                disabled={isSubmitting}
+                disabled={isSubmitting || uploadingResume}
               >
-                {isSubmitting ? 'Enviando...' : 'Enviar aplicación'}
+                {isSubmitting || uploadingResume ? 
+                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Enviando...</> : 
+                  'Enviar aplicación'}
               </Button>
             </form>
           </Form>

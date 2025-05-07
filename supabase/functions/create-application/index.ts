@@ -16,12 +16,9 @@ serve(async (req) => {
   try {
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
-      {
-        global: {
-          headers: { Authorization: req.headers.get('Authorization')! },
-        },
-      }
+      Deno.env.get('SUPABASE_ANON_KEY') ?? ''
+      // We're removing the authorization header as this is a public endpoint
+      // and we want anonymous users to be able to submit applications
     )
     
     const body = await req.json()
@@ -37,6 +34,10 @@ serve(async (req) => {
     } = body
     
     console.log('Application data received:', { firstName, lastName, email, jobId, resumeUrl })
+    
+    if (!firstName || !lastName || !email || !jobId) {
+      throw new Error('Missing required fields')
+    }
     
     // Create or find candidate
     let candidateId
@@ -63,7 +64,7 @@ serve(async (req) => {
         .update({
           first_name: firstName,
           last_name: lastName,
-          phone: `${phoneCountry}${phone}`,
+          phone: phoneCountry && phone ? `${phoneCountry}${phone}` : null,
           resume_url: resumeUrl || existingCandidate.resume_url
         })
         .eq('id', candidateId)
@@ -72,6 +73,8 @@ serve(async (req) => {
         console.error('Error updating candidate:', updateError)
         throw updateError
       }
+      
+      console.log('Candidate updated successfully')
     } else {
       console.log('Creating new candidate')
       // Create new candidate
@@ -81,7 +84,7 @@ serve(async (req) => {
           first_name: firstName,
           last_name: lastName,
           email: email,
-          phone: `${phoneCountry}${phone}`,
+          phone: phoneCountry && phone ? `${phoneCountry}${phone}` : null,
           resume_url: resumeUrl
         })
         .select('id')
