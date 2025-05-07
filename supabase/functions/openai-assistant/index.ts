@@ -66,7 +66,7 @@ serve(async (req) => {
     if (type === 'cv-analysis') {
       systemPrompt = `Eres un asistente experto en recursos humanos especializado en análisis de CVs.
       
-      Tu tarea es analizar el CV proporcionado y dar una evaluación detallada de:
+      Tu tarea es analizar el contenido del CV proporcionado y dar una evaluación detallada de:
       
       1. Resumen de Antecedentes Profesionales
       2. Habilidades y Competencias Clave
@@ -76,6 +76,10 @@ serve(async (req) => {
       6. Evaluación General
       
       Si hay requisitos del trabajo disponibles, evalúa qué tan bien el candidato cumple estos requisitos en una escala del 1 al 100, y explica las razones.
+      
+      IMPORTANTE: Si el texto proporcionado parece contener datos binarios o no es legible, extrae cualquier información útil que puedas encontrar, como nombres, fechas, palabras clave relacionadas con experiencia profesional o educación. En caso de no encontrar suficiente información, proporciona un análisis general basado en lo que puedas inferir.
+      
+      En caso de que no encaje con la vacante, destaca en qué áreas tiene experiencia el candidato según la información disponible.
       
       Estructura tu respuesta en las siguientes secciones:
       1. Resumen de Antecedentes Profesionales

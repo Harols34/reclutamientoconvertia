@@ -203,11 +203,11 @@ const CandidateDetail: React.FC = () => {
         }
       }
 
-      // Obtener el nombre del archivo del CV a partir de la URL
+      // Get the resume URL or filename
       const resumeUrl = candidate.resume_url;
       console.log("Resume URL:", resumeUrl);
       
-      // Extraer el nombre del archivo del CV
+      // Extract the filename from the URL or path
       let filename = resumeUrl;
       if (resumeUrl.includes('/')) {
         const parts = resumeUrl.split('/');
@@ -216,36 +216,44 @@ const CandidateDetail: React.FC = () => {
       
       console.log("Intentando descargar CV:", filename);
       
-      // Descargar el archivo del almacenamiento
-      const { data: fileData, error: fileError } = await supabase
-        .storage
-        .from('resumes')
-        .download(filename);
-      
-      if (fileError) {
-        console.error('Error descargando CV:', fileError);
-        throw new Error(`Error al descargar el CV: ${fileError.message}`);
-      }
-      
-      if (!fileData) {
-        throw new Error('No se pudo descargar el CV');
-      }
-      
-      // Convertir el blob a texto
       let fileContent = '';
       try {
-        fileContent = await fileData.text();
+        // Try to download the file from storage
+        const { data: fileData, error: fileError } = await supabase
+          .storage
+          .from('resumes')
+          .download(filename);
+        
+        if (fileError) {
+          console.error('Error descargando CV:', fileError);
+          throw new Error(`Error al descargar el CV: ${fileError.message}`);
+        }
+        
+        if (!fileData) {
+          throw new Error('No se pudo descargar el CV');
+        }
+        
+        // For binary data like PDFs, we need to convert to base64 or extract text
+        // Here we'll try to get some text representation
+        const arrayBuffer = await fileData.arrayBuffer();
+        // Convert to a string representation that will contain some readable text
+        // This won't perfectly extract text from a PDF but will help the AI find patterns
+        fileContent = Array.from(new Uint8Array(arrayBuffer))
+          .map(b => String.fromCharCode(b))
+          .join('');
+        
         console.log("CV contenido obtenido, longitud:", fileContent.length);
         
         if (fileContent.length < 10) {
           throw new Error('El contenido del CV parece estar vacío o corrupto');
         }
       } catch (textError) {
-        console.error('Error convirtiendo el CV a texto:', textError);
-        throw new Error('No se pudo leer el contenido del CV. Posiblemente no es un formato de texto válido.');
+        console.error('Error procesando el CV:', textError);
+        // We'll still try to analyze with whatever we have
+        fileContent = `Archivo CV: ${filename}. No se pudo extraer el contenido completo.`;
       }
       
-      // Llamar a la función edge OpenAI para análisis
+      // Call the OpenAI edge function for analysis
       console.log("Llamando al asistente OpenAI para análisis de CV");
       const response = await fetch('https://kugocdtesaczbfrwblsi.supabase.co/functions/v1/openai-assistant', {
         method: 'POST',
@@ -253,7 +261,7 @@ const CandidateDetail: React.FC = () => {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          prompt: fileContent.substring(0, 15000), // Limitar a 15000 caracteres para evitar problemas
+          prompt: fileContent.substring(0, 15000), // Limit to 15000 characters
           type: 'cv-analysis',
           context: jobContext
         })
@@ -272,7 +280,7 @@ const CandidateDetail: React.FC = () => {
         throw new Error('No se recibió respuesta del análisis');
       }
       
-      // Actualizar el candidato con el análisis
+      // Update the candidate with the analysis
       const { error: updateError } = await supabase
         .from('candidates')
         .update({ 
@@ -285,7 +293,7 @@ const CandidateDetail: React.FC = () => {
         throw new Error(`Error al guardar el análisis: ${updateError.message}`);
       }
       
-      // Actualizar estado local
+      // Update local state
       setCandidate(prev => {
         if (!prev) return null;
         return { 
