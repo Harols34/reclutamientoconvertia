@@ -432,10 +432,10 @@ async function extractTextFromPDF(apiKey: string, fileData: Blob): Promise<strin
     }
     
     // If all methods failed
-    return "No se pudo extraer texto del PDF. El documento podría estar protegido, estar en formato imagen, o tener otro problema que impide la extracción.";
+    throw new Error("No se pudo extraer texto del PDF. El documento podría estar en un formato no compatible.");
     
   } catch (error) {
     console.error("Error general en extractTextFromPDF:", error);
-    return `Error al extraer texto del CV: ${error.message}. Por favor, proporciona la información manualmente.`;
+    throw new Error(`Error al extraer texto del CV: ${error.message}`);
   }
 }

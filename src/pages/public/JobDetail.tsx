@@ -57,7 +57,9 @@ const JobDetail: React.FC = () => {
       }
     };
     
-    fetchJobDetail();
+    if (jobId) {
+      fetchJobDetail();
+    }
   }, [jobId, toast]);
   
   const jobTypeLabels = {
