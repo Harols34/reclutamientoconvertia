@@ -141,21 +141,13 @@ const ApplicationForm = () => {
     
     try {
       setUploadingResume(true);
-      // Check if the 'resumes' bucket exists
-      const { data: bucketExists, error: bucketCheckError } = await supabase.storage
-        .getBucket('resumes');
-        
-      if (bucketCheckError) {
-        console.info('Resumes bucket does not exist. It needs to be created via SQL.');
-        throw new Error('Error en la configuración del almacenamiento');
-      }
+      console.info('Starting file upload to resumes bucket');
       
       const fileExt = file.name.split('.').pop() || '';
       const sanitizedFileName = file.name.replace(/[^a-zA-Z0-9._]/g, '_');
       const fileName = `${Date.now()}_${sanitizedFileName}`;
 
-      console.info('Starting file upload to resumes bucket');
-      
+      // Upload the file to the resumes bucket
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from('resumes')
         .upload(fileName, file, {
