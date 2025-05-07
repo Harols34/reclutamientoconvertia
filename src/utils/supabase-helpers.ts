@@ -255,45 +255,6 @@ export type AppDatabase = {
           updated_at?: string;
         };
       };
-      // Add chatbot_training_codes definition
-      chatbot_training_codes: {
-        Row: {
-          id: string;
-          code: string;
-          active: boolean;
-          client_name: string | null;
-          client_personality: string | null;
-          interest_level: string | null;
-          objections: string | null;
-          product: string | null;
-          created_at: string;
-          expires_at: string | null;
-        };
-        Insert: {
-          id?: string;
-          code: string;
-          active?: boolean;
-          client_name?: string | null;
-          client_personality?: string | null;
-          interest_level?: string | null;
-          objections?: string | null;
-          product?: string | null;
-          created_at?: string;
-          expires_at?: string | null;
-        };
-        Update: {
-          id?: string;
-          code?: string;
-          active?: boolean;
-          client_name?: string | null;
-          client_personality?: string | null;
-          interest_level?: string | null;
-          objections?: string | null;
-          product?: string | null;
-          created_at?: string;
-          expires_at?: string | null;
-        };
-      };
       system_settings: {
         Row: {
           id: string;

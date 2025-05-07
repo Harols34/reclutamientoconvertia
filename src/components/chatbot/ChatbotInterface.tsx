@@ -1,10 +1,10 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Send, Loader2, Upload, File } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import TrainingChatDialog from './TrainingChatDialog';
 
 interface Message {
   id: string;
@@ -33,9 +33,6 @@ const ChatbotInterface: React.FC<ChatbotInterfaceProps> = ({ userType }) => {
   const [chatbotConfig, setChatbotConfig] = useState<any>(null);
   const [knowledgeBase, setKnowledgeBase] = useState<ChatbotKnowledge[]>([]);
   const [isUploading, setIsUploading] = useState(false);
-  const [isTrainingDialogOpen, setIsTrainingDialogOpen] = useState(false);
-  const [trainingMode, setTrainingMode] = useState(false);
-  const [trainingCode, setTrainingCode] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
@@ -221,50 +218,6 @@ const ChatbotInterface: React.FC<ChatbotInterfaceProps> = ({ userType }) => {
     }
   };
 
-  const startTrainingMode = async (code: string) => {
-    setTrainingMode(true);
-    setTrainingCode(code);
-    
-    // Clear existing messages and start with training intro
-    const trainingIntroMessage = {
-      id: crypto.randomUUID(),
-      content: 'Iniciando modo de entrenamiento de ventas. Soy un cliente potencial y tú intentarás venderme un producto. ¡Comienza presentándote y preguntándome sobre mis necesidades!',
-      sender: 'assistant' as const,
-      timestamp: new Date()
-    };
-    
-    setMessages([trainingIntroMessage]);
-    
-    // Add a short delay and then have the AI start the conversation
-    setTimeout(async () => {
-      try {
-        const { data, error } = await supabase.functions
-          .invoke('openai-assistant', {
-            body: {
-              prompt: "Inicia la conversación como un cliente potencial. Preséntate brevemente, menciona que estás interesado en el producto pero tienes algunas dudas.",
-              type: 'chatbot',
-              context: JSON.stringify({ training_code: code })
-            }
-          });
-        
-        if (error) throw error;
-        
-        if (data && data.response) {
-          const aiMessage = {
-            id: crypto.randomUUID(),
-            content: data.response,
-            sender: 'assistant' as const,
-            timestamp: new Date()
-          };
-          
-          setMessages(prev => [...prev, aiMessage]);
-        }
-      } catch (err) {
-        console.error('Error starting training conversation:', err);
-      }
-    }, 1000);
-  };
-
   const handleSendMessage = async () => {
     if (!input.trim()) return;
     
@@ -284,11 +237,6 @@ const ChatbotInterface: React.FC<ChatbotInterfaceProps> = ({ userType }) => {
       phrase => input.toLowerCase().includes(phrase)
     );
 
-    // Check if user wants training mode
-    const trainingRequest = ['entrenamiento', 'entrenar', 'práctica', 'practica', 'practica de ventas', 'training'].some(
-      phrase => input.toLowerCase().includes(phrase)
-    );
-
     if (cvUploadRequest) {
       const uploadMessage = {
         id: crypto.randomUUID(),
@@ -301,22 +249,9 @@ const ChatbotInterface: React.FC<ChatbotInterfaceProps> = ({ userType }) => {
       setIsLoading(false);
       return;
     }
-    
-    if (trainingRequest && !trainingMode) {
-      const trainingMessage = {
-        id: crypto.randomUUID(),
-        content: 'Para iniciar una sesión de entrenamiento de ventas, necesitas un código de entrenamiento. Haz clic en "Modo Entrenamiento" para ingresar tu código.',
-        sender: 'assistant' as const,
-        timestamp: new Date()
-      };
-      
-      setMessages(prev => [...prev, trainingMessage]);
-      setIsLoading(false);
-      return;
-    }
 
     try {
-      // Check if we have a direct match in our knowledge base
+      // First check if we have a direct match in our knowledge base
       const knowledgeAnswer = findAnswer(input.trim());
       
       if (knowledgeAnswer) {
@@ -332,11 +267,9 @@ const ChatbotInterface: React.FC<ChatbotInterfaceProps> = ({ userType }) => {
       } else {
         // If no match in knowledge base, try OpenAI
         // Get the appropriate context based on user type
-        const context = trainingMode 
-          ? JSON.stringify({ training_code: trainingCode })
-          : chatbotConfig 
-            ? JSON.stringify(userType === 'public' ? chatbotConfig.public_responses : chatbotConfig.admin_responses)
-            : '{}';
+        const context = chatbotConfig ? 
+          (userType === 'public' ? chatbotConfig.public_responses : chatbotConfig.admin_responses) : 
+          {};
         
         // Call the OpenAI edge function
         const { data, error } = await supabase.functions
@@ -344,7 +277,7 @@ const ChatbotInterface: React.FC<ChatbotInterfaceProps> = ({ userType }) => {
             body: {
               prompt: input.trim(),
               type: 'chatbot',
-              context
+              context: JSON.stringify(context)
             }
           });
         
@@ -402,21 +335,6 @@ const ChatbotInterface: React.FC<ChatbotInterfaceProps> = ({ userType }) => {
     }
   };
 
-  const exitTrainingMode = () => {
-    setTrainingMode(false);
-    setTrainingCode(null);
-    
-    // Reset messages with standard welcome message
-    const welcomeMessage = {
-      id: crypto.randomUUID(),
-      content: 'Has salido del modo de entrenamiento. Soy tu asistente virtual de CONVERT-IA RECLUTAMIENTO. ¿En qué puedo ayudarte?',
-      sender: 'assistant' as const,
-      timestamp: new Date()
-    };
-    
-    setMessages([welcomeMessage]);
-  };
-
   return (
     <div className="fixed bottom-4 right-4 z-50">
       <input
@@ -429,30 +347,16 @@ const ChatbotInterface: React.FC<ChatbotInterfaceProps> = ({ userType }) => {
       
       {isOpen ? (
         <div className="bg-white rounded-lg shadow-xl w-80 sm:w-96 flex flex-col overflow-hidden max-h-[500px] border border-gray-200">
-          <div className={`${trainingMode ? 'bg-hrm-steel-blue' : 'bg-hrm-dark-cyan'} text-white p-3 flex justify-between items-center`}>
-            <h3 className="font-medium">
-              {trainingMode ? 'Entrenamiento de Ventas' : 'Asistente CONVERT-IA'}
-            </h3>
-            <div className="flex items-center">
-              {trainingMode && (
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  className="text-white hover:bg-hrm-steel-blue/60 p-1 h-auto mr-2"
-                  onClick={exitTrainingMode}
-                >
-                  Salir
-                </Button>
-              )}
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                className="text-white hover:bg-hrm-steel-blue p-1 h-auto"
-                onClick={() => setIsOpen(false)}
-              >
-                ✕
-              </Button>
-            </div>
+          <div className="bg-hrm-dark-cyan text-white p-3 flex justify-between items-center">
+            <h3 className="font-medium">Asistente CONVERT-IA</h3>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className="text-white hover:bg-hrm-steel-blue p-1 h-auto"
+              onClick={() => setIsOpen(false)}
+            >
+              ✕
+            </Button>
           </div>
           
           <div className="flex-1 p-4 overflow-y-auto max-h-80">
@@ -504,30 +408,18 @@ const ChatbotInterface: React.FC<ChatbotInterfaceProps> = ({ userType }) => {
           
           <div className="p-3 border-t">
             <div className="flex mb-2">
-              {!trainingMode && (
-                <>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="mr-2 flex-shrink-0"
-                    onClick={triggerFileUpload}
-                    disabled={isUploading || isLoading}
-                  >
-                    <Upload className="h-4 w-4 mr-1" />
-                    Subir CV
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="mr-2 flex-shrink-0"
-                    onClick={() => setIsTrainingDialogOpen(true)}
-                  >
-                    Modo Entrenamiento
-                  </Button>
-                </>
-              )}
+              <Button
+                variant="outline"
+                size="sm"
+                className="mr-2 flex-shrink-0"
+                onClick={triggerFileUpload}
+                disabled={isUploading || isLoading}
+              >
+                <Upload className="h-4 w-4 mr-1" />
+                Subir CV
+              </Button>
               <Input
-                placeholder={trainingMode ? "Responde al cliente..." : "Escribe tu mensaje..."}
+                placeholder="Escribe tu mensaje..."
                 value={input}
                 onChange={e => setInput(e.target.value)}
                 onKeyPress={handleKeyPress}
@@ -536,7 +428,7 @@ const ChatbotInterface: React.FC<ChatbotInterfaceProps> = ({ userType }) => {
               />
               <Button 
                 size="icon" 
-                className={`ml-2 ${trainingMode ? 'bg-hrm-steel-blue hover:bg-hrm-steel-blue/80' : 'bg-hrm-dark-cyan hover:bg-hrm-steel-blue'} flex-shrink-0`}
+                className="ml-2 bg-hrm-dark-cyan hover:bg-hrm-steel-blue flex-shrink-0"
                 onClick={handleSendMessage}
                 disabled={isLoading || isUploading || !input.trim()}
               >
@@ -547,7 +439,7 @@ const ChatbotInterface: React.FC<ChatbotInterfaceProps> = ({ userType }) => {
         </div>
       ) : (
         <Button
-          className={`rounded-full w-12 h-12 ${trainingMode ? 'bg-hrm-steel-blue hover:bg-hrm-steel-blue/80' : 'bg-hrm-dark-cyan hover:bg-hrm-steel-blue'} shadow-lg flex items-center justify-center`}
+          className="rounded-full w-12 h-12 bg-hrm-dark-cyan hover:bg-hrm-steel-blue shadow-lg flex items-center justify-center"
           onClick={() => setIsOpen(true)}
         >
           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white">
@@ -555,13 +447,6 @@ const ChatbotInterface: React.FC<ChatbotInterfaceProps> = ({ userType }) => {
           </svg>
         </Button>
       )}
-      
-      {/* Training Chat Dialog */}
-      <TrainingChatDialog
-        isOpen={isTrainingDialogOpen}
-        onClose={() => setIsTrainingDialogOpen(false)}
-        onTrainingStart={startTrainingMode}
-      />
     </div>
   );
 };
