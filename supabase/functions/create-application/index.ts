@@ -42,7 +42,7 @@ serve(async (req) => {
     // Check if candidate exists
     const { data: existingCandidate, error: findError } = await supabaseClient
       .from('candidates')
-      .select('id')
+      .select('id, resume_url')
       .eq('email', email)
       .single()
     
@@ -59,7 +59,7 @@ serve(async (req) => {
         .update({
           first_name: firstName,
           last_name: lastName,
-          phone: phone,
+          phone: `${phoneCountry}${phone}`,
           resume_url: resumeUrl || existingCandidate.resume_url
         })
         .eq('id', candidateId)
@@ -71,7 +71,7 @@ serve(async (req) => {
           first_name: firstName,
           last_name: lastName,
           email: email,
-          phone: phone,
+          phone: `${phoneCountry}${phone}`,
           resume_url: resumeUrl
         })
         .select('id')
@@ -87,7 +87,8 @@ serve(async (req) => {
       .insert({
         candidate_id: candidateId,
         job_id: jobId,
-        notes: coverLetter || null
+        notes: coverLetter || null,
+        status: 'new'
       })
       .select()
       .single()
@@ -103,8 +104,10 @@ serve(async (req) => {
     )
     
   } catch (error) {
+    console.error('Error in create-application function:', error);
+    
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: error.message || 'Unknown error occurred' }),
       { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 400 

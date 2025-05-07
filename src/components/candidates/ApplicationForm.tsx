@@ -149,6 +149,16 @@ const ApplicationForm = () => {
         const fileExt = values.resume.name.split('.').pop();
         const fileName = `${Date.now()}_${values.firstName.toLowerCase()}_${values.lastName.toLowerCase()}.${fileExt}`;
         
+        // Verify bucket exists before uploading
+        const { data: bucketData, error: bucketError } = await supabase.storage
+          .getBucket('resumes');
+          
+        if (bucketError) {
+          console.error('Error checking bucket:', bucketError);
+          throw new Error('Error al verificar el almacenamiento. Por favor, inténtalo de nuevo.');
+        }
+        
+        // Upload file to storage
         const { data: uploadData, error: uploadError } = await supabase.storage
           .from('resumes')
           .upload(fileName, values.resume);
@@ -188,7 +198,8 @@ const ApplicationForm = () => {
         .insert({
           candidate_id: candidateData.id,
           job_id: jobId,
-          status: 'new'
+          status: 'new',
+          notes: values.coverLetter || null
         });
       
       if (applicationError) {
