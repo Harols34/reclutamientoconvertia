@@ -15,7 +15,7 @@ const Home = () => {
                 <Link to="/jobs">Ver vacantes disponibles</Link>
               </Button>
               <Button asChild variant="outline" size="lg" className="border-hrm-dark-cyan text-hrm-dark-cyan hover:bg-hrm-dark-cyan/10">
-                <Link to="/admin/login">Acceso administradores</Link>
+                
               </Button>
             </div>
           </div>
