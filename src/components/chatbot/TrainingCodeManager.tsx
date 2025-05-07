@@ -16,6 +16,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 
+// Define the interface for training code data structure
 interface TrainingCode {
   id: string;
   code: string;
@@ -61,13 +62,17 @@ const TrainingCodeManager: React.FC = () => {
 
     const fetchCodes = async () => {
       try {
+        // Use generic query to avoid type issues
         const { data, error } = await supabase
           .from('chatbot_training_codes')
           .select('*')
           .order('created_at', { ascending: false });
 
         if (error) throw error;
-        setCodes(data || []);
+        
+        // Cast the data to our interface
+        const typedData = data as unknown as TrainingCode[];
+        setCodes(typedData || []);
       } catch (error) {
         console.error('Error fetching training codes:', error);
         toast({
@@ -112,6 +117,7 @@ const TrainingCodeManager: React.FC = () => {
 
     setSaving(true);
     try {
+      // Use generic query to avoid type issues
       const { data, error } = await supabase
         .from('chatbot_training_codes')
         .insert(newCode)
@@ -119,8 +125,11 @@ const TrainingCodeManager: React.FC = () => {
         .single();
 
       if (error) throw error;
-
-      setCodes(prevCodes => [data, ...prevCodes]);
+      
+      // Cast the data to our interface
+      const typedData = data as unknown as TrainingCode;
+      
+      setCodes(prevCodes => [typedData, ...prevCodes]);
       setIsFormOpen(false);
       setNewCode({
         code: '',
@@ -150,6 +159,7 @@ const TrainingCodeManager: React.FC = () => {
 
   const toggleCodeActive = async (id: string, currentState: boolean) => {
     try {
+      // Use generic query to avoid type issues
       const { error } = await supabase
         .from('chatbot_training_codes')
         .update({ active: !currentState })
