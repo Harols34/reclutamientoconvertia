@@ -35,7 +35,7 @@ const mainNavItems = [{
 }];
 const AdminSidebar = () => {
   return <Sidebar className="border-r border-hrm-light-gray bg-hrm-dark-cyan">
-      <SidebarHeader className="h-14 border-b border-hrm-light-gray/20">
+      <SidebarHeader className="h-14 border-b border-hrm-light-gray/20 bg-teal-950">
         <div className="flex items-center justify-center h-full px-4">
           <ConvertIALogo className="h-10" />
         </div>
@@ -50,7 +50,7 @@ const AdminSidebar = () => {
             </NavLink>)}
         </nav>
       </SidebarContent>
-      <SidebarFooter className="border-t border-hrm-light-gray/20 p-4">
+      <SidebarFooter className="border-t border-hrm-light-gray/20 p-4 bg-teal-950">
         <div className="flex items-center">
           <div className="h-8 w-8 rounded-full bg-white flex items-center justify-center text-hrm-dark-cyan">
             <span className="text-sm font-medium">A</span>
