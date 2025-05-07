@@ -25,7 +25,9 @@ import {
   FileText,
   Briefcase,
   User,
-  Loader2
+  Loader2,
+  Check,
+  AlertTriangle
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
@@ -71,6 +73,10 @@ const CandidateDetail: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [pdfViewerOpen, setPdfViewerOpen] = useState(false);
   const [resumeContent, setResumeContent] = useState<string | null>(null);
+  const [extractionProgress, setExtractionProgress] = useState<{
+    status: 'idle' | 'extracting' | 'analyzing' | 'complete' | 'error';
+    message: string;
+  }>({ status: 'idle', message: '' });
 
   useEffect(() => {
     const fetchCandidate = async () => {
@@ -180,6 +186,7 @@ const CandidateDetail: React.FC = () => {
     try {
       setAnalyzing(true);
       setExtractingText(true);
+      setExtractionProgress({ status: 'extracting', message: 'Extrayendo texto del CV...' });
       
       // Fetch the job details if we have an application ID
       let jobContext = '';
@@ -213,112 +220,99 @@ const CandidateDetail: React.FC = () => {
       const resumeUrl = candidate.resume_url;
       console.log("Analizando CV desde URL:", resumeUrl);
       
-      // Step 1: Extract CV text from PDF using our improved function
-      try {
-        toast({
-          title: "Procesando",
-          description: "Extrayendo texto del CV...",
-        });
-        
-        // Get the complete, public URL for the resume
-        const pdfUrl = resumeUrl.startsWith('http') 
-          ? resumeUrl 
-          : supabase.storage.from('resumes').getPublicUrl(resumeUrl).data.publicUrl;
-        
-        console.log("URL completa del PDF:", pdfUrl);
-        
-        // Call our improved edge function to extract text
-        const extractResponse = await supabase.functions.invoke('openai-assistant', {
-          body: {
-            prompt: pdfUrl,
-            type: 'extract-cv-text'
-          }
-        });
-        
-        console.log("Respuesta de extracción:", extractResponse);
-        
-        if (extractResponse.error) {
-          console.error("Error en extracción:", extractResponse.error);
-          throw new Error(`Error extrayendo texto: ${extractResponse.error}`);
-        }
-        
-        const cvContent = extractResponse.data.response;
-        console.log("Texto extraído del CV:", cvContent.substring(0, 100) + "...");
-        
-        if (!cvContent || cvContent.length < 50) {
-          throw new Error("El texto extraído es muy corto o vacío");
-        }
-        
-        setResumeContent(cvContent);
-        setExtractingText(false);
-        
-        toast({
-          title: "Extracción completada",
-          description: "Analizando contenido del CV...",
-        });
-        
-        // Step 2: Send the extracted content to OpenAI for analysis
-        console.log("Enviando contenido para análisis, longitud:", cvContent.length);
-        
-        const response = await supabase.functions.invoke('openai-assistant', {
-          body: {
-            prompt: cvContent,
-            type: 'cv-analysis',
-            context: jobContext
-          }
-        });
-        
-        if (response.error) {
-          console.error('Error invocando análisis:', response.error);
-          throw new Error(`Error en análisis: ${response.error}`);
-        }
-        
-        const data = response.data;
-        console.log("Análisis recibido:", data);
-        
-        if (!data.response) {
-          throw new Error('No se recibió respuesta del análisis');
-        }
-        
-        // Update the candidate with the analysis
-        const { error: updateError } = await supabase
-          .from('candidates')
-          .update({ 
-            analysis_summary: data.response 
-          })
-          .eq('id', candidate.id);
-        
-        if (updateError) {
-          console.error('Error actualizando candidato:', updateError);
-          throw new Error(`Error al guardar el análisis: ${updateError.message}`);
-        }
-        
-        // Update local state
-        setCandidate(prev => {
-          if (!prev) return null;
-          return { 
-            ...prev, 
-            analysis_summary: data.response 
-          };
-        });
-        
-        toast({
-          title: "Análisis completado",
-          description: "El CV ha sido analizado correctamente."
-        });
-        
-      } catch (extractError: any) {
-        console.error("Error extracting or analyzing CV content:", extractError);
-        setExtractingText(false);
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: "No se pudo extraer o analizar el texto del CV: " + extractError.message
-        });
+      // Get the complete, public URL for the resume
+      const pdfUrl = resumeUrl.startsWith('http') 
+        ? resumeUrl 
+        : supabase.storage.from('resumes').getPublicUrl(resumeUrl).data.publicUrl;
+      
+      console.log("URL completa del PDF:", pdfUrl);
+      
+      toast({
+        title: "Extrayendo texto",
+        description: "Iniciando extracción de texto del CV...",
+      });
+      
+      // Step 1: Call our dedicated text extraction edge function
+      const extractionResponse = await supabase.functions.invoke('extract-pdf-text', {
+        body: { pdfUrl }
+      });
+      
+      if (extractionResponse.error || !extractionResponse.data?.success) {
+        console.error("Error en extracción:", extractionResponse.error || extractionResponse.data?.error);
+        throw new Error(`Error extrayendo texto: ${extractionResponse.error || extractionResponse.data?.error}`);
       }
+      
+      const cvContent = extractionResponse.data.text;
+      console.log("Texto extraído del CV:", cvContent.substring(0, 200) + "...");
+      
+      if (!cvContent || cvContent.length < 50) {
+        throw new Error("El texto extraído es muy corto o vacío");
+      }
+      
+      setResumeContent(cvContent);
+      setExtractingText(false);
+      setExtractionProgress({ status: 'analyzing', message: 'Analizando contenido del CV con IA...' });
+      
+      toast({
+        title: "Extracción completada",
+        description: "Analizando contenido del CV con IA...",
+      });
+      
+      // Step 2: Send the extracted content to OpenAI for analysis
+      console.log("Enviando contenido para análisis, longitud:", cvContent.length);
+      
+      const response = await supabase.functions.invoke('openai-assistant', {
+        body: {
+          prompt: cvContent,
+          type: 'cv-analysis',
+          context: jobContext
+        }
+      });
+      
+      if (response.error) {
+        console.error('Error invocando análisis:', response.error);
+        throw new Error(`Error en análisis: ${response.error}`);
+      }
+      
+      const data = response.data;
+      console.log("Análisis recibido:", data);
+      
+      if (!data.response) {
+        throw new Error('No se recibió respuesta del análisis');
+      }
+      
+      // Update the candidate with the analysis
+      const { error: updateError } = await supabase
+        .from('candidates')
+        .update({ 
+          analysis_summary: data.response 
+        })
+        .eq('id', candidate.id);
+      
+      if (updateError) {
+        console.error('Error actualizando candidato:', updateError);
+        throw new Error(`Error al guardar el análisis: ${updateError.message}`);
+      }
+      
+      // Update local state
+      setCandidate(prev => {
+        if (!prev) return null;
+        return { 
+          ...prev, 
+          analysis_summary: data.response 
+        };
+      });
+      
+      setExtractionProgress({ status: 'complete', message: 'Análisis completado con éxito' });
+      
+      toast({
+        title: "Análisis completado",
+        description: "El CV ha sido analizado correctamente."
+      });
       
     } catch (error: any) {
       console.error('Error analizando CV:', error);
+      setExtractionProgress({ status: 'error', message: `Error: ${error.message}` });
       toast({
         variant: "destructive",
         title: "Error",
@@ -472,6 +466,28 @@ const CandidateDetail: React.FC = () => {
                         </div>
                       </div>
                     ))}
+                  </div>
+                </div>
+              )}
+              
+              {/* Estado del proceso */}
+              {extractionProgress.status !== 'idle' && (
+                <div className="mt-4 p-3 border rounded-md bg-gray-50">
+                  <h3 className="text-sm font-medium mb-2">Estado del proceso</h3>
+                  <div className="flex items-center text-sm">
+                    {extractionProgress.status === 'extracting' && (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin text-hrm-dark-cyan" />
+                    )}
+                    {extractionProgress.status === 'analyzing' && (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin text-hrm-dark-cyan" />
+                    )}
+                    {extractionProgress.status === 'complete' && (
+                      <Check className="h-4 w-4 mr-2 text-green-500" />
+                    )}
+                    {extractionProgress.status === 'error' && (
+                      <AlertTriangle className="h-4 w-4 mr-2 text-red-500" />
+                    )}
+                    <span>{extractionProgress.message}</span>
                   </div>
                 </div>
               )}

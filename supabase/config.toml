@@ -8,3 +8,6 @@ verify_jwt = false
 verify_jwt = false
 timeout_seconds = 90
 
+[functions.extract-pdf-text]
+verify_jwt = false
+timeout_seconds = 120
