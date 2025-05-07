@@ -25,8 +25,9 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2 } from 'lucide-react';
+import { Loader2, AlertCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 type JobType = {
   id: string;
@@ -74,7 +75,9 @@ const ApplicationForm = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [job, setJob] = useState<JobType | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [uploadingResume, setUploadingResume] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   
   const form = useForm<ApplicationFormValues>({
     resolver: zodResolver(applicationSchema),
@@ -94,6 +97,8 @@ const ApplicationForm = () => {
       
       try {
         setLoading(true);
+        setError(null);
+        
         // Use the updated RPC function to get job details
         const { data, error } = await supabase.rpc('get_job_by_id', {
           p_job_id: jobId
@@ -101,6 +106,7 @@ const ApplicationForm = () => {
 
         if (error) {
           console.error('Error fetching job:', error);
+          setError('No se pudo cargar los detalles de la vacante');
           return;
         }
 
@@ -125,9 +131,12 @@ const ApplicationForm = () => {
             createdAt: data[0].created_at ? new Date(data[0].created_at) : new Date()
           };
           setJob(jobData);
+        } else {
+          setError('No se encontró la vacante solicitada');
         }
       } catch (err) {
         console.error('Error:', err);
+        setError('Ha ocurrido un error al cargar los detalles de la vacante');
       } finally {
         setLoading(false);
       }
@@ -181,6 +190,7 @@ const ApplicationForm = () => {
     if (!job || !jobId) return;
     
     setIsSubmitting(true);
+    setSubmitError(null);
     
     try {
       // Upload resume file to Supabase Storage if provided
@@ -213,6 +223,7 @@ const ApplicationForm = () => {
       const responseData = await response.json();
       
       if (!response.ok) {
+        console.error('Error response:', responseData);
         throw new Error(responseData.error || 'Error al enviar la aplicación');
       }
       
@@ -227,10 +238,11 @@ const ApplicationForm = () => {
       navigate('/gracias');
     } catch (err: any) {
       console.error('Error submitting application:', err);
+      setSubmitError(err.message || 'Error al enviar la aplicación');
       toast({
         variant: "destructive",
         title: "Error",
-        description: `Hubo un problema al enviar tu aplicación: ${err.message}`,
+        description: `Hubo un problema al enviar tu aplicación: ${err.message || 'Error al enviar la aplicación'}`,
       });
     } finally {
       setIsSubmitting(false);
@@ -269,6 +281,15 @@ const ApplicationForm = () => {
           <CardDescription>Departamento: {job.department}</CardDescription>
         </CardHeader>
         <CardContent>
+          {submitError && (
+            <Alert variant="destructive" className="mb-6">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                {submitError}
+              </AlertDescription>
+            </Alert>
+          )}
+          
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -369,7 +390,7 @@ const ApplicationForm = () => {
                         onChange={(e) => {
                           const file = e.target.files?.[0];
                           if (file) {
-                            console.info('File selected:', file.name);
+                            console.info('File selected:', file.name, file.type);
                             onChange(file);
                           }
                         }}
@@ -405,7 +426,7 @@ const ApplicationForm = () => {
                 disabled={isSubmitting || uploadingResume}
               >
                 {isSubmitting || uploadingResume ? 
-                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Enviando...</> : 
+                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> {uploadingResume ? 'Subiendo CV...' : 'Enviando aplicación...'}</> : 
                   'Enviar aplicación'}
               </Button>
             </form>

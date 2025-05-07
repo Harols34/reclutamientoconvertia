@@ -14,12 +14,16 @@ serve(async (req) => {
   }
   
   try {
-    const supabaseClient = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? ''
-      // We're removing the authorization header as this is a public endpoint
-      // and we want anonymous users to be able to submit applications
-    )
+    console.log("Starting create-application function")
+    
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')
+    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')
+    
+    if (!supabaseUrl || !supabaseAnonKey) {
+      throw new Error('Missing Supabase environment variables')
+    }
+    
+    const supabaseClient = createClient(supabaseUrl, supabaseAnonKey)
     
     const body = await req.json()
     const { 
@@ -36,7 +40,8 @@ serve(async (req) => {
     console.log('Application data received:', { firstName, lastName, email, jobId, resumeUrl })
     
     if (!firstName || !lastName || !email || !jobId) {
-      throw new Error('Missing required fields')
+      console.error('Missing required fields:', { firstName, lastName, email, jobId })
+      throw new Error('Faltan campos requeridos')
     }
     
     // Create or find candidate
@@ -51,8 +56,12 @@ serve(async (req) => {
     
     if (findError) {
       console.error('Error finding candidate:', findError)
-      throw findError
+      throw new Error('Error al buscar candidato existente')
     }
+    
+    // Format phone number correctly
+    const formattedPhone = phoneCountry && phone ? `+${phoneCountry}${phone}` : null
+    console.log('Formatted phone:', formattedPhone)
     
     if (existingCandidate) {
       console.log('Existing candidate found:', existingCandidate.id)
@@ -64,14 +73,14 @@ serve(async (req) => {
         .update({
           first_name: firstName,
           last_name: lastName,
-          phone: phoneCountry && phone ? `${phoneCountry}${phone}` : null,
+          phone: formattedPhone,
           resume_url: resumeUrl || existingCandidate.resume_url
         })
         .eq('id', candidateId)
         
       if (updateError) {
         console.error('Error updating candidate:', updateError)
-        throw updateError
+        throw new Error('Error al actualizar información del candidato')
       }
       
       console.log('Candidate updated successfully')
@@ -84,7 +93,7 @@ serve(async (req) => {
           first_name: firstName,
           last_name: lastName,
           email: email,
-          phone: phoneCountry && phone ? `${phoneCountry}${phone}` : null,
+          phone: formattedPhone,
           resume_url: resumeUrl
         })
         .select('id')
@@ -92,14 +101,56 @@ serve(async (req) => {
       
       if (createError) {
         console.error('Error creating candidate:', createError)
-        throw createError
+        throw new Error('Error al crear candidato')
+      }
+      
+      if (!newCandidate) {
+        console.error('Candidate created but no ID returned')
+        throw new Error('Error al crear candidato: no se devolvió ID')
       }
       
       candidateId = newCandidate.id
       console.log('New candidate created with ID:', candidateId)
     }
     
-    // Create application
+    // Check if application already exists for this candidate and job
+    const { data: existingApplication } = await supabaseClient
+      .from('applications')
+      .select('id')
+      .match({ candidate_id: candidateId, job_id: jobId })
+      .maybeSingle()
+      
+    if (existingApplication) {
+      console.log('Application already exists:', existingApplication.id)
+      
+      // Update existing application
+      const { data: updatedApplication, error: updateError } = await supabaseClient
+        .from('applications')
+        .update({
+          notes: coverLetter || null,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', existingApplication.id)
+        .select()
+        .single()
+      
+      if (updateError) {
+        console.error('Error updating application:', updateError)
+        throw new Error('Error al actualizar aplicación existente')
+      }
+      
+      console.log('Application updated successfully:', updatedApplication.id)
+      
+      return new Response(
+        JSON.stringify({ success: true, data: updatedApplication }),
+        { 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 200 
+        }
+      )
+    }
+    
+    // Create new application
     console.log('Creating application with candidate_id:', candidateId, 'job_id:', jobId)
     const { data: application, error: applicationError } = await supabaseClient
       .from('applications')
@@ -114,7 +165,12 @@ serve(async (req) => {
     
     if (applicationError) {
       console.error('Error creating application:', applicationError)
-      throw applicationError
+      throw new Error('Error al crear la aplicación')
+    }
+    
+    if (!application) {
+      console.error('Application created but no data returned')
+      throw new Error('Error: no se devolvieron datos de la aplicación')
     }
     
     console.log('Application created successfully:', application.id)
@@ -131,7 +187,13 @@ serve(async (req) => {
     console.error('Error in create-application function:', error);
     
     return new Response(
-      JSON.stringify({ error: error.message || 'Unknown error occurred' }),
+      JSON.stringify({ 
+        error: error.message || 'Error al enviar la aplicación',
+        details: typeof error === 'object' ? Object.getOwnPropertyNames(error).reduce((acc, key) => {
+          acc[key] = error[key];
+          return acc;
+        }, {}) : null
+      }),
       { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 400 
