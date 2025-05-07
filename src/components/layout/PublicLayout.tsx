@@ -28,9 +28,7 @@ const PublicLayout = () => {
       </main>
       <footer className="bg-gray-50 border-t border-hrm-light-gray">
         <div className="container mx-auto px-4 py-6">
-          <p className="text-center text-gray-500 text-sm">
-            CONVERT-IA RECLUTAMIENTO
-          </p>
+          <p className="text-center text-gray-500 text-sm">RECLUTAMIENTO CONVERT-IA</p>
         </div>
       </footer>
       <Chatbot userType="public" />
