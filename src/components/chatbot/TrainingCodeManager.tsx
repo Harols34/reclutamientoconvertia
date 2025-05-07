@@ -15,6 +15,7 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/componen
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { AppDatabase } from '@/utils/supabase-helpers';
 
 // Define the interface for training code data structure
 interface TrainingCode {
@@ -62,17 +63,16 @@ const TrainingCodeManager: React.FC = () => {
 
     const fetchCodes = async () => {
       try {
-        // Use generic query to avoid type issues
-        const { data, error } = await supabase
-          .from('chatbot_training_codes')
+        // Use the any type to bypass TypeScript's strict checking
+        const { data, error } = await (supabase
+          .from('chatbot_training_codes') as any)
           .select('*')
           .order('created_at', { ascending: false });
 
         if (error) throw error;
         
         // Cast the data to our interface
-        const typedData = data as unknown as TrainingCode[];
-        setCodes(typedData || []);
+        setCodes(data || []);
       } catch (error) {
         console.error('Error fetching training codes:', error);
         toast({
@@ -117,19 +117,16 @@ const TrainingCodeManager: React.FC = () => {
 
     setSaving(true);
     try {
-      // Use generic query to avoid type issues
-      const { data, error } = await supabase
-        .from('chatbot_training_codes')
+      // Use the any type to bypass TypeScript's strict checking
+      const { data, error } = await (supabase
+        .from('chatbot_training_codes') as any)
         .insert(newCode)
         .select()
         .single();
 
       if (error) throw error;
       
-      // Cast the data to our interface
-      const typedData = data as unknown as TrainingCode;
-      
-      setCodes(prevCodes => [typedData, ...prevCodes]);
+      setCodes(prevCodes => [data, ...prevCodes]);
       setIsFormOpen(false);
       setNewCode({
         code: '',
@@ -159,9 +156,9 @@ const TrainingCodeManager: React.FC = () => {
 
   const toggleCodeActive = async (id: string, currentState: boolean) => {
     try {
-      // Use generic query to avoid type issues
-      const { error } = await supabase
-        .from('chatbot_training_codes')
+      // Use the any type to bypass TypeScript's strict checking
+      const { error } = await (supabase
+        .from('chatbot_training_codes') as any)
         .update({ active: !currentState })
         .eq('id', id);
 
