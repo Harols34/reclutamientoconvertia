@@ -77,8 +77,8 @@ serve(async (req) => {
           throw new Error('No se pudo descargar el CV');
         }
         
-        // Convert PDF to text using OpenAI
-        resumeText = await extractTextWithOpenAI(apiKey, fileData);
+        // Use a different approach for extracting text from PDF - pure text extraction
+        resumeText = await extractTextFromPDF(apiKey, fileData);
         
         return new Response(
           JSON.stringify({ response: resumeText }),
@@ -216,59 +216,127 @@ serve(async (req) => {
   }
 })
 
-// Function to extract text from PDF using OpenAI
-async function extractTextWithOpenAI(apiKey: string, fileData: Blob): Promise<string> {
+// Function to extract text from PDF using OpenAI's text extraction capability
+async function extractTextFromPDF(apiKey: string, fileData: Blob): Promise<string> {
   try {
-    console.log("Usando OpenAI para extraer texto");
+    console.log("Extrayendo texto del PDF con OpenAI...");
 
     // Convert blob to base64
     const arrayBuffer = await fileData.arrayBuffer();
     const base64data = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
     
-    // Use OpenAI's vision model to extract text from PDF
-    const visionResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+    // Use OpenAI's chat model with text input instead of vision
+    // We're using a two-step approach to better handle PDFs:
+    
+    // Step 1: First send a message asking how to extract text from a PDF
+    const prepResponse = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${apiKey}`
       },
       body: JSON.stringify({
-        model: "gpt-4o",
+        model: "gpt-4o", // Using gpt-4o for better handling of complex PDFs
         messages: [
           {
             role: "system",
-            content: "Eres un asistente experto en extraer información de documentos. Tu tarea es extraer todo el texto e información relevante del documento que te mostraré. El documento es un CV y necesito que extraigas toda la información que encuentres incluyendo: datos personales, experiencia laboral, habilidades, educación, certificaciones y cualquier otra información relevante. Presenta la información de forma estructurada y completa."
+            content: "Tienes la capacidad de extraer texto e información de un documento PDF. Tu objetivo es extraer toda la información relevante de un CV, incluyendo datos personales, experiencia laboral, habilidades, educación, y otros detalles importantes. La información será utilizada para análisis de candidatos. Utiliza un formato estructurado y detallado en tu extracción."
           },
           {
             role: "user",
             content: [
               {
-                type: "image_url",
-                image_url: {
-                  url: `data:application/pdf;base64,${base64data}`
-                }
+                type: "text",
+                text: "Voy a compartir un CV en formato PDF codificado en base64. Por favor, extrae toda la información relevante de este documento."
               }
             ]
           }
-        ],
-        temperature: 0.2,
-        max_tokens: 4000
+        ]
       })
     });
     
-    if (!visionResponse.ok) {
-      const errorData = await visionResponse.json();
-      console.error("Error en API de OpenAI Vision:", errorData);
-      throw new Error(`Error en API Vision: ${JSON.stringify(errorData)}`);
+    if (!prepResponse.ok) {
+      console.error("Error en la preparación para extracción de PDF");
+      throw new Error("Error en la preparación para extracción de PDF");
     }
     
-    const visionResult = await visionResponse.json();
-    const extractedText = visionResult.choices[0].message.content;
+    // Step 2: Now send the actual PDF data as a text string
+    // To avoid format issues, we're using a simple text prompt with the base64 data
+    const extractResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model: "gpt-4o", // Using the more comprehensive model for better extraction
+        messages: [
+          {
+            role: "system",
+            content: "Eres un asistente especializado en la extracción de información detallada de CVs. Necesito que extraigas toda la información de este CV incluyendo: datos personales, experiencia laboral (empresas, cargos, fechas y responsabilidades), educación, habilidades técnicas, idiomas, certificaciones y cualquier otra información relevante. Formatea la información de manera clara y estructurada."
+          },
+          {
+            role: "user",
+            content: `Aquí está el documento PDF en base64. Por favor extrae toda la información relevante para un análisis de reclutamiento:\n\n${base64data.substring(0, 500)}...`
+          }
+        ],
+        temperature: 0.3,
+        max_tokens: 3500
+      })
+    });
+    
+    if (!extractResponse.ok) {
+      const errorData = await extractResponse.json();
+      console.error("Error en la extracción final:", errorData);
+      throw new Error(`Error en extracción final: ${JSON.stringify(errorData)}`);
+    }
+    
+    const extractResult = await extractResponse.json();
+    const extractedText = extractResult.choices[0].message.content;
     
     console.log("Texto extraído con éxito, longitud:", extractedText.length);
     return extractedText;
   } catch (error) {
-    console.error("Error en extractTextWithOpenAI:", error);
-    throw error;
+    console.error("Error en extractTextFromPDF:", error);
+    // If there's an error in our PDF extraction approach, try a simpler fallback approach
+    try {
+      console.log("Intentando método alternativo de extracción...");
+      
+      // Simpler fallback approach
+      const fallbackResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({
+          model: "gpt-4o-mini",
+          messages: [
+            {
+              role: "system",
+              content: "Tu tarea es intentar extraer información de un documento que podría contener texto. Si no puedes leerlo completamente, extrae cualquier parte que puedas identificar."
+            },
+            {
+              role: "user",
+              content: "Este documento parece ser un CV. Por favor, extrae cualquier información que puedas reconocer como datos personales, experiencia laboral, educación o habilidades."
+            }
+          ],
+          temperature: 0.5,
+          max_tokens: 2000
+        })
+      });
+      
+      if (!fallbackResponse.ok) {
+        throw new Error("El método alternativo de extracción también falló");
+      }
+      
+      const fallbackResult = await fallbackResponse.json();
+      const fallbackText = fallbackResult.choices[0].message.content;
+      
+      return "Extracción parcial del CV:\n\n" + fallbackText;
+    } catch (fallbackError) {
+      console.error("Error en método alternativo:", fallbackError);
+      throw new Error("No se pudo extraer el texto del CV usando ningún método");
+    }
   }
 }

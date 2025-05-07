@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { 
@@ -246,46 +245,63 @@ const CandidateDetail: React.FC = () => {
 
       // Get the resume URL or filename
       const resumeUrl = candidate.resume_url;
-      console.log("Resume URL:", resumeUrl);
+      console.log("Resume URL para análisis:", resumeUrl);
       
-      // First, extract text or fetch content from the PDF
-      let cvContent;
+      // Step 1: Extract CV text from PDF
+      let cvContent = '';
       try {
-        cvContent = await extractTextFromPDF(resumeUrl);
+        // Call our improved edge function to extract text
+        const extractResponse = await supabase.functions.invoke('openai-assistant', {
+          body: {
+            prompt: resumeUrl,
+            type: 'extract-cv-text'
+          }
+        });
+        
+        if (extractResponse.error) {
+          console.error("Error en extracción:", extractResponse.error);
+          throw new Error(`Error extrayendo texto: ${extractResponse.error.message}`);
+        }
+        
+        cvContent = extractResponse.data.response;
+        console.log("Texto extraído del CV, longitud:", cvContent.length);
+        
+        if (!cvContent || cvContent.length < 50) {
+          throw new Error("El texto extraído es muy corto o vacío");
+        }
+        
         setResumeContent(cvContent);
       } catch (extractError) {
         console.error("Error extracting CV content:", extractError);
         toast({
-          variant: "destructive",
-          title: "Error",
-          description: "No se pudo extraer el contenido del CV. Intentando analizar con información limitada."
+          variant: "warning",
+          title: "Advertencia",
+          description: "La extracción de texto ha tenido problemas. El análisis puede ser limitado."
         });
-        // Use a fallback approach - let the OpenAI function handle it directly
-        cvContent = `CV URL: ${resumeUrl}`;
+        // Use a fallback approach with minimal content
+        cvContent = `Perfil de: ${candidate.first_name} ${candidate.last_name}, Email: ${candidate.email}`;
+        if (candidate.skills && candidate.skills.length > 0) {
+          cvContent += `, Habilidades: ${candidate.skills.join(', ')}`;
+        }
       }
       
-      // Now send the extracted content to OpenAI for analysis
-      console.log("Enviando contenido del CV para análisis:", cvContent.length, "caracteres");
+      // Step 2: Send the extracted content to OpenAI for analysis
+      console.log("Enviando contenido para análisis, longitud:", cvContent.length);
       
-      const response = await fetch('https://kugocdtesaczbfrwblsi.supabase.co/functions/v1/openai-assistant', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
+      const response = await supabase.functions.invoke('openai-assistant', {
+        body: {
           prompt: cvContent.substring(0, 15000), // Limit to 15000 characters
           type: 'cv-analysis',
           context: jobContext
-        })
+        }
       });
       
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Error invocando el asistente OpenAI:', errorText);
-        throw new Error(`Error del servidor: ${response.status} ${response.statusText}`);
+      if (response.error) {
+        console.error('Error invocando análisis:', response.error);
+        throw new Error(`Error en análisis: ${response.error.message}`);
       }
       
-      const data = await response.json();
+      const data = response.data;
       console.log("Análisis recibido con éxito");
       
       if (!data.response) {
@@ -609,6 +625,7 @@ const CandidateDetail: React.FC = () => {
           isOpen={pdfViewerOpen}
           onOpenChange={setPdfViewerOpen}
           title={`CV de ${candidate.first_name} ${candidate.last_name}`}
+          onAnalyze={() => analyzeCV(candidate.applications?.[0]?.id)}
         />
       )}
     </div>
