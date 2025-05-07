@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { NavLink, Link, useNavigate } from 'react-router-dom';
 import { Calendar, Database, File, Home, LogOut, MessageCircle, Search, Settings, Users } from 'lucide-react';
@@ -7,7 +6,6 @@ import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader } from '@/compone
 import ConvertIALogo from '@/assets/convert-ia-logo';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-
 const mainNavItems = [{
   icon: Home,
   label: 'Dashboard',
@@ -37,17 +35,17 @@ const mainNavItems = [{
   label: 'Configuración',
   href: '/admin/settings'
 }];
-
 const AdminSidebar = () => {
   const navigate = useNavigate();
-  const { toast } = useToast();
-
+  const {
+    toast
+  } = useToast();
   const handleLogout = async () => {
     try {
       await supabase.auth.signOut();
       toast({
         title: "Sesión cerrada",
-        description: "Has cerrado sesión correctamente",
+        description: "Has cerrado sesión correctamente"
       });
       navigate('/admin/login');
     } catch (error) {
@@ -55,16 +53,15 @@ const AdminSidebar = () => {
       toast({
         title: "Error",
         description: "No se pudo cerrar la sesión",
-        variant: "destructive",
+        variant: "destructive"
       });
     }
   };
-
   return <Sidebar className="border-r border-hrm-light-gray bg-hrm-dark-cyan">
       <SidebarHeader className="h-14 border-b border-hrm-light-gray/20 bg-teal-950">
         <div className="flex items-center justify-center h-full px-4">
           <ConvertIALogo className="h-10" />
-          <span className="ml-2 text-white text-lg font-medium">CONVERT-IA</span>
+          
         </div>
       </SidebarHeader>
       <SidebarContent className="bg-teal-950">
@@ -88,16 +85,11 @@ const AdminSidebar = () => {
               <p className="text-xs text-gray-200">Administrador</p>
             </div>
           </div>
-          <button 
-            onClick={handleLogout}
-            className="flex items-center text-white hover:text-red-300 transition-colors"
-            title="Cerrar sesión"
-          >
+          <button onClick={handleLogout} className="flex items-center text-white hover:text-red-300 transition-colors" title="Cerrar sesión">
             <LogOut className="h-5 w-5" />
           </button>
         </div>
       </SidebarFooter>
     </Sidebar>;
 };
-
 export default AdminSidebar;
