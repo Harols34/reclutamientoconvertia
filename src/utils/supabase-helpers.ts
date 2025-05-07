@@ -311,3 +311,14 @@ export interface SystemSettings {
   updated_at: string;
   settings?: Record<string, any>;
 }
+
+// Utility function to get a public URL for a resume
+export const getPublicResumeUrl = (filePath: string) => {
+  if (!filePath) return null;
+  
+  const { data } = supabase.storage
+    .from('resumes')
+    .getPublicUrl(filePath);
+    
+  return data?.publicUrl || null;
+};

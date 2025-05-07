@@ -159,7 +159,7 @@ const ApplicationForm = () => {
         }
         
         if (uploadData) {
-          resumeUrl = `resumes/${fileName}`;
+          resumeUrl = `${fileName}`;
           console.log('Resume uploaded successfully:', resumeUrl);
         }
       }
@@ -171,7 +171,7 @@ const ApplicationForm = () => {
           first_name: values.firstName,
           last_name: values.lastName,
           email: values.email,
-          phone: values.phone,
+          phone: `${values.phoneCountry}${values.phone}`,
           location: null,
           resume_url: resumeUrl
         })
