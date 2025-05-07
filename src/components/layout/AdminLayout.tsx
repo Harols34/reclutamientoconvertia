@@ -9,7 +9,7 @@ import Chatbot from '../chatbot/Chatbot';
 const AdminLayout = () => {
   return (
     <SidebarProvider>
-      <div className="min-h-screen flex w-full">
+      <div className="min-h-screen flex w-full bg-gray-50">
         <AdminSidebar />
         <div className="flex-1">
           <AdminHeader />
