@@ -59,6 +59,18 @@ serve(async (req) => {
       throw new Error('Faltan campos requeridos para la aplicación')
     }
     
+    // Verificar que el trabajo existe
+    const { data: jobExists, error: jobError } = await supabaseAdmin
+      .from('jobs')
+      .select('id')
+      .eq('id', jobId)
+      .single()
+      
+    if (jobError || !jobExists) {
+      console.error('Job not found:', jobId, jobError)
+      throw new Error('La vacante seleccionada no existe')
+    }
+    
     // Create or find candidate
     let candidateId
     
@@ -89,7 +101,8 @@ serve(async (req) => {
           first_name: firstName,
           last_name: lastName,
           phone: formattedPhone,
-          resume_url: resumeUrl || existingCandidate.resume_url
+          resume_url: resumeUrl || existingCandidate.resume_url,
+          updated_at: new Date().toISOString()
         })
         .eq('id', candidateId)
         

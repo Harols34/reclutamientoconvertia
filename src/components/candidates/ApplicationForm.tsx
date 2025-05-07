@@ -100,6 +100,21 @@ const ApplicationForm = () => {
         setLoading(true);
         setError(null);
         
+        // Verificamos la existencia del trabajo directamente en la tabla jobs
+        // para asegurarnos que exista antes de intentar cargar detalles adicionales
+        const { data: jobExists, error: jobExistsError } = await supabase
+          .from('jobs')
+          .select('id')
+          .eq('id', jobId)
+          .maybeSingle();
+          
+        if (jobExistsError || !jobExists) {
+          console.error('Error o trabajo no encontrado:', jobExistsError);
+          setError('No se encontró la vacante solicitada');
+          setLoading(false);
+          return;
+        }
+        
         // Use the updated RPC function to get job details
         const { data, error } = await supabase.rpc('get_job_by_id', {
           p_job_id: jobId
@@ -112,13 +127,12 @@ const ApplicationForm = () => {
         }
 
         if (data && data.length > 0) {
-          // Fix TypeScript issues here - properly cast or handle the enums
+          // Convertimos los datos a nuestro tipo JobType
           const jobData: JobType = {
             id: data[0].id,
             title: data[0].title,
             department: data[0].department,
             location: data[0].location,
-            // Use proper typing for status and type fields
             status: data[0].status as "open" | "in_progress" | "closed" | "draft",
             type: data[0].type as "full-time" | "part-time" | "contract" | "internship" | "temporary",
             created_at: data[0].created_at,
@@ -148,7 +162,7 @@ const ApplicationForm = () => {
 
   // Check if the storage bucket exists and create it if it doesn't
   useEffect(() => {
-    const checkAndCreateBucket = async () => {
+    const checkBucket = async () => {
       try {
         const { data: buckets, error } = await supabase.storage.listBuckets();
         
@@ -159,15 +173,17 @@ const ApplicationForm = () => {
         
         const resumesBucketExists = buckets?.some(bucket => bucket.name === 'resumes');
         
-        if (!resumesBucketExists) {
-          console.info('Resumes bucket does not exist. It needs to be created via SQL.');
+        if (resumesBucketExists) {
+          console.info('Resumes bucket exists.');
+        } else {
+          console.info('Resumes bucket does not exist. The application will not be able to upload resumes.');
         }
       } catch (err) {
         console.error('Error checking storage buckets:', err);
       }
     };
     
-    checkAndCreateBucket();
+    checkBucket();
   }, []);
 
   const uploadResume = async (file?: File) => {
@@ -196,7 +212,7 @@ const ApplicationForm = () => {
       
       if (uploadError) {
         console.error('Resume upload error:', uploadError);
-        throw new Error('Error al subir el currículum');
+        throw new Error('Error al subir el currículum: ' + uploadError.message);
       }
       
       setUploadProgress(90);
@@ -230,7 +246,17 @@ const ApplicationForm = () => {
       let resumeUrl = null;
       
       if (values.resume) {
-        resumeUrl = await uploadResume(values.resume);
+        try {
+          resumeUrl = await uploadResume(values.resume);
+        } catch (uploadErr: any) {
+          console.error('Error uploading resume:', uploadErr);
+          toast({
+            variant: "destructive",
+            title: "Error",
+            description: `Problema al subir el currículum: ${uploadErr.message}`,
+          });
+          // Continúe con la aplicación incluso si no se pudo cargar el CV
+        }
       }
       
       console.info('Submitting application with resumeUrl:', resumeUrl);
@@ -253,13 +279,13 @@ const ApplicationForm = () => {
         })
       });
       
-      const responseData = await response.json();
-      
       if (!response.ok) {
+        const responseData = await response.json();
         console.error('Error response:', responseData);
         throw new Error(responseData.error || 'Error al enviar la aplicación');
       }
       
+      const responseData = await response.json();
       console.info('Application submitted successfully:', responseData);
       
       toast({
@@ -290,13 +316,13 @@ const ApplicationForm = () => {
     );
   }
 
-  if (!job) {
+  if (error || !job) {
     return (
       <div className="hrm-container">
         <Card>
           <CardHeader>
             <CardTitle>Vacante no encontrada</CardTitle>
-            <CardDescription>La vacante que estás buscando no existe.</CardDescription>
+            <CardDescription>{error || 'La vacante que estás buscando no existe.'}</CardDescription>
           </CardHeader>
           <CardFooter>
             <Button onClick={() => navigate('/jobs')}>Ver todas las vacantes</Button>
