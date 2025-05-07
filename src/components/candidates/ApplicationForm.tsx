@@ -78,6 +78,7 @@ const ApplicationForm = () => {
   const [error, setError] = useState<string | null>(null);
   const [uploadingResume, setUploadingResume] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [uploadProgress, setUploadProgress] = useState(0);
   
   const form = useForm<ApplicationFormValues>({
     resolver: zodResolver(applicationSchema),
@@ -86,7 +87,7 @@ const ApplicationForm = () => {
       lastName: '',
       email: '',
       phone: '',
-      phoneCountry: '',
+      phoneCountry: '57', // Default to Colombia
       coverLetter: '',
     },
   });
@@ -145,16 +146,43 @@ const ApplicationForm = () => {
     fetchJob();
   }, [jobId]);
 
+  // Check if the storage bucket exists and create it if it doesn't
+  useEffect(() => {
+    const checkAndCreateBucket = async () => {
+      try {
+        const { data: buckets, error } = await supabase.storage.listBuckets();
+        
+        if (error) {
+          console.error('Error checking storage buckets:', error);
+          return;
+        }
+        
+        const resumesBucketExists = buckets?.some(bucket => bucket.name === 'resumes');
+        
+        if (!resumesBucketExists) {
+          console.info('Resumes bucket does not exist. It needs to be created via SQL.');
+        }
+      } catch (err) {
+        console.error('Error checking storage buckets:', err);
+      }
+    };
+    
+    checkAndCreateBucket();
+  }, []);
+
   const uploadResume = async (file?: File) => {
     if (!file) return null;
     
     try {
       setUploadingResume(true);
+      setUploadProgress(10);
       console.info('Starting file upload to resumes bucket');
       
       const fileExt = file.name.split('.').pop() || '';
       const sanitizedFileName = file.name.replace(/[^a-zA-Z0-9._]/g, '_');
       const fileName = `${Date.now()}_${sanitizedFileName}`;
+      
+      setUploadProgress(30);
 
       // Upload the file to the resumes bucket
       const { data: uploadData, error: uploadError } = await supabase.storage
@@ -164,10 +192,14 @@ const ApplicationForm = () => {
           upsert: false
         });
       
+      setUploadProgress(70);
+      
       if (uploadError) {
         console.error('Resume upload error:', uploadError);
         throw new Error('Error al subir el currículum');
       }
+      
+      setUploadProgress(90);
       
       // Get the public URL for the file
       const { data: publicUrlData } = supabase.storage
@@ -176,6 +208,7 @@ const ApplicationForm = () => {
         
       const resumeUrl = publicUrlData?.publicUrl;
       console.info('Resume uploaded successfully:', resumeUrl);
+      setUploadProgress(100);
       
       return resumeUrl;
     } catch (err) {

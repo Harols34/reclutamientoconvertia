@@ -17,13 +17,15 @@ serve(async (req) => {
     console.log("Starting create-application function")
     
     const supabaseUrl = Deno.env.get('SUPABASE_URL')
-    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') // Using service role key to bypass RLS
     
-    if (!supabaseUrl || !supabaseAnonKey) {
-      throw new Error('Missing Supabase environment variables')
+    if (!supabaseUrl || !supabaseServiceKey) {
+      console.error('Missing Supabase environment variables')
+      throw new Error('Error de configuración del servidor')
     }
     
-    const supabaseClient = createClient(supabaseUrl, supabaseAnonKey)
+    // Initialize Supabase client with service role key
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)
     
     const body = await req.json()
     const { 
@@ -37,18 +39,31 @@ serve(async (req) => {
       resumeUrl
     } = body
     
-    console.log('Application data received:', { firstName, lastName, email, jobId, resumeUrl })
+    console.log('Application data received:', { 
+      firstName, 
+      lastName, 
+      email, 
+      phone: phone ? '(hidden for privacy)' : null, 
+      phoneCountry,
+      jobId,
+      resumeUrl: resumeUrl ? 'Resume URL provided' : 'No resume URL'
+    })
     
     if (!firstName || !lastName || !email || !jobId) {
-      console.error('Missing required fields:', { firstName, lastName, email, jobId })
-      throw new Error('Faltan campos requeridos')
+      console.error('Missing required fields:', { 
+        firstName: !!firstName, 
+        lastName: !!lastName, 
+        email: !!email, 
+        jobId: !!jobId 
+      })
+      throw new Error('Faltan campos requeridos para la aplicación')
     }
     
     // Create or find candidate
     let candidateId
     
     // Check if candidate exists
-    const { data: existingCandidate, error: findError } = await supabaseClient
+    const { data: existingCandidate, error: findError } = await supabaseAdmin
       .from('candidates')
       .select('id, resume_url')
       .eq('email', email)
@@ -68,7 +83,7 @@ serve(async (req) => {
       candidateId = existingCandidate.id
       
       // Update candidate information
-      const { error: updateError } = await supabaseClient
+      const { error: updateError } = await supabaseAdmin
         .from('candidates')
         .update({
           first_name: firstName,
@@ -87,7 +102,7 @@ serve(async (req) => {
     } else {
       console.log('Creating new candidate')
       // Create new candidate
-      const { data: newCandidate, error: createError } = await supabaseClient
+      const { data: newCandidate, error: createError } = await supabaseAdmin
         .from('candidates')
         .insert({
           first_name: firstName,
@@ -114,7 +129,7 @@ serve(async (req) => {
     }
     
     // Check if application already exists for this candidate and job
-    const { data: existingApplication } = await supabaseClient
+    const { data: existingApplication } = await supabaseAdmin
       .from('applications')
       .select('id')
       .match({ candidate_id: candidateId, job_id: jobId })
@@ -124,7 +139,7 @@ serve(async (req) => {
       console.log('Application already exists:', existingApplication.id)
       
       // Update existing application
-      const { data: updatedApplication, error: updateError } = await supabaseClient
+      const { data: updatedApplication, error: updateError } = await supabaseAdmin
         .from('applications')
         .update({
           notes: coverLetter || null,
@@ -139,7 +154,7 @@ serve(async (req) => {
         throw new Error('Error al actualizar aplicación existente')
       }
       
-      console.log('Application updated successfully:', updatedApplication.id)
+      console.log('Application updated successfully:', updatedApplication?.id)
       
       return new Response(
         JSON.stringify({ success: true, data: updatedApplication }),
@@ -152,7 +167,7 @@ serve(async (req) => {
     
     // Create new application
     console.log('Creating application with candidate_id:', candidateId, 'job_id:', jobId)
-    const { data: application, error: applicationError } = await supabaseClient
+    const { data: application, error: applicationError } = await supabaseAdmin
       .from('applications')
       .insert({
         candidate_id: candidateId,
