@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { 
@@ -274,7 +275,8 @@ const CandidateDetail: React.FC = () => {
       } catch (extractError) {
         console.error("Error extracting CV content:", extractError);
         toast({
-          variant: "warning",
+          // Fix the TypeScript error here - use "default" instead of "warning"
+          variant: "default",
           title: "Advertencia",
           description: "La extracción de texto ha tenido problemas. El análisis puede ser limitado."
         });
