@@ -229,6 +229,32 @@ export type AppDatabase = {
           created_at?: string;
         };
       };
+      chatbot_knowledge: {
+        Row: {
+          id: string;
+          topic: string;
+          question: string;
+          answer: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          topic: string;
+          question: string;
+          answer: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          topic?: string;
+          question?: string;
+          answer?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
       system_settings: {
         Row: {
           id: string;

@@ -98,8 +98,10 @@ export type Database = {
       }
       candidates: {
         Row: {
+          analysis_summary: string | null
           created_at: string
           email: string
+          experience_years: number | null
           first_name: string
           id: string
           last_name: string
@@ -108,11 +110,14 @@ export type Database = {
           phone: string | null
           portfolio_url: string | null
           resume_url: string | null
+          skills: string[] | null
           updated_at: string
         }
         Insert: {
+          analysis_summary?: string | null
           created_at?: string
           email: string
+          experience_years?: number | null
           first_name: string
           id?: string
           last_name: string
@@ -121,11 +126,14 @@ export type Database = {
           phone?: string | null
           portfolio_url?: string | null
           resume_url?: string | null
+          skills?: string[] | null
           updated_at?: string
         }
         Update: {
+          analysis_summary?: string | null
           created_at?: string
           email?: string
+          experience_years?: number | null
           first_name?: string
           id?: string
           last_name?: string
@@ -134,6 +142,7 @@ export type Database = {
           phone?: string | null
           portfolio_url?: string | null
           resume_url?: string | null
+          skills?: string[] | null
           updated_at?: string
         }
         Relationships: []
@@ -155,6 +164,33 @@ export type Database = {
           admin_responses?: Json
           id?: number
           public_responses?: Json
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      chatbot_knowledge: {
+        Row: {
+          answer: string
+          created_at: string
+          id: string
+          question: string
+          topic: string
+          updated_at: string
+        }
+        Insert: {
+          answer: string
+          created_at?: string
+          id?: string
+          question: string
+          topic: string
+          updated_at?: string
+        }
+        Update: {
+          answer?: string
+          created_at?: string
+          id?: string
+          question?: string
+          topic?: string
           updated_at?: string
         }
         Relationships: []

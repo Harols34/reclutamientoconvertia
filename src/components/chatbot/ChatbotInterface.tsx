@@ -16,12 +16,19 @@ interface ChatbotInterfaceProps {
   userType: 'public' | 'admin';
 }
 
+interface ChatbotKnowledge {
+  topic: string;
+  question: string;
+  answer: string;
+}
+
 const ChatbotInterface: React.FC<ChatbotInterfaceProps> = ({ userType }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [chatbotConfig, setChatbotConfig] = useState<any>(null);
+  const [knowledgeBase, setKnowledgeBase] = useState<ChatbotKnowledge[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -40,7 +47,22 @@ const ChatbotInterface: React.FC<ChatbotInterfaceProps> = ({ userType }) => {
       }
     };
     
+    // Fetch chatbot knowledge base
+    const fetchKnowledgeBase = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('chatbot_knowledge')
+          .select('topic, question, answer');
+        
+        if (error) throw error;
+        if (data) setKnowledgeBase(data);
+      } catch (err) {
+        console.error('Error fetching chatbot knowledge:', err);
+      }
+    };
+    
     fetchChatbotConfig();
+    fetchKnowledgeBase();
 
     // Add initial welcome message
     const welcomeMessage = {
@@ -61,6 +83,34 @@ const ChatbotInterface: React.FC<ChatbotInterfaceProps> = ({ userType }) => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
+  // Function to find answer from knowledge base
+  const findAnswer = (question: string): string | null => {
+    // Normalize the question for better matching (lowercase, remove punctuation)
+    const normalizedQuestion = question.toLowerCase().replace(/[^\w\s]/g, '');
+    
+    // Check if the question directly matches any in the knowledge base
+    for (const entry of knowledgeBase) {
+      const normalizedKnowledgeQuestion = entry.question.toLowerCase().replace(/[^\w\s]/g, '');
+      
+      if (normalizedQuestion.includes(normalizedKnowledgeQuestion) || 
+          normalizedKnowledgeQuestion.includes(normalizedQuestion)) {
+        return entry.answer;
+      }
+      
+      // Check for keyword matches
+      const keywords = normalizedKnowledgeQuestion.split(' ');
+      const questionWords = normalizedQuestion.split(' ');
+      
+      // If multiple keywords match (more than 60% of the question words), return this answer
+      const matchCount = keywords.filter(word => questionWords.includes(word)).length;
+      if (matchCount >= Math.max(2, Math.floor(keywords.length * 0.6))) {
+        return entry.answer;
+      }
+    }
+    
+    return null;
+  };
+
   const handleSendMessage = async () => {
     if (!input.trim()) return;
     
@@ -76,44 +126,60 @@ const ChatbotInterface: React.FC<ChatbotInterfaceProps> = ({ userType }) => {
     setIsLoading(true);
 
     try {
-      // Get the appropriate context based on user type
-      const context = chatbotConfig ? 
-        (userType === 'public' ? chatbotConfig.public_responses : chatbotConfig.admin_responses) : 
-        {};
+      // First check if we have a direct match in our knowledge base
+      const knowledgeAnswer = findAnswer(input.trim());
       
-      // Call the OpenAI edge function
-      const { data, error } = await supabase.functions
-        .invoke('openai-assistant', {
-          body: {
-            prompt: input.trim(),
-            type: 'chatbot',
-            context: JSON.stringify(context)
-          }
-        });
-      
-      if (error) {
-        console.error('Supabase function error:', error);
-        throw new Error('Error connecting to the AI assistant');
+      if (knowledgeAnswer) {
+        // If we have a match, use it directly without calling OpenAI
+        const aiMessage = {
+          id: crypto.randomUUID(),
+          content: knowledgeAnswer,
+          sender: 'assistant' as const,
+          timestamp: new Date()
+        };
+        
+        setMessages(prev => [...prev, aiMessage]);
+      } else {
+        // If no match in knowledge base, try OpenAI
+        // Get the appropriate context based on user type
+        const context = chatbotConfig ? 
+          (userType === 'public' ? chatbotConfig.public_responses : chatbotConfig.admin_responses) : 
+          {};
+        
+        // Call the OpenAI edge function
+        const { data, error } = await supabase.functions
+          .invoke('openai-assistant', {
+            body: {
+              prompt: input.trim(),
+              type: 'chatbot',
+              context: JSON.stringify(context)
+            }
+          });
+        
+        if (error) {
+          console.error('Supabase function error:', error);
+          throw new Error('Error connecting to the AI assistant');
+        }
+        
+        if (!data || !data.response) {
+          throw new Error('Invalid response from AI assistant');
+        }
+        
+        const aiMessage = {
+          id: crypto.randomUUID(),
+          content: data.response,
+          sender: 'assistant' as const,
+          timestamp: new Date()
+        };
+        
+        setMessages(prev => [...prev, aiMessage]);
       }
-      
-      if (!data || !data.response) {
-        throw new Error('Invalid response from AI assistant');
-      }
-      
-      const aiMessage = {
-        id: crypto.randomUUID(),
-        content: data.response,
-        sender: 'assistant' as const,
-        timestamp: new Date()
-      };
-      
-      setMessages(prev => [...prev, aiMessage]);
     } catch (err) {
       console.error('Error sending message to AI:', err);
       
       const errorMessage = {
         id: crypto.randomUUID(),
-        content: 'Lo siento, hubo un problema al procesar tu mensaje. Por favor, intenta de nuevo más tarde.',
+        content: 'Lo siento, no tengo información sobre esa consulta específica. ¿Puedo ayudarte con algo más relacionado a nuestros servicios de reclutamiento?',
         sender: 'assistant' as const,
         timestamp: new Date()
       };
