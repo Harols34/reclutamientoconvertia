@@ -64,6 +64,7 @@ const AdminSidebar = () => {
       <SidebarHeader className="h-14 border-b border-hrm-light-gray/20 bg-teal-950">
         <div className="flex items-center justify-center h-full px-4">
           <ConvertIALogo className="h-10" />
+          <span className="ml-2 text-white text-lg font-medium">CONVERT-IA</span>
         </div>
       </SidebarHeader>
       <SidebarContent className="bg-teal-950">

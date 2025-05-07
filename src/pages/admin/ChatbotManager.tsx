@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -38,15 +37,27 @@ interface KnowledgeItem {
   created_at: string;
 }
 
+// Define the type for chatbot configurations to avoid TypeScript errors
+interface ChatbotResponses {
+  company?: string;
+  services?: string[];
+  contact?: string;
+  prompt?: string;
+  admin_roles?: string[];
+  processes?: string[];
+  departments?: string[];
+  [key: string]: any;
+}
+
 // Default prompts for public and admin chatbots
-const DEFAULT_PUBLIC_PROMPT = {
+const DEFAULT_PUBLIC_PROMPT: ChatbotResponses = {
   "company": "CONVERT-IA RECLUTAMIENTO",
   "services": ["Reclutamiento", "Selección de personal"],
   "contact": "contacto@convert-ia.com",
   "prompt": "Eres un asistente virtual de reclutamiento llamado Convert-IA, diseñado para ayudar a candidatos a encontrar oportunidades laborales y resolver dudas sobre el proceso de selección. Hablas en un tono profesional pero cercano, y estás disponible 24/7 para atender a los usuarios. Tus funciones incluyen: Recibir hojas de vida/CVs. Mostrar vacantes activas según filtros (ciudad, cargo, modalidad, etc.). Orientar sobre el proceso de selección. Notificar si un usuario ya aplicó previamente a una vacante. Recolectar datos básicos del candidato si no está registrado. Redirigir a un humano solo cuando es necesario (casos complejos o problemas técnicos). inicia saludando cordialmente, pregunta el nombre del candidato y en qué ciudad está buscando empleo. Luego ofrece las opciones disponibles. Siempre mantén el enfoque en ayudar al usuario a postularse fácilmente."
 };
 
-const DEFAULT_ADMIN_PROMPT = {
+const DEFAULT_ADMIN_PROMPT: ChatbotResponses = {
   "admin_roles": ["Recursos Humanos", "Reclutador"],
   "processes": ["Revisión de CV", "Entrevistas", "Evaluaciones"],
   "departments": ["Tecnología", "Marketing", "Ventas"],
@@ -89,25 +100,44 @@ const ChatbotManager = () => {
         if (configData) {
           setConfigId(configData.id);
           
+          // Parse the responses or use default prompts
+          let publicResponses: ChatbotResponses = {};
+          let adminResponses: ChatbotResponses = {};
+          
+          try {
+            // Handle case when responses might be strings or objects
+            publicResponses = typeof configData.public_responses === 'string' 
+              ? JSON.parse(configData.public_responses) 
+              : configData.public_responses;
+              
+            adminResponses = typeof configData.admin_responses === 'string'
+              ? JSON.parse(configData.admin_responses)
+              : configData.admin_responses;
+          } catch (e) {
+            console.error('Error parsing responses:', e);
+            publicResponses = {};
+            adminResponses = {};
+          }
+          
           // If there's no prompt in the existing config, add our default prompts
-          if (!configData.public_responses.prompt) {
+          if (!publicResponses.prompt) {
             const updatedPublicResponses = {
-              ...configData.public_responses,
+              ...publicResponses,
               ...DEFAULT_PUBLIC_PROMPT
             };
             setPublicPrompts(JSON.stringify(updatedPublicResponses, null, 2));
           } else {
-            setPublicPrompts(JSON.stringify(configData.public_responses, null, 2));
+            setPublicPrompts(JSON.stringify(publicResponses, null, 2));
           }
           
-          if (!configData.admin_responses.prompt) {
+          if (!adminResponses.prompt) {
             const updatedAdminResponses = {
-              ...configData.admin_responses,
+              ...adminResponses,
               ...DEFAULT_ADMIN_PROMPT
             };
             setAdminPrompts(JSON.stringify(updatedAdminResponses, null, 2));
           } else {
-            setAdminPrompts(JSON.stringify(configData.admin_responses, null, 2));
+            setAdminPrompts(JSON.stringify(adminResponses, null, 2));
           }
         } else {
           // If no configuration exists, use our default prompts
