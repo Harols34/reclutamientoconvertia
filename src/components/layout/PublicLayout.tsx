@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Outlet, Link } from 'react-router-dom';
 import Chatbot from '../chatbot/Chatbot';
@@ -12,7 +13,14 @@ const PublicLayout = () => {
           <nav>
             <ul className="flex space-x-6">
               <li>
-                
+                <a 
+                  href="https://www.convertia.com/es-CO" 
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  className="text-gray-600 hover:text-hrm-dark-cyan flex items-center gap-1"
+                >
+                  Sitio Web
+                </a>
               </li>
               <li>
                 <Link to="/admin/login" className="text-gray-600 hover:text-hrm-dark-cyan">

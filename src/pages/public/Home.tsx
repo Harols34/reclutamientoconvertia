@@ -1,6 +1,9 @@
+
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Link } from 'react-router-dom';
+import { ExternalLink } from 'lucide-react';
+
 const Home = () => {
   return <div>
       <div className="bg-gradient-to-b from-hrm-light-gray/30 to-white">
@@ -15,7 +18,9 @@ const Home = () => {
                 <Link to="/jobs">Ver vacantes disponibles</Link>
               </Button>
               <Button asChild variant="outline" size="lg" className="border-hrm-dark-cyan text-hrm-dark-cyan hover:bg-hrm-dark-cyan/10">
-                
+                <a href="https://www.convertia.com/es-CO" target="_blank" rel="noopener noreferrer">
+                  Conoce más sobre nosotros <ExternalLink className="ml-1 h-4 w-4" />
+                </a>
               </Button>
             </div>
           </div>
