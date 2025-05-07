@@ -36,6 +36,8 @@ serve(async (req) => {
       resumeUrl
     } = body
     
+    console.log('Application data received:', { firstName, lastName, email, jobId, resumeUrl })
+    
     // Create or find candidate
     let candidateId
     
@@ -44,17 +46,19 @@ serve(async (req) => {
       .from('candidates')
       .select('id, resume_url')
       .eq('email', email)
-      .single()
+      .maybeSingle()
     
-    if (findError && findError.code !== 'PGRST116') {
+    if (findError) {
+      console.error('Error finding candidate:', findError)
       throw findError
     }
     
     if (existingCandidate) {
+      console.log('Existing candidate found:', existingCandidate.id)
       candidateId = existingCandidate.id
       
       // Update candidate information
-      await supabaseClient
+      const { error: updateError } = await supabaseClient
         .from('candidates')
         .update({
           first_name: firstName,
@@ -63,7 +67,13 @@ serve(async (req) => {
           resume_url: resumeUrl || existingCandidate.resume_url
         })
         .eq('id', candidateId)
+        
+      if (updateError) {
+        console.error('Error updating candidate:', updateError)
+        throw updateError
+      }
     } else {
+      console.log('Creating new candidate')
       // Create new candidate
       const { data: newCandidate, error: createError } = await supabaseClient
         .from('candidates')
@@ -77,11 +87,17 @@ serve(async (req) => {
         .select('id')
         .single()
       
-      if (createError) throw createError
+      if (createError) {
+        console.error('Error creating candidate:', createError)
+        throw createError
+      }
+      
       candidateId = newCandidate.id
+      console.log('New candidate created with ID:', candidateId)
     }
     
     // Create application
+    console.log('Creating application with candidate_id:', candidateId, 'job_id:', jobId)
     const { data: application, error: applicationError } = await supabaseClient
       .from('applications')
       .insert({
@@ -93,7 +109,12 @@ serve(async (req) => {
       .select()
       .single()
     
-    if (applicationError) throw applicationError
+    if (applicationError) {
+      console.error('Error creating application:', applicationError)
+      throw applicationError
+    }
+    
+    console.log('Application created successfully:', application.id)
     
     return new Response(
       JSON.stringify({ success: true, data: application }),

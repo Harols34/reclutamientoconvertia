@@ -27,7 +27,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
-import { Database } from '@/utils/supabase-helpers';
 
 type JobType = {
   id: string;
@@ -58,8 +57,8 @@ const applicationSchema = z.object({
   email: z.string().email({ message: 'Email inválido' }),
   phone: phoneSchema,
   phoneCountry: z.string().min(1, { message: 'Selecciona un país' }),
-  resume: z.instanceof(File).refine((file) => {
-    if (!file) return false;
+  resume: z.instanceof(File).optional().refine((file) => {
+    if (!file) return true; // Make it optional
     const validTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
     return validTypes.includes(file.type);
   }, 'Formato de archivo inválido. Por favor sube un PDF, DOC o DOCX.'),
@@ -142,26 +141,21 @@ const ApplicationForm = () => {
     setIsSubmitting(true);
     
     try {
-      // Upload resume file to Supabase Storage
+      // Upload resume file to Supabase Storage if provided
       let resumeUrl = null;
       
       if (values.resume) {
         const fileExt = values.resume.name.split('.').pop();
         const fileName = `${Date.now()}_${values.firstName.toLowerCase()}_${values.lastName.toLowerCase()}.${fileExt}`;
         
-        // Verify bucket exists before uploading
-        const { data: bucketData, error: bucketError } = await supabase.storage
-          .getBucket('resumes');
-          
-        if (bucketError) {
-          console.error('Error checking bucket:', bucketError);
-          throw new Error('Error al verificar el almacenamiento. Por favor, inténtalo de nuevo.');
-        }
-        
         // Upload file to storage
+        console.log('Starting file upload to resumes bucket');
         const { data: uploadData, error: uploadError } = await supabase.storage
           .from('resumes')
-          .upload(fileName, values.resume);
+          .upload(fileName, values.resume, {
+            cacheControl: '3600',
+            upsert: false
+          });
         
         if (uploadError) {
           console.error('Resume upload error:', uploadError);
@@ -169,45 +163,44 @@ const ApplicationForm = () => {
         }
         
         if (uploadData) {
-          resumeUrl = `${fileName}`;
+          // Get the public URL for the file
+          const { data: publicUrl } = supabase.storage
+            .from('resumes')
+            .getPublicUrl(fileName);
+            
+          resumeUrl = publicUrl?.publicUrl || fileName;
           console.log('Resume uploaded successfully:', resumeUrl);
         }
       }
       
-      // Create candidate and application
-      const { data: candidateData, error: candidateError } = await supabase
-        .from('candidates')
-        .insert({
-          first_name: values.firstName,
-          last_name: values.lastName,
+      console.log('Submitting application with resumeUrl:', resumeUrl);
+      
+      // Call our edge function to create the application
+      const response = await fetch('https://kugocdtesaczbfrwblsi.supabase.co/functions/v1/create-application', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${supabase.auth.getSession().then(res => res.data.session?.access_token)}`
+        },
+        body: JSON.stringify({
+          firstName: values.firstName,
+          lastName: values.lastName,
           email: values.email,
-          phone: `${values.phoneCountry}${values.phone}`,
-          location: null,
-          resume_url: resumeUrl
+          phone: values.phone,
+          phoneCountry: values.phoneCountry,
+          jobId: jobId,
+          coverLetter: values.coverLetter,
+          resumeUrl: resumeUrl
         })
-        .select()
-        .single();
+      });
       
-      if (candidateError) {
-        console.error('Candidate creation error:', candidateError);
-        throw candidateError;
+      const responseData = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(responseData.error || 'Error al enviar la aplicación');
       }
       
-      const { error: applicationError } = await supabase
-        .from('applications')
-        .insert({
-          candidate_id: candidateData.id,
-          job_id: jobId,
-          status: 'new',
-          notes: values.coverLetter || null
-        });
-      
-      if (applicationError) {
-        console.error('Application creation error:', applicationError);
-        throw applicationError;
-      }
-      
-      console.log('Application submitted successfully');
+      console.log('Application submitted successfully:', responseData);
       
       toast({
         title: "Aplicación enviada",
@@ -216,12 +209,12 @@ const ApplicationForm = () => {
       
       // Redirect to a thank you page
       navigate('/gracias');
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error submitting application:', err);
       toast({
         variant: "destructive",
         title: "Error",
-        description: "Hubo un problema al enviar tu aplicación. Por favor, inténtalo de nuevo.",
+        description: `Hubo un problema al enviar tu aplicación: ${err.message}`,
       });
     } finally {
       setIsSubmitting(false);
@@ -357,7 +350,10 @@ const ApplicationForm = () => {
                       <Input 
                         type="file" 
                         accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" 
-                        onChange={(e) => onChange(e.target.files?.[0])}
+                        onChange={(e) => {
+                          console.log('File selected:', e.target.files?.[0]?.name);
+                          onChange(e.target.files?.[0]);
+                        }}
                         {...rest}
                       />
                     </FormControl>
