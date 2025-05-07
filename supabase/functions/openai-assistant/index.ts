@@ -64,23 +64,29 @@ serve(async (req) => {
     
     // Different prompt types for different assistant tasks
     if (type === 'cv-analysis') {
-      systemPrompt = `You are an expert HR assistant specialized in analyzing CVs.
+      systemPrompt = `Eres un asistente experto en recursos humanos especializado en análisis de CVs.
       
-      Your task is to analyze the provided CV and give a detailed assessment of the candidate's skills, 
-      experience, strengths, and potential areas where they might need improvement.
+      Tu tarea es analizar el CV proporcionado y dar una evaluación detallada de:
       
-      If job requirements context is provided, you should assess how well the candidate matches these requirements.
+      1. Resumen de Antecedentes Profesionales
+      2. Habilidades y Competencias Clave
+      3. Educación y Certificaciones
+      4. Fortalezas
+      5. Áreas de Mejora
+      6. Evaluación General
       
-      Structure your response in the following sections:
-      1. Summary of Professional Background
-      2. Key Skills and Competencies
-      3. Education and Certifications
-      4. Strengths
-      5. Areas for Development
-      6. Overall Assessment
-      7. Match to Job Requirements (if applicable)
+      Si hay requisitos del trabajo disponibles, evalúa qué tan bien el candidato cumple estos requisitos en una escala del 1 al 100, y explica las razones.
       
-      Context (job requirements): ${context || 'Not provided'}`
+      Estructura tu respuesta en las siguientes secciones:
+      1. Resumen de Antecedentes Profesionales
+      2. Habilidades y Competencias Clave
+      3. Educación y Certificaciones
+      4. Fortalezas
+      5. Áreas de Mejora
+      6. Evaluación General
+      7. Compatibilidad con la Vacante (si aplica): [Puntuación] - Razones
+      
+      Contexto (requisitos del trabajo): ${context || 'No proporcionados'}`
     } else if (type === 'chatbot') {
       // Parse the context to get the custom prompt
       let parsedContext;
@@ -101,10 +107,10 @@ serve(async (req) => {
         systemPrompt = `Eres un asistente de reclutamiento amigable y profesional. ${jobsInfo}`;
       }
     } else {
-      systemPrompt = `You are a helpful HR assistant. Please respond professionally.`;
+      systemPrompt = `Eres un asistente de recursos humanos útil. Por favor responde profesionalmente.`;
     }
     
-    console.log(`Making OpenAI API request for ${type} analysis with prompt length: ${prompt.length}`);
+    console.log(`Haciendo solicitud a la API de OpenAI para análisis de tipo ${type} con longitud de prompt: ${prompt.length}`);
     
     // Call OpenAI API
     const openAIResponse = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -125,16 +131,17 @@ serve(async (req) => {
             content: prompt
           }
         ],
-        temperature: 0.7
+        temperature: 0.7,
+        max_tokens: 2500  // Aumentar el límite de tokens para permitir respuestas más largas
       })
     })
     
     if (!openAIResponse.ok) {
       const errorData = await openAIResponse.json()
-      console.error('OpenAI API error:', errorData)
+      console.error('Error de API OpenAI:', errorData)
       
       return new Response(
-        JSON.stringify({ error: 'Error from OpenAI API', details: errorData }),
+        JSON.stringify({ error: 'Error de la API de OpenAI', details: errorData }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: openAIResponse.status }
       )
     }
@@ -142,17 +149,17 @@ serve(async (req) => {
     const data = await openAIResponse.json()
     const response = data.choices[0].message.content
     
-    console.log(`Successfully received OpenAI response for ${type} analysis`)
+    console.log(`Respuesta de OpenAI recibida exitosamente para análisis tipo ${type}`)
     
     return new Response(
       JSON.stringify({ response }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   } catch (error) {
-    console.error('Error processing request:', error)
+    console.error('Error procesando solicitud:', error)
     
     return new Response(
-      JSON.stringify({ error: 'Internal Server Error', details: error.message }),
+      JSON.stringify({ error: 'Error Interno del Servidor', details: error.message }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
     )
   }

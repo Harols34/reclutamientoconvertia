@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { 
@@ -204,44 +203,76 @@ const CandidateDetail: React.FC = () => {
         }
       }
 
-      // First fetch the CV content from the URL
-      console.log("Fetching CV content from:", candidate.resume_url);
+      // Obtener el nombre del archivo del CV a partir de la URL
+      const resumeUrl = candidate.resume_url;
+      console.log("Resume URL:", resumeUrl);
       
-      const filename = candidate.resume_url.replace('resumes/', '');
+      // Extraer el nombre del archivo del CV
+      let filename = resumeUrl;
+      if (resumeUrl.includes('/')) {
+        const parts = resumeUrl.split('/');
+        filename = parts[parts.length - 1];
+      }
       
+      console.log("Intentando descargar CV:", filename);
+      
+      // Descargar el archivo del almacenamiento
       const { data: fileData, error: fileError } = await supabase
         .storage
         .from('resumes')
         .download(filename);
       
       if (fileError) {
-        console.error('Error downloading CV:', fileError);
-        throw fileError;
+        console.error('Error descargando CV:', fileError);
+        throw new Error(`Error al descargar el CV: ${fileError.message}`);
       }
       
-      // Read the file content
-      const fileContent = await fileData.text();
-      console.log("CV content length:", fileContent.length);
-      
-      // Now call the OpenAI edge function for analysis
-      console.log("Calling OpenAI assistant for CV analysis");
-      const { data, error } = await supabase.functions
-        .invoke('openai-assistant', {
-          body: {
-            prompt: fileContent,
-            type: 'cv-analysis',
-            context: jobContext
-          }
-        });
-      
-      if (error) {
-        console.error('Error invoking OpenAI assistant:', error);
-        throw error;
+      if (!fileData) {
+        throw new Error('No se pudo descargar el CV');
       }
       
-      console.log("Analysis received successfully");
+      // Convertir el blob a texto
+      let fileContent = '';
+      try {
+        fileContent = await fileData.text();
+        console.log("CV contenido obtenido, longitud:", fileContent.length);
+        
+        if (fileContent.length < 10) {
+          throw new Error('El contenido del CV parece estar vacío o corrupto');
+        }
+      } catch (textError) {
+        console.error('Error convirtiendo el CV a texto:', textError);
+        throw new Error('No se pudo leer el contenido del CV. Posiblemente no es un formato de texto válido.');
+      }
       
-      // Update the candidate with the analysis
+      // Llamar a la función edge OpenAI para análisis
+      console.log("Llamando al asistente OpenAI para análisis de CV");
+      const response = await fetch('https://kugocdtesaczbfrwblsi.supabase.co/functions/v1/openai-assistant', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          prompt: fileContent.substring(0, 15000), // Limitar a 15000 caracteres para evitar problemas
+          type: 'cv-analysis',
+          context: jobContext
+        })
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Error invocando el asistente OpenAI:', errorText);
+        throw new Error(`Error del servidor: ${response.status} ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      console.log("Análisis recibido con éxito");
+      
+      if (!data.response) {
+        throw new Error('No se recibió respuesta del análisis');
+      }
+      
+      // Actualizar el candidato con el análisis
       const { error: updateError } = await supabase
         .from('candidates')
         .update({ 
@@ -249,9 +280,12 @@ const CandidateDetail: React.FC = () => {
         })
         .eq('id', candidate.id);
       
-      if (updateError) throw updateError;
+      if (updateError) {
+        console.error('Error actualizando candidato:', updateError);
+        throw new Error(`Error al guardar el análisis: ${updateError.message}`);
+      }
       
-      // Update local state
+      // Actualizar estado local
       setCandidate(prev => {
         if (!prev) return null;
         return { 
@@ -265,12 +299,12 @@ const CandidateDetail: React.FC = () => {
         description: "El CV ha sido analizado correctamente."
       });
       
-    } catch (error) {
-      console.error('Error analyzing CV:', error);
+    } catch (error: any) {
+      console.error('Error analizando CV:', error);
       toast({
         variant: "destructive",
         title: "Error",
-        description: "No se pudo analizar el CV. Intente de nuevo más tarde."
+        description: `No se pudo analizar el CV: ${error.message}`
       });
     } finally {
       setAnalyzing(false);
@@ -285,8 +319,8 @@ const CandidateDetail: React.FC = () => {
     if (path.startsWith('http')) return path;
     
     // If it's a path in the storage, get the public URL
-    const filename = path.replace('resumes/', '');
-    return supabase.storage.from('resumes').getPublicUrl(filename).data.publicUrl;
+    const { data } = supabase.storage.from('resumes').getPublicUrl(path);
+    return data.publicUrl;
   };
 
   if (loading) {
