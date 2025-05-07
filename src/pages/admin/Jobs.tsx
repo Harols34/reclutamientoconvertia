@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Plus, Filter, Loader2 } from 'lucide-react';
 import JobCard, { JobType } from '@/components/jobs/JobCard';
+import JobDeleteButton from '@/components/jobs/JobDeleteButton';
 import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -14,52 +15,52 @@ const Jobs = () => {
   const [activeTab, setActiveTab] = useState('all');
   const { toast } = useToast();
 
-  useEffect(() => {
-    const fetchJobs = async () => {
-      try {
-        setLoading(true);
-        const { data, error } = await supabase
-          .from('jobs')
-          .select('*, applications(id)')
-          .order('created_at', { ascending: false });
-        
-        if (error) {
-          console.error('Error fetching jobs:', error);
-          toast({
-            title: "Error",
-            description: "No se pudieron cargar las vacantes.",
-            variant: "destructive"
-          });
-          return;
-        }
-        
-        // Transformar los datos para que coincidan con el tipo JobType
-        const transformedJobs: JobType[] = data?.map(job => ({
-          id: job.id,
-          title: job.title,
-          department: job.department,
-          location: job.location,
-          status: job.status as JobType['status'], 
-          type: job.type as JobType['type'],
-          created_at: job.created_at,
-          updated_at: job.updated_at,
-          description: job.description,
-          requirements: job.requirements,
-          responsibilities: job.responsibilities,
-          salary_range: job.salary_range,
-          campaign_id: job.campaign_id,
-          applicants: job.applications?.length || 0,
-          createdAt: job.created_at ? new Date(job.created_at) : new Date()
-        })) || [];
-        
-        setJobs(transformedJobs);
-      } catch (err) {
-        console.error('Error:', err);
-      } finally {
-        setLoading(false);
+  const fetchJobs = async () => {
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('jobs')
+        .select('*, applications(id)')
+        .order('created_at', { ascending: false });
+      
+      if (error) {
+        console.error('Error fetching jobs:', error);
+        toast({
+          title: "Error",
+          description: "No se pudieron cargar las vacantes.",
+          variant: "destructive"
+        });
+        return;
       }
-    };
-    
+      
+      // Transformar los datos para que coincidan con el tipo JobType
+      const transformedJobs: JobType[] = data?.map(job => ({
+        id: job.id,
+        title: job.title,
+        department: job.department,
+        location: job.location,
+        status: job.status as JobType['status'], 
+        type: job.type as JobType['type'],
+        created_at: job.created_at,
+        updated_at: job.updated_at,
+        description: job.description,
+        requirements: job.requirements,
+        responsibilities: job.responsibilities,
+        salary_range: job.salary_range,
+        campaign_id: job.campaign_id,
+        applicants: job.applications?.length || 0,
+        createdAt: job.created_at ? new Date(job.created_at) : new Date()
+      })) || [];
+      
+      setJobs(transformedJobs);
+    } catch (err) {
+      console.error('Error:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchJobs();
 
     // Set up subscription for real-time updates
@@ -81,9 +82,38 @@ const Jobs = () => {
     };
   }, [toast]);
 
+  const handleJobDeleted = () => {
+    fetchJobs();
+  };
+
   const filteredJobs = (tab: string) => {
     if (tab === 'all') return jobs;
     return jobs.filter(job => job.status === tab);
+  };
+
+  const renderJobCards = (statusFilter: string) => {
+    return (
+      <>
+        {loading ? (
+          <div className="flex justify-center items-center py-10">
+            <Loader2 className="h-8 w-8 animate-spin text-hrm-dark-cyan" />
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filteredJobs(statusFilter).map((job) => (
+              <div key={job.id} className="relative">
+                <JobCard job={job} isAdmin={true} />
+                <JobDeleteButton 
+                  jobId={job.id} 
+                  jobTitle={job.title}
+                  onDeleted={handleJobDeleted} 
+                />
+              </div>
+            ))}
+          </div>
+        )}
+      </>
+    );
   };
 
   return (
@@ -113,59 +143,19 @@ const Jobs = () => {
           </Button>
 
           <TabsContent value="all" className="mt-6">
-            {loading ? (
-              <div className="flex justify-center items-center py-10">
-                <Loader2 className="h-8 w-8 animate-spin text-hrm-dark-cyan" />
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {filteredJobs('all').map((job) => (
-                  <JobCard key={job.id} job={job} isAdmin={true} />
-                ))}
-              </div>
-            )}
+            {renderJobCards('all')}
           </TabsContent>
           
           <TabsContent value="open" className="mt-6">
-            {loading ? (
-              <div className="flex justify-center items-center py-10">
-                <Loader2 className="h-8 w-8 animate-spin text-hrm-dark-cyan" />
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {filteredJobs('open').map((job) => (
-                  <JobCard key={job.id} job={job} isAdmin={true} />
-                ))}
-              </div>
-            )}
+            {renderJobCards('open')}
           </TabsContent>
           
           <TabsContent value="closed" className="mt-6">
-            {loading ? (
-              <div className="flex justify-center items-center py-10">
-                <Loader2 className="h-8 w-8 animate-spin text-hrm-dark-cyan" />
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {filteredJobs('closed').map((job) => (
-                  <JobCard key={job.id} job={job} isAdmin={true} />
-                ))}
-              </div>
-            )}
+            {renderJobCards('closed')}
           </TabsContent>
           
           <TabsContent value="draft" className="mt-6">
-            {loading ? (
-              <div className="flex justify-center items-center py-10">
-                <Loader2 className="h-8 w-8 animate-spin text-hrm-dark-cyan" />
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {filteredJobs('draft').map((job) => (
-                  <JobCard key={job.id} job={job} isAdmin={true} />
-                ))}
-              </div>
-            )}
+            {renderJobCards('draft')}
           </TabsContent>
         </Tabs>
       </div>

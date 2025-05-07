@@ -44,6 +44,23 @@ serve(async (req) => {
     }
 
     let systemPrompt = ''
+    let jobsData = []
+    
+    // Fetch active jobs data to provide to the chatbot context
+    if (type === 'chatbot') {
+      try {
+        const { data: jobs, error: jobsError } = await supabaseClient
+          .from('jobs')
+          .select('id, title, department, location, type, description, status')
+          .eq('status', 'open');
+        
+        if (!jobsError && jobs) {
+          jobsData = jobs;
+        }
+      } catch (jobError) {
+        console.error('Error fetching jobs data:', jobError);
+      }
+    }
     
     // Different prompt types for different assistant tasks
     if (type === 'cv-analysis') {
@@ -64,11 +81,30 @@ serve(async (req) => {
       7. Match to Job Requirements (if applicable)
       
       Context (job requirements): ${context || 'Not provided'}`
+    } else if (type === 'chatbot') {
+      // Parse the context to get the custom prompt
+      let parsedContext;
+      try {
+        parsedContext = JSON.parse(context);
+      } catch (e) {
+        parsedContext = {};
+      }
+
+      const customPrompt = parsedContext?.prompt || '';
+      const jobsInfo = jobsData.length > 0 
+        ? `\n\nAquí hay información sobre las vacantes actuales: ${JSON.stringify(jobsData)}` 
+        : '\n\nActualmente no hay vacantes disponibles.';
+      
+      systemPrompt = customPrompt + jobsInfo;
+      
+      if (!customPrompt) {
+        systemPrompt = `Eres un asistente de reclutamiento amigable y profesional. ${jobsInfo}`;
+      }
     } else {
-      systemPrompt = `You are a helpful HR assistant. Please respond professionally.`
+      systemPrompt = `You are a helpful HR assistant. Please respond professionally.`;
     }
     
-    console.log(`Making OpenAI API request for ${type} analysis with prompt length: ${prompt.length}`)
+    console.log(`Making OpenAI API request for ${type} analysis with prompt length: ${prompt.length}`);
     
     // Call OpenAI API
     const openAIResponse = await fetch('https://api.openai.com/v1/chat/completions', {

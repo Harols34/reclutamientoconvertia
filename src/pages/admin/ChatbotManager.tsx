@@ -38,6 +38,21 @@ interface KnowledgeItem {
   created_at: string;
 }
 
+// Default prompts for public and admin chatbots
+const DEFAULT_PUBLIC_PROMPT = {
+  "company": "CONVERT-IA RECLUTAMIENTO",
+  "services": ["Reclutamiento", "Selección de personal"],
+  "contact": "contacto@convert-ia.com",
+  "prompt": "Eres un asistente virtual de reclutamiento llamado Convert-IA, diseñado para ayudar a candidatos a encontrar oportunidades laborales y resolver dudas sobre el proceso de selección. Hablas en un tono profesional pero cercano, y estás disponible 24/7 para atender a los usuarios. Tus funciones incluyen: Recibir hojas de vida/CVs. Mostrar vacantes activas según filtros (ciudad, cargo, modalidad, etc.). Orientar sobre el proceso de selección. Notificar si un usuario ya aplicó previamente a una vacante. Recolectar datos básicos del candidato si no está registrado. Redirigir a un humano solo cuando es necesario (casos complejos o problemas técnicos). inicia saludando cordialmente, pregunta el nombre del candidato y en qué ciudad está buscando empleo. Luego ofrece las opciones disponibles. Siempre mantén el enfoque en ayudar al usuario a postularse fácilmente."
+};
+
+const DEFAULT_ADMIN_PROMPT = {
+  "admin_roles": ["Recursos Humanos", "Reclutador"],
+  "processes": ["Revisión de CV", "Entrevistas", "Evaluaciones"],
+  "departments": ["Tecnología", "Marketing", "Ventas"],
+  "prompt": "Eres RecluBot Admin, un asistente virtual especializado en apoyar a equipos de reclutamiento con información detallada sobre procesos, candidatos y análisis de hojas de vida. Tu tono es profesional, eficiente y claro. Estás diseñado para interactuar con personal interno (reclutadores, analistas de talento humano, coordinadores o gerentes), por lo que manejas un lenguaje técnico y especializado. Tus funciones principales incluyen: Mostrar número total de candidatos por vacante, campaña o estado del proceso (aplicado, preseleccionado, rechazado, etc.). Indicar cuántos candidatos cumplen con los requisitos mínimos según el análisis automatizado del CV. Generar resúmenes de perfiles (nivel de estudios, experiencia, habilidades clave). Identificar duplicados o postulaciones múltiples. Mostrar métricas por fecha, ciudad, canal de ingreso, etc. Comparar candidatos según puntajes de IA o criterios definidos. Exportar información en Excel o CSV si se solicita. Siempre que respondas, intenta resumir los datos con insights clave. Si un usuario solicita algo como \"muéstrame candidatos para la vacante de Desarrollador Backend\", tu respuesta debe incluir: Total de postulantes. Cuántos cumplen requisitos. Promedio de experiencia. % con formación académica afín. Recomendación sobre los mejores perfiles (si aplica). Si hay errores en los datos o información incompleta, indícalo claramente y sugiere próximos pasos. Siempre pregunta si deseas filtrar por campaña, fecha o ubicación para refinar los resultados."
+};
+
 const ChatbotManager = () => {
   const { toast } = useToast();
   const [publicPrompts, setPublicPrompts] = useState<string>('');
@@ -73,8 +88,31 @@ const ChatbotManager = () => {
         
         if (configData) {
           setConfigId(configData.id);
-          setPublicPrompts(JSON.stringify(configData.public_responses, null, 2));
-          setAdminPrompts(JSON.stringify(configData.admin_responses, null, 2));
+          
+          // If there's no prompt in the existing config, add our default prompts
+          if (!configData.public_responses.prompt) {
+            const updatedPublicResponses = {
+              ...configData.public_responses,
+              ...DEFAULT_PUBLIC_PROMPT
+            };
+            setPublicPrompts(JSON.stringify(updatedPublicResponses, null, 2));
+          } else {
+            setPublicPrompts(JSON.stringify(configData.public_responses, null, 2));
+          }
+          
+          if (!configData.admin_responses.prompt) {
+            const updatedAdminResponses = {
+              ...configData.admin_responses,
+              ...DEFAULT_ADMIN_PROMPT
+            };
+            setAdminPrompts(JSON.stringify(updatedAdminResponses, null, 2));
+          } else {
+            setAdminPrompts(JSON.stringify(configData.admin_responses, null, 2));
+          }
+        } else {
+          // If no configuration exists, use our default prompts
+          setPublicPrompts(JSON.stringify(DEFAULT_PUBLIC_PROMPT, null, 2));
+          setAdminPrompts(JSON.stringify(DEFAULT_ADMIN_PROMPT, null, 2));
         }
         
         // Fetch knowledge base data
@@ -305,12 +343,12 @@ const ChatbotManager = () => {
               <CardTitle>Configuración del Chatbot Público</CardTitle>
               <CardDescription>
                 Define la información que el chatbot utilizará para responder a los usuarios públicos.
-                Ingresa los datos en formato JSON.
+                Ingresa los datos en formato JSON. Incluye un campo "prompt" con las instrucciones para el asistente.
               </CardDescription>
             </CardHeader>
             <CardContent>
               <Textarea
-                placeholder='{\n  "company": "CONVERT-IA RECLUTAMIENTO",\n  "services": ["Reclutamiento", "Selección de personal"],\n  "contact": "contacto@convert-ia.com"\n}'
+                placeholder={JSON.stringify(DEFAULT_PUBLIC_PROMPT, null, 2)}
                 className="min-h-[300px] font-mono"
                 value={publicPrompts}
                 onChange={(e) => setPublicPrompts(e.target.value)}
@@ -335,12 +373,12 @@ const ChatbotManager = () => {
               <CardTitle>Configuración del Chatbot de Administración</CardTitle>
               <CardDescription>
                 Define la información que el chatbot utilizará para responder a los administradores.
-                Ingresa los datos en formato JSON.
+                Ingresa los datos en formato JSON. Incluye un campo "prompt" con las instrucciones para el asistente.
               </CardDescription>
             </CardHeader>
             <CardContent>
               <Textarea
-                placeholder='{\n  "admin_roles": ["Recursos Humanos", "Reclutador"],\n  "processes": ["Revisión de CV", "Entrevistas", "Evaluaciones"],\n  "departments": ["Tecnología", "Marketing", "Ventas"]\n}'
+                placeholder={JSON.stringify(DEFAULT_ADMIN_PROMPT, null, 2)}
                 className="min-h-[300px] font-mono"
                 value={adminPrompts}
                 onChange={(e) => setAdminPrompts(e.target.value)}

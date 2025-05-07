@@ -1,9 +1,13 @@
+
 import React from 'react';
-import { NavLink, Link } from 'react-router-dom';
-import { Calendar, Database, File, Home, MessageCircle, Search, Settings, Users } from 'lucide-react';
+import { NavLink, Link, useNavigate } from 'react-router-dom';
+import { Calendar, Database, File, Home, LogOut, MessageCircle, Search, Settings, Users } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader } from '@/components/ui/sidebar';
 import ConvertIALogo from '@/assets/convert-ia-logo';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
+
 const mainNavItems = [{
   icon: Home,
   label: 'Dashboard',
@@ -33,7 +37,29 @@ const mainNavItems = [{
   label: 'Configuración',
   href: '/admin/settings'
 }];
+
 const AdminSidebar = () => {
+  const navigate = useNavigate();
+  const { toast } = useToast();
+
+  const handleLogout = async () => {
+    try {
+      await supabase.auth.signOut();
+      toast({
+        title: "Sesión cerrada",
+        description: "Has cerrado sesión correctamente",
+      });
+      navigate('/admin/login');
+    } catch (error) {
+      console.error('Error al cerrar sesión:', error);
+      toast({
+        title: "Error",
+        description: "No se pudo cerrar la sesión",
+        variant: "destructive",
+      });
+    }
+  };
+
   return <Sidebar className="border-r border-hrm-light-gray bg-hrm-dark-cyan">
       <SidebarHeader className="h-14 border-b border-hrm-light-gray/20 bg-teal-950">
         <div className="flex items-center justify-center h-full px-4">
@@ -51,16 +77,26 @@ const AdminSidebar = () => {
         </nav>
       </SidebarContent>
       <SidebarFooter className="border-t border-hrm-light-gray/20 p-4 bg-teal-950">
-        <div className="flex items-center">
-          <div className="h-8 w-8 rounded-full bg-white flex items-center justify-center text-hrm-dark-cyan">
-            <span className="text-sm font-medium">A</span>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center">
+            <div className="h-8 w-8 rounded-full bg-white flex items-center justify-center text-hrm-dark-cyan">
+              <span className="text-sm font-medium">A</span>
+            </div>
+            <div className="ml-3">
+              <p className="text-sm font-medium text-white">Admin</p>
+              <p className="text-xs text-gray-200">Administrador</p>
+            </div>
           </div>
-          <div className="ml-3">
-            <p className="text-sm font-medium text-white">Admin</p>
-            <p className="text-xs text-gray-200">Administrador</p>
-          </div>
+          <button 
+            onClick={handleLogout}
+            className="flex items-center text-white hover:text-red-300 transition-colors"
+            title="Cerrar sesión"
+          >
+            <LogOut className="h-5 w-5" />
+          </button>
         </div>
       </SidebarFooter>
     </Sidebar>;
 };
+
 export default AdminSidebar;

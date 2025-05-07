@@ -2,14 +2,17 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Send, Loader2 } from 'lucide-react';
+import { Send, Loader2, Upload, File } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
 
 interface Message {
   id: string;
   content: string;
   sender: 'user' | 'assistant';
   timestamp: Date;
+  isFile?: boolean;
+  fileName?: string;
 }
 
 interface ChatbotInterfaceProps {
@@ -29,7 +32,10 @@ const ChatbotInterface: React.FC<ChatbotInterfaceProps> = ({ userType }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [chatbotConfig, setChatbotConfig] = useState<any>(null);
   const [knowledgeBase, setKnowledgeBase] = useState<ChatbotKnowledge[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { toast } = useToast();
 
   useEffect(() => {
     // Fetch chatbot configuration from the database
@@ -73,6 +79,29 @@ const ChatbotInterface: React.FC<ChatbotInterfaceProps> = ({ userType }) => {
     };
     
     setMessages([welcomeMessage]);
+    
+    // Create a storage bucket for resume uploads if it doesn't exist
+    const createResumeBucket = async () => {
+      try {
+        // First check if the bucket exists
+        const { data, error } = await supabase.storage.listBuckets();
+        
+        if (error) {
+          console.error('Error checking storage buckets:', error);
+          return;
+        }
+        
+        // If the resumes bucket doesn't exist, we can't create it from the client
+        // This would need to be done from the server side or through SQL
+        if (!data.find(bucket => bucket.name === 'resumes')) {
+          console.log('Resumes bucket does not exist. It needs to be created via SQL.');
+        }
+      } catch (err) {
+        console.error('Error with storage buckets:', err);
+      }
+    };
+    
+    createResumeBucket();
   }, []);
 
   useEffect(() => {
@@ -111,6 +140,84 @@ const ChatbotInterface: React.FC<ChatbotInterfaceProps> = ({ userType }) => {
     return null;
   };
 
+  const handleFileUpload = async (file: File) => {
+    if (!file) return;
+    
+    setIsUploading(true);
+    
+    try {
+      // Add a message showing the file being uploaded
+      const fileMessage = {
+        id: crypto.randomUUID(),
+        content: `Subiendo archivo: ${file.name}`,
+        sender: 'user' as const,
+        timestamp: new Date(),
+        isFile: true,
+        fileName: file.name
+      };
+      
+      setMessages(prev => [...prev, fileMessage]);
+      
+      // Create a unique file path
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Math.random().toString(36).substring(2, 15)}.${fileExt}`;
+      const filePath = `${fileName}`;
+      
+      // Upload file to storage
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('resumes')
+        .upload(filePath, file);
+      
+      if (uploadError) {
+        throw uploadError;
+      }
+      
+      // Get the public URL
+      const { data: urlData } = supabase.storage
+        .from('resumes')
+        .getPublicUrl(filePath);
+      
+      const publicUrl = urlData.publicUrl;
+      
+      // Add assistant response about the successful upload
+      const aiMessage = {
+        id: crypto.randomUUID(),
+        content: `¡Gracias por subir tu CV! He recibido el archivo "${file.name}" correctamente. Nuestro equipo lo revisará pronto. ¿Hay algo más en lo que pueda ayudarte?`,
+        sender: 'assistant' as const,
+        timestamp: new Date()
+      };
+      
+      setMessages(prev => [...prev, aiMessage]);
+      
+      // Show success toast
+      toast({
+        title: "CV subido correctamente",
+        description: "Hemos recibido tu CV y lo revisaremos pronto.",
+      });
+      
+    } catch (error) {
+      console.error('Error uploading file:', error);
+      
+      // Show error message
+      const errorMessage = {
+        id: crypto.randomUUID(),
+        content: `Lo siento, ha ocurrido un error al subir el archivo. Por favor, inténtalo de nuevo más tarde.`,
+        sender: 'assistant' as const,
+        timestamp: new Date()
+      };
+      
+      setMessages(prev => [...prev, errorMessage]);
+      
+      toast({
+        title: "Error al subir el CV",
+        description: "No se pudo subir el archivo. Por favor, inténtalo de nuevo.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
   const handleSendMessage = async () => {
     if (!input.trim()) return;
     
@@ -124,6 +231,24 @@ const ChatbotInterface: React.FC<ChatbotInterfaceProps> = ({ userType }) => {
     setMessages(prev => [...prev, userMessage]);
     setInput('');
     setIsLoading(true);
+
+    // Check if the user wants to upload a CV
+    const cvUploadRequest = ['subir cv', 'subir curriculum', 'enviar cv', 'enviar curriculum', 'upload resume', 'upload cv'].some(
+      phrase => input.toLowerCase().includes(phrase)
+    );
+
+    if (cvUploadRequest) {
+      const uploadMessage = {
+        id: crypto.randomUUID(),
+        content: 'Por favor, haz clic en el botón de "Subir CV" para seleccionar tu archivo de CV.',
+        sender: 'assistant' as const,
+        timestamp: new Date()
+      };
+      
+      setMessages(prev => [...prev, uploadMessage]);
+      setIsLoading(false);
+      return;
+    }
 
     try {
       // First check if we have a direct match in our knowledge base
@@ -197,8 +322,29 @@ const ChatbotInterface: React.FC<ChatbotInterfaceProps> = ({ userType }) => {
     }
   };
 
+  const triggerFileUpload = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
+    }
+  };
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      handleFileUpload(file);
+    }
+  };
+
   return (
     <div className="fixed bottom-4 right-4 z-50">
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleFileChange}
+        accept=".pdf,.doc,.docx"
+        className="hidden"
+      />
+      
       {isOpen ? (
         <div className="bg-white rounded-lg shadow-xl w-80 sm:w-96 flex flex-col overflow-hidden max-h-[500px] border border-gray-200">
           <div className="bg-hrm-dark-cyan text-white p-3 flex justify-between items-center">
@@ -228,7 +374,14 @@ const ChatbotInterface: React.FC<ChatbotInterfaceProps> = ({ userType }) => {
                       : 'bg-gray-100 text-gray-800'
                   }`}
                 >
-                  {message.content}
+                  {message.isFile ? (
+                    <div className="flex items-center">
+                      <File className="mr-2 h-4 w-4" />
+                      <span>{message.content}</span>
+                    </div>
+                  ) : (
+                    message.content
+                  )}
                 </div>
                 <div className="text-xs text-gray-500 mt-1">
                   {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -242,23 +395,42 @@ const ChatbotInterface: React.FC<ChatbotInterfaceProps> = ({ userType }) => {
                 </div>
               </div>
             )}
+            {isUploading && (
+              <div className="flex items-center mb-3">
+                <div className="inline-block bg-gray-100 rounded-lg p-3">
+                  <Loader2 className="h-4 w-4 animate-spin text-gray-500" />
+                  <span className="ml-2">Subiendo archivo...</span>
+                </div>
+              </div>
+            )}
             <div ref={messagesEndRef} />
           </div>
           
           <div className="p-3 border-t">
-            <div className="flex">
+            <div className="flex mb-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="mr-2 flex-shrink-0"
+                onClick={triggerFileUpload}
+                disabled={isUploading || isLoading}
+              >
+                <Upload className="h-4 w-4 mr-1" />
+                Subir CV
+              </Button>
               <Input
                 placeholder="Escribe tu mensaje..."
                 value={input}
                 onChange={e => setInput(e.target.value)}
                 onKeyPress={handleKeyPress}
-                className="flex-1 mr-2"
+                className="flex-1"
+                disabled={isUploading}
               />
               <Button 
                 size="icon" 
-                className="bg-hrm-dark-cyan hover:bg-hrm-steel-blue"
+                className="ml-2 bg-hrm-dark-cyan hover:bg-hrm-steel-blue flex-shrink-0"
                 onClick={handleSendMessage}
-                disabled={isLoading}
+                disabled={isLoading || isUploading || !input.trim()}
               >
                 <Send className="h-4 w-4" />
               </Button>
