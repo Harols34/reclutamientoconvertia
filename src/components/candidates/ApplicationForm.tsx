@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
@@ -101,7 +100,6 @@ const ApplicationForm = () => {
         setError(null);
         
         // Verificamos la existencia del trabajo directamente en la tabla jobs
-        // para asegurarnos que exista antes de intentar cargar detalles adicionales
         const { data: jobExists, error: jobExistsError } = await supabase
           .from('jobs')
           .select('id')

@@ -62,7 +62,7 @@ serve(async (req) => {
     // Verificar que el trabajo existe
     const { data: jobExists, error: jobError } = await supabaseAdmin
       .from('jobs')
-      .select('id')
+      .select('id, type')
       .eq('id', jobId)
       .single()
       
@@ -70,141 +70,55 @@ serve(async (req) => {
       console.error('Job not found:', jobId, jobError)
       throw new Error('La vacante seleccionada no existe')
     }
-    
-    // Create or find candidate
-    let candidateId
-    
-    // Check if candidate exists
-    const { data: existingCandidate, error: findError } = await supabaseAdmin
-      .from('candidates')
-      .select('id, resume_url')
-      .eq('email', email)
-      .maybeSingle()
-    
-    if (findError) {
-      console.error('Error finding candidate:', findError)
-      throw new Error('Error al buscar candidato existente')
-    }
-    
+
     // Format phone number correctly
     const formattedPhone = phoneCountry && phone ? `+${phoneCountry}${phone}` : null
     console.log('Formatted phone:', formattedPhone)
     
-    if (existingCandidate) {
-      console.log('Existing candidate found:', existingCandidate.id)
-      candidateId = existingCandidate.id
-      
-      // Update candidate information
-      const { error: updateError } = await supabaseAdmin
-        .from('candidates')
-        .update({
-          first_name: firstName,
-          last_name: lastName,
-          phone: formattedPhone,
-          resume_url: resumeUrl || existingCandidate.resume_url,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', candidateId)
-        
-      if (updateError) {
-        console.error('Error updating candidate:', updateError)
-        throw new Error('Error al actualizar información del candidato')
+    // Usar la función create_or_update_application
+    const { data, error } = await supabaseAdmin.rpc(
+      'create_or_update_application',
+      {
+        p_first_name: firstName,
+        p_last_name: lastName,
+        p_email: email,
+        p_phone: formattedPhone || '',
+        p_phone_country: phoneCountry || '',
+        p_job_id: jobId,
+        p_cover_letter: coverLetter || '',
+        p_job_type: jobExists.type || 'full-time',
+        p_resume_url: resumeUrl || ''
       }
-      
-      console.log('Candidate updated successfully')
-    } else {
-      console.log('Creating new candidate')
-      // Create new candidate
-      const { data: newCandidate, error: createError } = await supabaseAdmin
-        .from('candidates')
-        .insert({
-          first_name: firstName,
-          last_name: lastName,
-          email: email,
-          phone: formattedPhone,
-          resume_url: resumeUrl
-        })
-        .select('id')
-        .single()
-      
-      if (createError) {
-        console.error('Error creating candidate:', createError)
-        throw new Error('Error al crear candidato')
-      }
-      
-      if (!newCandidate) {
-        console.error('Candidate created but no ID returned')
-        throw new Error('Error al crear candidato: no se devolvió ID')
-      }
-      
-      candidateId = newCandidate.id
-      console.log('New candidate created with ID:', candidateId)
+    )
+    
+    if (error) {
+      console.error('Error calling create_or_update_application function:', error)
+      throw new Error('Error al crear o actualizar la aplicación')
     }
     
-    // Check if application already exists for this candidate and job
-    const { data: existingApplication } = await supabaseAdmin
-      .from('applications')
-      .select('id')
-      .match({ candidate_id: candidateId, job_id: jobId })
-      .maybeSingle()
-      
-    if (existingApplication) {
-      console.log('Application already exists:', existingApplication.id)
-      
-      // Update existing application
-      const { data: updatedApplication, error: updateError } = await supabaseAdmin
-        .from('applications')
-        .update({
-          notes: coverLetter || null,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', existingApplication.id)
-        .select()
-        .single()
-      
-      if (updateError) {
-        console.error('Error updating application:', updateError)
-        throw new Error('Error al actualizar aplicación existente')
-      }
-      
-      console.log('Application updated successfully:', updatedApplication?.id)
-      
-      return new Response(
-        JSON.stringify({ success: true, data: updatedApplication }),
-        { 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          status: 200 
-        }
-      )
+    if (!data) {
+      console.error('Function returned no data')
+      throw new Error('Error al crear la aplicación: no se devolvió ID')
     }
     
-    // Create new application
-    console.log('Creating application with candidate_id:', candidateId, 'job_id:', jobId)
-    const { data: application, error: applicationError } = await supabaseAdmin
+    console.log('Application created/updated successfully with ID:', data)
+    
+    // Obtener detalles de la aplicación
+    const { data: application, error: fetchError } = await supabaseAdmin
       .from('applications')
-      .insert({
-        candidate_id: candidateId,
-        job_id: jobId,
-        notes: coverLetter || null,
-        status: 'new'
-      })
-      .select()
+      .select('*, candidate:candidate_id(*)')
+      .eq('id', data)
       .single()
-    
-    if (applicationError) {
-      console.error('Error creating application:', applicationError)
-      throw new Error('Error al crear la aplicación')
+      
+    if (fetchError) {
+      console.error('Error fetching application details:', fetchError)
     }
-    
-    if (!application) {
-      console.error('Application created but no data returned')
-      throw new Error('Error: no se devolvieron datos de la aplicación')
-    }
-    
-    console.log('Application created successfully:', application.id)
     
     return new Response(
-      JSON.stringify({ success: true, data: application }),
+      JSON.stringify({ 
+        success: true, 
+        data: application || { id: data }
+      }),
       { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 200 
