@@ -1,34 +1,20 @@
-
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Link } from 'react-router-dom';
-
 const Home = () => {
-  return (
-    <div>
+  return <div>
       <div className="bg-gradient-to-b from-hrm-light-gray/30 to-white">
         <div className="hrm-container py-16 md:py-24">
           <div className="max-w-3xl mx-auto text-center">
             <h1 className="text-4xl md:text-5xl font-bold text-hrm-dark-cyan mb-6">
               Reclutamiento Impulsado por Inteligencia Artificial
             </h1>
-            <p className="text-xl text-gray-600 mb-8">
-              Transforma tu proceso de contratación con nuestra plataforma avanzada de reclutamiento potenciada con IA
-            </p>
+            <p className="text-xl text-gray-600 mb-8">Innovación global, oportunidades sin límites. ¡Construye el futuro con nosotros!</p>
             <div className="flex flex-col sm:flex-row justify-center gap-4">
-              <Button 
-                asChild 
-                size="lg" 
-                className="bg-hrm-dark-cyan hover:bg-hrm-steel-blue text-white font-medium"
-              >
+              <Button asChild size="lg" className="bg-hrm-dark-cyan hover:bg-hrm-steel-blue text-white font-medium">
                 <Link to="/jobs">Ver vacantes disponibles</Link>
               </Button>
-              <Button 
-                asChild 
-                variant="outline" 
-                size="lg"
-                className="border-hrm-dark-cyan text-hrm-dark-cyan hover:bg-hrm-dark-cyan/10"
-              >
+              <Button asChild variant="outline" size="lg" className="border-hrm-dark-cyan text-hrm-dark-cyan hover:bg-hrm-dark-cyan/10">
                 <Link to="/admin/login">Acceso administradores</Link>
               </Button>
             </div>
@@ -95,18 +81,12 @@ const Home = () => {
         <div className="hrm-container py-16">
           <div className="max-w-3xl mx-auto text-center">
             <h2 className="text-3xl font-bold mb-6">¿Listo para transformar tu proceso de reclutamiento?</h2>
-            <Button 
-              asChild 
-              size="lg" 
-              className="bg-white text-hrm-dark-cyan hover:bg-gray-100"
-            >
+            <Button asChild size="lg" className="bg-white text-hrm-dark-cyan hover:bg-gray-100">
               <Link to="/jobs">Explorar vacantes</Link>
             </Button>
           </div>
         </div>
       </div>
-    </div>
-  );
+    </div>;
 };
-
 export default Home;
