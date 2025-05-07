@@ -1,4 +1,3 @@
-
 // Follow this setup guide to integrate the Deno language server with your editor:
 // https://deno.land/manual/getting_started/setup_your_environment
 // This enables autocomplete, go to definition, etc.
@@ -55,23 +54,18 @@ serve(async (req) => {
         if (prompt.startsWith('http')) {
           console.log('URL detectada, descargando PDF...');
           
-          // Extract filename from the URL
-          let filename = prompt;
-          if (prompt.includes('/')) {
-            const parts = prompt.split('/');
-            filename = parts[parts.length - 1];
-          }
-          
-          // First try to get the file content directly from the URL
+          // Download the PDF file from the URL
           const pdfResponse = await fetch(prompt);
           if (!pdfResponse.ok) {
             throw new Error(`No se pudo descargar el PDF desde la URL: ${pdfResponse.status}`);
           }
           
-          const fileData = await pdfResponse.blob();
+          const pdfBlob = await pdfResponse.blob();
+          console.log(`PDF descargado, tamaño: ${pdfBlob.size} bytes`);
           
-          // Extract the text from the PDF using OpenAI's Vision capabilities
-          const extractedText = await extractTextFromPDFWithVision(apiKey, fileData);
+          // Extract text using the enhanced method
+          const extractedText = await extractTextFromPDF(apiKey, pdfBlob);
+          console.log(`Texto extraído, longitud: ${extractedText.length} caracteres`);
           
           return new Response(
             JSON.stringify({ response: extractedText }),
@@ -97,8 +91,11 @@ serve(async (req) => {
             throw new Error('No se pudo descargar el CV');
           }
           
+          console.log(`CV descargado de storage, tamaño: ${fileData.size} bytes`);
+          
           // Extract text from the PDF
-          const extractedText = await extractTextFromPDFWithVision(apiKey, fileData);
+          const extractedText = await extractTextFromPDF(apiKey, fileData);
+          console.log(`Texto extraído, longitud: ${extractedText.length} caracteres`);
           
           return new Response(
             JSON.stringify({ response: extractedText }),
@@ -145,7 +142,7 @@ serve(async (req) => {
       
       Si hay requisitos del trabajo disponibles, evalúa qué tan bien el candidato cumple estos requisitos en una escala del 1 al 100, y explica las razones.
       
-      IMPORTANTE: Si el texto proporcionado parece contener datos binarios o no es legible, extrae cualquier información útil que puedas encontrar, como nombres, fechas, palabras clave relacionadas con experiencia profesional o educación. En caso de no encontrar suficiente información, proporciona un análisis general basado en lo que puedas inferir.
+      IMPORTANTE: NO DEBES RESPONDER que no tienes acceso al CV o que no puedes ver el documento. Analiza únicamente la información proporcionada en el texto. Si la información es limitada, hazlo saber pero proporciona el mejor análisis posible con lo disponible.
       
       En caso de que no encaje con la vacante, destaca en qué áreas tiene experiencia el candidato según la información disponible.
       
@@ -237,25 +234,28 @@ serve(async (req) => {
   }
 })
 
-// Improved function to extract text from PDF using OpenAI's vision API
-async function extractTextFromPDFWithVision(apiKey: string, fileData: Blob): Promise<string> {
+// Improved function to extract text from PDF using OpenAI APIs
+async function extractTextFromPDF(apiKey: string, fileData: Blob): Promise<string> {
+  console.log("Iniciando proceso de extracción de texto del PDF...");
+  
   try {
-    console.log("Extrayendo texto del PDF con OpenAI Vision...");
-    
-    // Convert blob to base64
+    // First convert the blob to base64
     const arrayBuffer = await fileData.arrayBuffer();
-    const uint8Array = new Uint8Array(arrayBuffer);
-    
-    // Create a base64 string
-    let base64String = '';
-    for (let i = 0; i < uint8Array.length; i++) {
-      base64String += String.fromCharCode(uint8Array[i]);
+    const bytes = new Uint8Array(arrayBuffer);
+    let binaryString = '';
+    for (let i = 0; i < bytes.length; i++) {
+      binaryString += String.fromCharCode(bytes[i]);
     }
-    const base64Data = btoa(base64String);
+    const base64Data = btoa(binaryString);
     
-    // First try with vision API for better PDF handling
+    console.log(`Archivo convertido a base64, longitud: ${base64Data.length}`);
+    
+    // Try multiple approaches to ensure we get good text extraction
+    let extractedText = "";
+    
+    // First approach: Use GPT-4o Vision
     try {
-      console.log("Intentando extraer con GPT-4o...");
+      console.log("Intentando extracción con GPT-4o...");
       
       const visionResponse = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
@@ -268,14 +268,18 @@ async function extractTextFromPDFWithVision(apiKey: string, fileData: Blob): Pro
           messages: [
             {
               role: "system",
-              content: "Eres un asistente especializado en la extracción de información detallada de CVs. Tu objetivo es extraer toda la información relevante de un CV, incluyendo: datos personales, experiencia laboral (empresas, cargos, fechas y responsabilidades), educación, habilidades técnicas, idiomas, certificaciones y cualquier otra información relevante. Formatea la información de manera clara y estructurada."
+              content: `Eres un asistente especializado en extracción de texto de documentos PDF, 
+              particularmente de CVs. Tu tarea es extraer TODA la información textual del documento
+              de manera precisa y completa. Incluye nombres, fechas, experiencia laboral, educación,
+              habilidades, certificaciones, contacto y cualquier otra información relevante. 
+              Devuelve el texto extraído en un formato estructurado y legible.`
             },
             {
               role: "user",
               content: [
                 {
                   type: "text",
-                  text: "A continuación hay un CV en formato PDF. Extrae toda la información relevante para un análisis de reclutamiento."
+                  text: "A continuación hay un CV en formato PDF. Por favor extrae todo el texto presente en este documento de forma completa y precisa:"
                 },
                 {
                   type: "image_url",
@@ -286,27 +290,40 @@ async function extractTextFromPDFWithVision(apiKey: string, fileData: Blob): Pro
               ]
             }
           ],
-          temperature: 0.3,
+          temperature: 0.1,
           max_tokens: 4000
         })
       });
       
       if (!visionResponse.ok) {
         const errorData = await visionResponse.json();
-        console.error("Error en extracción con Vision:", errorData);
-        throw new Error("La extracción con GPT-4o falló, intentando método alternativo");
+        console.error("Error en GPT-4o Vision:", errorData);
+        throw new Error(`Error en GPT-4o: ${JSON.stringify(errorData)}`);
       }
       
       const visionResult = await visionResponse.json();
-      const extractedText = visionResult.choices[0].message.content;
+      extractedText = visionResult.choices[0].message.content;
       
-      console.log("Texto extraído con éxito usando GPT-4o, longitud:", extractedText.length);
-      return extractedText;
+      console.log(`Texto extraído con GPT-4o, longitud: ${extractedText.length} caracteres`);
+      
+      // If we got a good result, return it
+      if (extractedText && extractedText.length > 200) {
+        return extractedText;
+      }
+      
+      // Otherwise, continue to the next method
+      console.log("Extracción con GPT-4o no produjo suficiente texto, intentando método alternativo...");
     } catch (visionError) {
-      console.error("Error en extracción con Vision, intentando método alternativo:", visionError);
+      console.error("Error en extracción con GPT-4o:", visionError);
+      // Continue to the fallback method
+    }
+    
+    // Second approach: Use gpt-4o-mini with a chunk of the base64 data
+    try {
+      console.log("Intentando extracción con GPT-4o-mini...");
       
-      // Fallback to text-based extraction
-      const textResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+      // We'll tell the model this is a base64 encoded PDF and ask it to extract as much as possible
+      const textExtractResponse = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -317,30 +334,108 @@ async function extractTextFromPDFWithVision(apiKey: string, fileData: Blob): Pro
           messages: [
             {
               role: "system",
-              content: "Tu tarea es extraer información de un documento PDF que contiene un CV. Intenta identificar y estructurar toda la información relevante."
+              content: `Tu tarea es ayudar a extraer información de un CV. 
+              Te proporcionaré una parte de un archivo PDF codificado en base64. 
+              Aunque no puedes decodificar completamente el PDF, intenta identificar 
+              cualquier texto legible, nombres, fechas, títulos, empresas o información 
+              que puedas encontrar en los datos proporcionados.`
             },
             {
               role: "user",
-              content: "Este es un CV en formato PDF codificado en base64. Intenta extraer la información más relevante para un análisis de reclutamiento:\n\n" +
-                base64Data.substring(0, 1000) + "..."
+              content: `Este es un fragmento de un CV en formato PDF codificado en base64. 
+              Por favor, extrae toda la información posible: ${base64Data.substring(0, 4000)}...`
             }
           ],
-          temperature: 0.5,
-          max_tokens: 1500
+          temperature: 0.1,
+          max_tokens: 2000
         })
       });
       
-      if (!textResponse.ok) {
-        throw new Error("Ambos métodos de extracción fallaron");
+      if (textExtractResponse.ok) {
+        const textResult = await textExtractResponse.json();
+        const miniExtractedText = textResult.choices[0].message.content;
+        
+        console.log(`Texto extraído con GPT-4o-mini, longitud: ${miniExtractedText.length} caracteres`);
+        
+        // If we got some text from this method and it's better than what we had, use it
+        if (miniExtractedText && miniExtractedText.length > extractedText.length) {
+          extractedText = miniExtractedText;
+        }
       }
-      
-      const textResult = await textResponse.json();
-      const fallbackText = textResult.choices[0].message.content;
-      
-      return "Extracción alternativa del CV:\n\n" + fallbackText;
+    } catch (miniError) {
+      console.error("Error en extracción con GPT-4o-mini:", miniError);
+      // Continue to the next step
     }
+    
+    // If we still don't have good text, try one more approach with explicit OCR instructions
+    if (!extractedText || extractedText.length < 100) {
+      try {
+        console.log("Intentando último método de extracción con GPT-4o y enfoque en OCR...");
+        
+        const ocrResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`
+          },
+          body: JSON.stringify({
+            model: "gpt-4o",
+            messages: [
+              {
+                role: "system",
+                content: `Eres un sistema OCR avanzado especializado en extraer texto de documentos PDF.
+                Tu única función es extraer y transcribir TODOS los caracteres de texto visibles en la imagen.
+                No añadas interpretaciones, análisis ni comentarios. Solo proporciona el texto extraído
+                siguiendo la estructura y formato del documento original lo mejor posible.`
+              },
+              {
+                role: "user",
+                content: [
+                  {
+                    type: "text",
+                    text: "Extrae todo el texto visible de este documento PDF:"
+                  },
+                  {
+                    type: "image_url",
+                    image_url: {
+                      url: `data:application/pdf;base64,${base64Data}`
+                    }
+                  }
+                ]
+              }
+            ],
+            temperature: 0.1,
+            max_tokens: 4000
+          })
+        });
+        
+        if (ocrResponse.ok) {
+          const ocrResult = await ocrResponse.json();
+          const ocrText = ocrResult.choices[0].message.content;
+          
+          console.log(`Texto extraído con enfoque OCR, longitud: ${ocrText.length} caracteres`);
+          
+          // If we got a better result, use it
+          if (ocrText && ocrText.length > extractedText.length) {
+            extractedText = ocrText;
+          }
+        }
+      } catch (ocrError) {
+        console.error("Error en extracción con enfoque OCR:", ocrError);
+      }
+    }
+    
+    // If we got any text at all, return it
+    if (extractedText && extractedText.length > 0) {
+      console.log(`Texto final extraído, longitud: ${extractedText.length} caracteres`);
+      return extractedText;
+    }
+    
+    // If all methods failed
+    return "No se pudo extraer texto del PDF. El documento podría estar protegido, estar en formato imagen, o tener otro problema que impide la extracción.";
+    
   } catch (error) {
-    console.error("Error en extractTextFromPDFWithVision:", error);
-    return "Error extrayendo texto del CV. Por favor, proporciona la información manualmente.";
+    console.error("Error general en extractTextFromPDF:", error);
+    return `Error al extraer texto del CV: ${error.message}. Por favor, proporciona la información manualmente.`;
   }
 }

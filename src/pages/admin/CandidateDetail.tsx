@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { 
@@ -166,43 +165,6 @@ const CandidateDetail: React.FC = () => {
     }
   }, [id, toast]);
 
-  const extractTextFromPDF = async (resumeUrl: string): Promise<string> => {
-    try {
-      console.log("Intentando extraer contenido del CV:", resumeUrl);
-      
-      // Extract the filename from the URL or path
-      let filename = resumeUrl;
-      if (resumeUrl.includes('/')) {
-        const parts = resumeUrl.split('/');
-        filename = parts[parts.length - 1];
-      }
-      
-      // Call the OpenAI edge function with a special type for extracting text
-      const response = await fetch('https://kugocdtesaczbfrwblsi.supabase.co/functions/v1/openai-assistant', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          prompt: resumeUrl,
-          type: 'extract-cv-text',
-        })
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Error al extraer texto: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      console.log("Extracción de texto exitosa:", data);
-      
-      return data.response || '';
-    } catch (error) {
-      console.error('Error extrayendo texto del CV:', error);
-      throw error;
-    }
-  };
-
   const analyzeCV = async (applicationId?: string) => {
     if (!candidate?.resume_url) {
       toast({
@@ -244,13 +206,18 @@ const CandidateDetail: React.FC = () => {
         }
       }
 
-      // Get the resume URL or filename
+      // Get the resume URL
       const resumeUrl = candidate.resume_url;
-      console.log("Resume URL para análisis:", resumeUrl);
+      console.log("Analizando CV desde URL:", resumeUrl);
       
-      // Step 1: Extract CV text from PDF
+      // Step 1: Extract CV text from PDF using our improved function
       let cvContent = '';
       try {
+        toast({
+          title: "Procesando",
+          description: "Extrayendo texto del CV...",
+        });
+        
         // Call our improved edge function to extract text
         const extractResponse = await supabase.functions.invoke('openai-assistant', {
           body: {
@@ -259,32 +226,34 @@ const CandidateDetail: React.FC = () => {
           }
         });
         
+        console.log("Respuesta de extracción:", extractResponse);
+        
         if (extractResponse.error) {
           console.error("Error en extracción:", extractResponse.error);
-          throw new Error(`Error extrayendo texto: ${extractResponse.error.message}`);
+          throw new Error(`Error extrayendo texto: ${extractResponse.error}`);
         }
         
         cvContent = extractResponse.data.response;
-        console.log("Texto extraído del CV, longitud:", cvContent.length);
+        console.log("Texto extraído del CV:", cvContent.substring(0, 100) + "...");
         
         if (!cvContent || cvContent.length < 50) {
           throw new Error("El texto extraído es muy corto o vacío");
         }
         
         setResumeContent(cvContent);
+        
+        toast({
+          title: "Extracción completada",
+          description: "Analizando contenido del CV...",
+        });
       } catch (extractError) {
         console.error("Error extracting CV content:", extractError);
         toast({
-          // Fix the TypeScript error here - use "default" instead of "warning"
-          variant: "default",
-          title: "Advertencia",
-          description: "La extracción de texto ha tenido problemas. El análisis puede ser limitado."
+          variant: "destructive",
+          title: "Error",
+          description: "No se pudo extraer el texto del CV. " + extractError.message
         });
-        // Use a fallback approach with minimal content
-        cvContent = `Perfil de: ${candidate.first_name} ${candidate.last_name}, Email: ${candidate.email}`;
-        if (candidate.skills && candidate.skills.length > 0) {
-          cvContent += `, Habilidades: ${candidate.skills.join(', ')}`;
-        }
+        return;
       }
       
       // Step 2: Send the extracted content to OpenAI for analysis
@@ -292,7 +261,7 @@ const CandidateDetail: React.FC = () => {
       
       const response = await supabase.functions.invoke('openai-assistant', {
         body: {
-          prompt: cvContent.substring(0, 15000), // Limit to 15000 characters
+          prompt: cvContent,
           type: 'cv-analysis',
           context: jobContext
         }
@@ -300,11 +269,11 @@ const CandidateDetail: React.FC = () => {
       
       if (response.error) {
         console.error('Error invocando análisis:', response.error);
-        throw new Error(`Error en análisis: ${response.error.message}`);
+        throw new Error(`Error en análisis: ${response.error}`);
       }
       
       const data = response.data;
-      console.log("Análisis recibido con éxito");
+      console.log("Análisis recibido:", data);
       
       if (!data.response) {
         throw new Error('No se recibió respuesta del análisis');
