@@ -1,5 +1,5 @@
 
 project_id = "kugocdtesaczbfrwblsi"
 
-[functions.regenerate-types]
-verify_jwt = true
+[functions.create-application]
+verify_jwt = false

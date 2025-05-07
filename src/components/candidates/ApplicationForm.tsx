@@ -27,6 +27,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Loader2, AlertCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Progress } from '@/components/ui/progress';
 
 type JobType = {
   id: string;
@@ -156,9 +157,9 @@ const ApplicationForm = () => {
     };
     
     fetchJob();
-  }, [jobId]);
+  }, [jobId, toast]);
 
-  // Check if the storage bucket exists and create it if it doesn't
+  // Check if the storage bucket exists
   useEffect(() => {
     const checkBucket = async () => {
       try {
@@ -174,7 +175,7 @@ const ApplicationForm = () => {
         if (resumesBucketExists) {
           console.info('Resumes bucket exists.');
         } else {
-          console.info('Resumes bucket does not exist. The application will not be able to upload resumes.');
+          console.error('Resumes bucket does not exist. The application will not be able to upload resumes.');
         }
       } catch (err) {
         console.error('Error checking storage buckets:', err);
@@ -259,7 +260,7 @@ const ApplicationForm = () => {
       
       console.info('Submitting application with resumeUrl:', resumeUrl);
       
-      // Call our edge function to create the application
+      // Call our edge function to create the application - using the full URL
       const response = await fetch('https://kugocdtesaczbfrwblsi.supabase.co/functions/v1/create-application', {
         method: 'POST',
         headers: {
@@ -458,6 +459,13 @@ const ApplicationForm = () => {
                   </FormItem>
                 )}
               />
+              
+              {uploadingResume && (
+                <div className="space-y-2">
+                  <div className="text-sm text-muted-foreground">Subiendo CV: {uploadProgress}%</div>
+                  <Progress value={uploadProgress} className="h-2" />
+                </div>
+              )}
               
               <FormField
                 control={form.control}
