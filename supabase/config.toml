@@ -6,3 +6,6 @@ verify_jwt = false
 
 [functions.openai-assistant]
 verify_jwt = false
+
+[functions.init-training-codes]
+verify_jwt = false

@@ -29,6 +29,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { AppDatabase } from '@/utils/supabase-helpers';
+import { PDFViewer } from '@/components/ui/pdf-viewer';
 
 interface Application {
   id: string;
@@ -66,6 +67,8 @@ const CandidateDetail: React.FC = () => {
   const [analyzing, setAnalyzing] = useState(false);
   const [jobDetails, setJobDetails] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isPdfOpen, setIsPdfOpen] = useState(false);
+  const [resumeUrl, setResumeUrl] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchCandidate = async () => {
@@ -162,6 +165,18 @@ const CandidateDetail: React.FC = () => {
     }
   }, [id, toast]);
 
+  // Helper function to get the public URL for a resume
+  const getResumeUrl = (path: string) => {
+    if (!path) return null;
+    
+    // If it's already a full URL, return it
+    if (path.startsWith('http')) return path;
+    
+    // If it's a path in the storage, get the public URL
+    const { data } = supabase.storage.from('resumes').getPublicUrl(path);
+    return data.publicUrl;
+  };
+
   const analyzeCV = async (applicationId?: string) => {
     if (!candidate?.resume_url) {
       toast({
@@ -217,6 +232,7 @@ const CandidateDetail: React.FC = () => {
       console.log("Intentando descargar CV:", filename);
       
       let fileContent = '';
+      
       try {
         // Try to download the file from storage
         const { data: fileData, error: fileError } = await supabase
@@ -233,14 +249,28 @@ const CandidateDetail: React.FC = () => {
           throw new Error('No se pudo descargar el CV');
         }
         
-        // For binary data like PDFs, we need to convert to base64 or extract text
-        // Here we'll try to get some text representation
+        // For binary data like PDFs, we need to extract text using a more robust approach
         const arrayBuffer = await fileData.arrayBuffer();
-        // Convert to a string representation that will contain some readable text
-        // This won't perfectly extract text from a PDF but will help the AI find patterns
-        fileContent = Array.from(new Uint8Array(arrayBuffer))
-          .map(b => String.fromCharCode(b))
-          .join('');
+        const uint8Array = new Uint8Array(arrayBuffer);
+        
+        // Extract text from PDF by sending chunks to avoid token limitations
+        // We'll create a text representation that contains enough information for analysis
+        const chunkSize = 5000; // Process in chunks to extract meaningful text
+        const textChunks = [];
+        
+        for (let i = 0; i < uint8Array.length; i += chunkSize) {
+          const chunk = uint8Array.slice(i, i + chunkSize);
+          const textChunk = Array.from(chunk)
+            .map(b => String.fromCharCode(b))
+            .join('');
+          
+          // Only add chunks that contain readable text (filter out binary data)
+          if (/[A-Za-z0-9]/.test(textChunk)) {
+            textChunks.push(textChunk);
+          }
+        }
+        
+        fileContent = textChunks.join('');
         
         console.log("CV contenido obtenido, longitud:", fileContent.length);
         
@@ -319,16 +349,14 @@ const CandidateDetail: React.FC = () => {
     }
   };
 
-  // Helper function to get the public URL for a resume
-  const getResumeUrl = (path: string) => {
-    if (!path) return null;
-    
-    // If it's already a full URL, return it
-    if (path.startsWith('http')) return path;
-    
-    // If it's a path in the storage, get the public URL
-    const { data } = supabase.storage.from('resumes').getPublicUrl(path);
-    return data.publicUrl;
+  const openPdfViewer = () => {
+    if (candidate?.resume_url) {
+      const url = getResumeUrl(candidate.resume_url);
+      if (url) {
+        setResumeUrl(url);
+        setIsPdfOpen(true);
+      }
+    }
   };
 
   if (loading) {
@@ -431,10 +459,7 @@ const CandidateDetail: React.FC = () => {
                     variant="outline" 
                     size="sm" 
                     className="w-full flex items-center justify-center"
-                    onClick={() => {
-                      const url = getResumeUrl(candidate.resume_url!);
-                      if (url) window.open(url, '_blank');
-                    }}
+                    onClick={openPdfViewer}
                   >
                     <FileText className="mr-2 h-4 w-4" />
                     Ver CV
@@ -590,6 +615,16 @@ const CandidateDetail: React.FC = () => {
           </Tabs>
         </div>
       </div>
+
+      {/* PDF Viewer Modal */}
+      {isPdfOpen && resumeUrl && (
+        <PDFViewer 
+          url={resumeUrl}
+          isOpen={isPdfOpen}
+          onClose={() => setIsPdfOpen(false)}
+          title={`CV - ${candidate.first_name} ${candidate.last_name}`}
+        />
+      )}
     </div>
   );
 };

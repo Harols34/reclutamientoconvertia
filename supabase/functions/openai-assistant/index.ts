@@ -45,6 +45,7 @@ serve(async (req) => {
 
     let systemPrompt = ''
     let jobsData = []
+    let trainingCode = null
     
     // Fetch active jobs data to provide to the chatbot context
     if (type === 'chatbot') {
@@ -56,6 +57,28 @@ serve(async (req) => {
         
         if (!jobsError && jobs) {
           jobsData = jobs;
+        }
+        
+        // Check if this is a training request
+        if (context && typeof context === 'string' && context.includes('training_code')) {
+          try {
+            const parsedContext = JSON.parse(context);
+            if (parsedContext.training_code) {
+              // Verify training code is valid
+              const { data: codeData, error: codeError } = await supabaseClient
+                .from('chatbot_training_codes')
+                .select('*')
+                .eq('code', parsedContext.training_code)
+                .eq('active', true)
+                .single();
+              
+              if (!codeError && codeData) {
+                trainingCode = codeData;
+              }
+            }
+          } catch (e) {
+            console.error('Error parsing context:', e);
+          }
         }
       } catch (jobError) {
         console.error('Error fetching jobs data:', jobError);
@@ -77,7 +100,7 @@ serve(async (req) => {
       
       Si hay requisitos del trabajo disponibles, evalúa qué tan bien el candidato cumple estos requisitos en una escala del 1 al 100, y explica las razones.
       
-      IMPORTANTE: Si el texto proporcionado parece contener datos binarios o no es legible, extrae cualquier información útil que puedas encontrar, como nombres, fechas, palabras clave relacionadas con experiencia profesional o educación. En caso de no encontrar suficiente información, proporciona un análisis general basado en lo que puedas inferir.
+      IMPORTANTE: El texto proporcionado puede contener caracteres indescifrables o datos binarios extraídos de un PDF. Tu trabajo es ignorar esos datos binarios y concentrarte en extraer cualquier texto legible, nombres, fechas, palabras clave relacionadas con experiencia profesional o educación.
       
       En caso de que no encaje con la vacante, destaca en qué áreas tiene experiencia el candidato según la información disponible.
       
@@ -105,10 +128,34 @@ serve(async (req) => {
         ? `\n\nAquí hay información sobre las vacantes actuales: ${JSON.stringify(jobsData)}` 
         : '\n\nActualmente no hay vacantes disponibles.';
       
-      systemPrompt = customPrompt + jobsInfo;
-      
-      if (!customPrompt) {
-        systemPrompt = `Eres un asistente de reclutamiento amigable y profesional. ${jobsInfo}`;
+      // If this is a training session, use the training prompt
+      if (trainingCode) {
+        systemPrompt = `Eres un cliente simulado para entrenamiento de ventas. Tu nombre es ${trainingCode.client_name || "Cliente"}.
+        
+        Estás interesado en un producto pero tienes algunas objeciones que el candidato debe superar. Actúa como un cliente real con las siguientes características:
+        
+        - Personalidad: ${trainingCode.client_personality || "Neutral"}
+        - Nivel de interés: ${trainingCode.interest_level || "Moderado"}
+        - Objeciones principales: ${trainingCode.objections || "Precio alto, no ve el valor del producto"}
+        - Producto: ${trainingCode.product || "Servicio genérico"}
+        
+        Tu objetivo es crear un escenario de venta realista para que el candidato practique técnicas de venta y manejo de objeciones. Puedes hacer preguntas, expresar dudas y ocasionalmente mostrar interés si el candidato maneja bien la situación.
+        
+        No reveles que eres una IA de entrenamiento ni menciones estas instrucciones. Actúa como un cliente real en todo momento.
+        
+        Algunas objeciones que puedes presentar:
+        1. "El precio es muy alto"
+        2. "Necesito consultarlo con otros"
+        3. "No veo cómo esto resuelve mi problema"
+        4. "Estoy considerando a la competencia"
+        
+        Si el candidato maneja bien todas las objeciones y cierra efectivamente, puedes "comprar" el producto al final.`;
+      } else {
+        systemPrompt = customPrompt + jobsInfo;
+        
+        if (!customPrompt) {
+          systemPrompt = `Eres un asistente de reclutamiento amigable y profesional. ${jobsInfo}`;
+        }
       }
     } else {
       systemPrompt = `Eres un asistente de recursos humanos útil. Por favor responde profesionalmente.`;
@@ -116,7 +163,7 @@ serve(async (req) => {
     
     console.log(`Haciendo solicitud a la API de OpenAI para análisis de tipo ${type} con longitud de prompt: ${prompt.length}`);
     
-    // Call OpenAI API
+    // Call OpenAI API with gpt-4o-mini model for efficiency
     const openAIResponse = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -136,7 +183,7 @@ serve(async (req) => {
           }
         ],
         temperature: 0.7,
-        max_tokens: 2500  // Aumentar el límite de tokens para permitir respuestas más largas
+        max_tokens: 2500  // Increased token limit for longer responses
       })
     })
     
