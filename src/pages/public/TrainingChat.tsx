@@ -97,9 +97,30 @@ const TrainingChat = () => {
 
     setLoading(true);
     try {
+      // Verificar si el código existe y es válido
+      const { data, error } = await supabase
+        .from('training_codes')
+        .select('id, is_used, expires_at')
+        .eq('code', code.trim())
+        .single();
+      
+      if (error) {
+        throw new Error('Código no válido o no encontrado');
+      }
+      
+      if (data.is_used) {
+        throw new Error('Este código ya ha sido utilizado');
+      }
+      
+      const now = new Date();
+      const expiresAt = new Date(data.expires_at);
+      
+      if (now > expiresAt) {
+        throw new Error('Este código ha expirado');
+      }
+
       // Avanzar al siguiente paso
       setStep('name');
-      setLoading(false);
     } catch (error) {
       console.error('Error al validar código:', error);
       toast({
@@ -107,6 +128,7 @@ const TrainingChat = () => {
         description: error.message || 'Código no válido',
         variant: 'destructive',
       });
+    } finally {
       setLoading(false);
     }
   };
@@ -124,22 +146,22 @@ const TrainingChat = () => {
 
     setLoading(true);
     try {
-      const response = await fetch(`${window.location.origin}/functions/v1/training-chat`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
+      // Usar directamente supabase functions para evitar errores de formato
+      const { data, error } = await supabase.functions.invoke('training-chat', {
+        body: {
           action: 'start-session',
           trainingCode: code,
           candidateName: name,
-        }),
+        },
       });
       
-      const data = await response.json();
+      if (error) {
+        console.error('Error llamando a la función:', error);
+        throw new Error(error.message || 'Error al iniciar sesión');
+      }
       
-      if (!response.ok) {
-        throw new Error(data.error || 'Error al iniciar sesión');
+      if (!data || !data.session) {
+        throw new Error('Respuesta inválida del servidor');
       }
       
       setSessionId(data.session.id);
@@ -168,25 +190,29 @@ const TrainingChat = () => {
     
     setSubmitting(true);
     try {
-      const response = await fetch(`${window.location.origin}/functions/v1/training-chat`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
+      // Agregar mensaje del usuario inmediatamente para mejor UX
+      const userMessage = {
+        id: `temp-${Date.now()}`,
+        sender_type: 'candidate',
+        content: message.trim(),
+        sent_at: new Date().toISOString(),
+      };
+      
+      setMessages(prev => [...prev, userMessage]);
+      setMessage('');
+      
+      // Enviar mensaje a través de supabase functions
+      const { data, error } = await supabase.functions.invoke('training-chat', {
+        body: {
           action: 'send-message',
           sessionId,
-          message: message.trim(),
-        }),
+          message: userMessage.content,
+        },
       });
       
-      const data = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(data.error || 'Error al enviar mensaje');
+      if (error) {
+        throw new Error(error.message || 'Error al enviar mensaje');
       }
-      
-      setMessage('');
     } catch (error) {
       console.error('Error al enviar mensaje:', error);
       toast({
@@ -207,21 +233,15 @@ const TrainingChat = () => {
     clearInterval(timerRef.current);
     
     try {
-      const response = await fetch(`${window.location.origin}/functions/v1/training-chat`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
+      const { data, error } = await supabase.functions.invoke('training-chat', {
+        body: {
           action: 'end-session',
           sessionId,
-        }),
+        },
       });
       
-      const data = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(data.error || 'Error al finalizar sesión');
+      if (error) {
+        throw new Error(error.message || 'Error al finalizar sesión');
       }
       
       setEvaluation(data.evaluation);
@@ -279,7 +299,7 @@ const TrainingChat = () => {
           className="w-full bg-hrm-dark-cyan hover:bg-hrm-steel-blue"
           disabled={loading}
         >
-          Continuar
+          {loading ? 'Verificando...' : 'Continuar'}
         </Button>
       </CardFooter>
     </Card>
@@ -312,7 +332,7 @@ const TrainingChat = () => {
           className="w-full bg-hrm-dark-cyan hover:bg-hrm-steel-blue"
           disabled={loading}
         >
-          Iniciar Entrenamiento
+          {loading ? 'Iniciando...' : 'Iniciar Entrenamiento'}
         </Button>
         <Button 
           variant="outline" 

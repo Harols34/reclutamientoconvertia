@@ -2,9 +2,8 @@
 project_id = "kugocdtesaczbfrwblsi"
 
 [api]
-enabled = true
 port = 54321
-schemas = ["public"]
+schemas = ["public", "storage", "graphql_public"]
 extra_search_path = ["public", "extensions"]
 max_rows = 1000
 
@@ -14,25 +13,22 @@ shadow_port = 54320
 major_version = 15
 
 [studio]
-enabled = true
 port = 54323
-api_url = "http://localhost"
 
 [inbucket]
-enabled = true
 port = 54324
-
-[auth]
-enable_signup = true
-enabled = true
+smtp_port = 54325
+pop3_port = 54326
 
 [storage]
-enabled = true
+file_size_limit = "50MiB"
 
-[realtime]
-enabled = true
+[auth]
+site_url = "https://example.com"
+additional_redirect_urls = ["https://localhost:3000"]
+jwt_expiry = 3600
+enable_refresh_tokens = true
+refresh_token_expiry = 2592000
 
-[functions]
-serve_local_storage = true
 [functions.training-chat]
 verify_jwt = false
