@@ -30,7 +30,11 @@ import {
   Check,
   AlertTriangle,
   Star,
-  ChevronRight
+  ChevronRight,
+  GraduationCap,
+  Award,
+  Languages,
+  Lightbulb
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
@@ -49,6 +53,44 @@ interface Application {
   job_description?: string | null;
 }
 
+interface ExperienceItem {
+  empresa: string;
+  cargo: string;
+  fechas: string;
+  responsabilidades: string[];
+}
+
+interface EducationItem {
+  institucion: string;
+  carrera: string;
+  fechas: string;
+}
+
+interface AnalysisData {
+  datosPersonales?: {
+    nombre?: string;
+    telefono?: string;
+    email?: string;
+    ubicacion?: string;
+    disponibilidad?: string;
+    linkedin?: string;
+  };
+  perfilProfesional?: string;
+  experienciaLaboral?: ExperienceItem[];
+  educacion?: EducationItem[];
+  habilidades?: string[];
+  certificaciones?: string[];
+  idiomas?: string[];
+  fortalezas?: string[];
+  areasAMejorar?: string[];
+  compatibilidad?: {
+    porcentaje?: number;
+    fortalezas?: string[];
+    debilidades?: string[];
+    recomendacion?: string;
+  };
+}
+
 interface Candidate {
   id: string;
   first_name: string;
@@ -61,12 +103,7 @@ interface Candidate {
   created_at: string;
   resume_url?: string;
   analysis_summary?: string;
-  analysis_data?: {
-    matchPercentage?: number;
-    strengths?: string[];
-    weaknesses?: string[];
-    recommendation?: string;
-  };
+  analysis_data?: AnalysisData;
   applications?: Application[];
   linkedin_url?: string;
   portfolio_url?: string;
@@ -82,6 +119,7 @@ const CandidateDetail: React.FC = () => {
   const [jobDetails, setJobDetails] = useState<any>(null);
   const [pdfViewerOpen, setPdfViewerOpen] = useState(false);
   const [resumeContent, setResumeContent] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState("perfil");
 
   useEffect(() => {
     const fetchCandidate = async () => {
@@ -109,12 +147,25 @@ const CandidateDetail: React.FC = () => {
           console.log('Datos del candidato obtenidos:', candidateData);
           
           // Parse analysis_data si existe
-          let analysisData = null;
+          let analysisData: AnalysisData | null = null;
           if (candidateData.analysis_summary) {
             try {
+              // Intentar parsear como JSON
               analysisData = JSON.parse(candidateData.analysis_summary);
+              // Verificar si es un string JSON (resultado de un análisis anterior)
+              if (typeof analysisData === 'string') {
+                try {
+                  analysisData = JSON.parse(analysisData);
+                } catch (e) {
+                  console.log('El análisis ya está en formato string, no es JSON');
+                }
+              }
             } catch (e) {
               console.error('Error al parsear analysis_summary:', e);
+              // Si no se puede parsear como JSON, asumimos que es el formato antiguo
+              analysisData = {
+                perfilProfesional: candidateData.analysis_summary
+              };
             }
           }
           
@@ -141,13 +192,13 @@ const CandidateDetail: React.FC = () => {
             
             setCandidate({
               ...candidateData,
-              analysis_data: analysisData,
+              analysis_data: analysisData as any,
               applications: appsWithJobDetails
             });
           } else {
             setCandidate({
               ...candidateData,
-              analysis_data: analysisData,
+              analysis_data: analysisData as any,
               applications: []
             });
           }
@@ -192,21 +243,17 @@ const CandidateDetail: React.FC = () => {
       setAnalyzing(true);
       
       // Obtener detalles de la vacante si se proporciona ID de aplicación
-      let jobContext = '';
+      let jobContext = null;
       if (applicationId) {
         const application = candidate.applications?.find(app => app.id === applicationId);
         if (application) {
-          jobContext = JSON.stringify({
+          jobContext = {
             title: application.job_title,
             requirements: application.job_requirements,
             responsibilities: application.job_responsibilities,
             description: application.job_description
-          });
-          setJobDetails({
-            title: application.job_title,
-            requirements: application.job_requirements,
-            responsibilities: application.job_responsibilities
-          });
+          };
+          setJobDetails(jobContext);
         }
       }
 
@@ -217,7 +264,10 @@ const CandidateDetail: React.FC = () => {
       toast({ title: "Analizando", description: "Evaluando ajuste del candidato..." });
 
       const response = await supabase.functions.invoke('extract-pdf-text', {
-        body: { extractedText: resumeContent }
+        body: { 
+          extractedText: resumeContent,
+          jobDetails: jobContext
+        }
       });
       
       if (!response.data?.success) {
@@ -226,11 +276,26 @@ const CandidateDetail: React.FC = () => {
 
       const analysisResult = response.data.analysis;
       
+      // Analizar el resultado para asegurarse de que es JSON
+      let parsedAnalysis;
+      try {
+        // Si ya es un objeto (ya parseado por Supabase client)
+        if (typeof analysisResult === 'object') {
+          parsedAnalysis = analysisResult;
+        } else {
+          // Si es una cadena JSON
+          parsedAnalysis = JSON.parse(analysisResult);
+        }
+      } catch (error) {
+        console.error("Error al parsear el análisis:", error);
+        parsedAnalysis = { error: "No se pudo parsear el análisis" };
+      }
+
       // Actualizar registro del candidato
       const { error: updateError } = await supabase
         .from('candidates')
         .update({ 
-          analysis_summary: JSON.stringify(analysisResult) 
+          analysis_summary: analysisResult
         })
         .eq('id', candidate.id);
       
@@ -239,8 +304,8 @@ const CandidateDetail: React.FC = () => {
       // Actualizar estado local
       setCandidate(prev => prev ? { 
         ...prev, 
-        analysis_summary: JSON.stringify(analysisResult),
-        analysis_data: analysisResult 
+        analysis_summary: analysisResult,
+        analysis_data: parsedAnalysis 
       } : null);
 
       toast({
@@ -469,61 +534,246 @@ const CandidateDetail: React.FC = () => {
                     Análisis para: {jobDetails.title}
                   </CardDescription>
                 )}
+
+                <Tabs defaultValue={activeTab} onValueChange={setActiveTab} className="w-full">
+                  <TabsList className="grid grid-cols-3 mb-2">
+                    <TabsTrigger value="perfil">Perfil</TabsTrigger>
+                    <TabsTrigger value="experiencia">Experiencia</TabsTrigger>
+                    <TabsTrigger value="evaluacion">Evaluación</TabsTrigger>
+                  </TabsList>
+                </Tabs>
               </CardHeader>
+              
               <CardContent className="space-y-6">
-                {/* Porcentaje de coincidencia */}
-                {candidate.analysis_data.matchPercentage && (
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm font-medium">Porcentaje de Coincidencia</span>
-                      <span className="text-sm font-bold">
-                        {candidate.analysis_data.matchPercentage}%
-                      </span>
+                <TabsContent value="perfil" className="space-y-6 mt-0">
+                  {/* Porcentaje de coincidencia */}
+                  {candidate.analysis_data?.compatibilidad?.porcentaje !== undefined && (
+                    <div className="p-4 border rounded-lg bg-muted/30">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="font-medium">Compatibilidad con la vacante</span>
+                        <span className={`font-bold ${
+                          candidate.analysis_data.compatibilidad.porcentaje >= 75
+                            ? 'text-green-600'
+                            : candidate.analysis_data.compatibilidad.porcentaje >= 50
+                            ? 'text-yellow-600'
+                            : 'text-red-600'
+                        }`}>
+                          {candidate.analysis_data.compatibilidad.porcentaje}%
+                        </span>
+                      </div>
+                      <Progress 
+                        value={candidate.analysis_data.compatibilidad.porcentaje} 
+                        className={`h-2 ${
+                          candidate.analysis_data.compatibilidad.porcentaje >= 75
+                            ? 'bg-green-100 [&>div]:bg-green-600'
+                            : candidate.analysis_data.compatibilidad.porcentaje >= 50
+                            ? 'bg-yellow-100 [&>div]:bg-yellow-600'
+                            : 'bg-red-100 [&>div]:bg-red-600'
+                        }`}
+                      />
                     </div>
-                    <Progress 
-                      value={candidate.analysis_data.matchPercentage} 
-                      className="h-2"
-                    />
-                  </div>
-                )}
-                
-                {/* Fortalezas */}
-                {candidate.analysis_data.strengths && candidate.analysis_data.strengths.length > 0 && (
-                  <div>
-                    <h3 className="text-sm font-medium mb-2">Fortalezas</h3>
-                    <div className="space-y-2">
-                      {candidate.analysis_data.strengths.map((strength, i) => (
-                        <div key={i} className="flex items-start gap-3 p-3 bg-green-50 rounded-lg">
-                          <Check className="h-4 w-4 text-green-500 mt-0.5" />
-                          <span className="text-sm">{strength}</span>
+                  )}
+
+                  {/* Perfil profesional */}
+                  {candidate.analysis_data.perfilProfesional && (
+                    <div>
+                      <h3 className="text-base font-medium mb-2 flex items-center">
+                        <User className="mr-2 h-4 w-4 text-hrm-dark-cyan" />
+                        Perfil Profesional
+                      </h3>
+                      <div className="text-sm text-gray-700">
+                        {candidate.analysis_data.perfilProfesional}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Habilidades */}
+                  {candidate.analysis_data.habilidades && candidate.analysis_data.habilidades.length > 0 && (
+                    <div>
+                      <h3 className="text-base font-medium mb-2 flex items-center">
+                        <Star className="mr-2 h-4 w-4 text-hrm-dark-cyan" />
+                        Habilidades
+                      </h3>
+                      <div className="flex flex-wrap gap-2">
+                        {candidate.analysis_data.habilidades.map((skill, i) => (
+                          <Badge key={i} variant="secondary">
+                            {skill}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Idiomas */}
+                  {candidate.analysis_data.idiomas && candidate.analysis_data.idiomas.length > 0 && 
+                   candidate.analysis_data.idiomas[0] !== 'No especificado' && (
+                    <div>
+                      <h3 className="text-base font-medium mb-2 flex items-center">
+                        <Languages className="mr-2 h-4 w-4 text-hrm-dark-cyan" />
+                        Idiomas
+                      </h3>
+                      <div className="flex flex-wrap gap-2">
+                        {candidate.analysis_data.idiomas.map((language, i) => (
+                          <Badge key={i} variant="outline">
+                            {language}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </TabsContent>
+
+                <TabsContent value="experiencia" className="space-y-6 mt-0">
+                  {/* Experiencia laboral */}
+                  {candidate.analysis_data.experienciaLaboral && candidate.analysis_data.experienciaLaboral.length > 0 && (
+                    <div>
+                      <h3 className="text-base font-medium mb-3 flex items-center">
+                        <Briefcase className="mr-2 h-4 w-4 text-hrm-dark-cyan" />
+                        Experiencia Laboral
+                      </h3>
+                      <div className="space-y-4">
+                        {candidate.analysis_data.experienciaLaboral.map((exp, i) => (
+                          <div key={i} className="border rounded-lg p-4">
+                            <div className="font-medium">{exp.cargo}</div>
+                            <div className="text-sm text-muted-foreground mb-2">
+                              {exp.empresa} | {exp.fechas}
+                            </div>
+                            {exp.responsabilidades && exp.responsabilidades.length > 0 && (
+                              <div className="mt-2">
+                                <h4 className="text-xs uppercase font-medium text-muted-foreground mb-1">Responsabilidades</h4>
+                                <ul className="text-sm space-y-1 list-disc pl-4">
+                                  {exp.responsabilidades.map((resp, j) => (
+                                    <li key={j}>{resp}</li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Educación */}
+                  {candidate.analysis_data.educacion && candidate.analysis_data.educacion.length > 0 && (
+                    <div>
+                      <h3 className="text-base font-medium mb-3 flex items-center">
+                        <GraduationCap className="mr-2 h-4 w-4 text-hrm-dark-cyan" />
+                        Educación
+                      </h3>
+                      <div className="space-y-3">
+                        {candidate.analysis_data.educacion.map((edu, i) => (
+                          <div key={i} className="border rounded-lg p-3">
+                            <div className="font-medium">{edu.carrera}</div>
+                            <div className="text-sm text-muted-foreground">
+                              {edu.institucion} | {edu.fechas}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Certificaciones */}
+                  {candidate.analysis_data.certificaciones && candidate.analysis_data.certificaciones.length > 0 && (
+                    <div>
+                      <h3 className="text-base font-medium mb-2 flex items-center">
+                        <Award className="mr-2 h-4 w-4 text-hrm-dark-cyan" />
+                        Certificaciones
+                      </h3>
+                      <ul className="list-disc pl-5 space-y-1 text-sm">
+                        {candidate.analysis_data.certificaciones.map((cert, i) => (
+                          <li key={i}>{cert}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </TabsContent>
+
+                <TabsContent value="evaluacion" className="space-y-6 mt-0">
+                  {/* Fortalezas */}
+                  {candidate.analysis_data.fortalezas && candidate.analysis_data.fortalezas.length > 0 && (
+                    <div>
+                      <h3 className="text-base font-medium mb-2 flex items-center">
+                        <Lightbulb className="mr-2 h-4 w-4 text-hrm-dark-cyan" />
+                        Fortalezas
+                      </h3>
+                      <div className="space-y-2">
+                        {candidate.analysis_data.fortalezas.map((strength, i) => (
+                          <div key={i} className="flex items-start gap-3 p-3 bg-green-50 rounded-lg">
+                            <Check className="h-4 w-4 text-green-500 mt-0.5" />
+                            <span className="text-sm">{strength}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Áreas a mejorar */}
+                  {candidate.analysis_data.areasAMejorar && candidate.analysis_data.areasAMejorar.length > 0 && (
+                    <div>
+                      <h3 className="text-base font-medium mb-2 flex items-center">
+                        <Lightbulb className="mr-2 h-4 w-4 text-hrm-dark-cyan" />
+                        Áreas a Mejorar
+                      </h3>
+                      <div className="space-y-2">
+                        {candidate.analysis_data.areasAMejorar.map((area, i) => (
+                          <div key={i} className="flex items-start gap-3 p-3 bg-yellow-50 rounded-lg">
+                            <AlertTriangle className="h-4 w-4 text-yellow-500 mt-0.5" />
+                            <span className="text-sm">{area}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Compatibilidad */}
+                  {candidate.analysis_data.compatibilidad && (
+                    <div>
+                      <h3 className="text-base font-medium mb-2">Compatibilidad con la Vacante</h3>
+                      
+                      {/* Fortalezas para la vacante */}
+                      {candidate.analysis_data.compatibilidad.fortalezas && 
+                       candidate.analysis_data.compatibilidad.fortalezas.length > 0 && (
+                        <div className="mb-4">
+                          <h4 className="text-sm font-medium mb-2 text-green-700">Puntos Fuertes</h4>
+                          <div className="space-y-2">
+                            {candidate.analysis_data.compatibilidad.fortalezas.map((item, i) => (
+                              <div key={i} className="flex items-start gap-3 p-3 bg-green-50 rounded-lg">
+                                <Check className="h-4 w-4 text-green-500 mt-0.5" />
+                                <span className="text-sm">{item}</span>
+                              </div>
+                            ))}
+                          </div>
                         </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                
-                {/* Debilidades */}
-                {candidate.analysis_data.weaknesses && candidate.analysis_data.weaknesses.length > 0 && (
-                  <div>
-                    <h3 className="text-sm font-medium mb-2">Áreas a Considerar</h3>
-                    <div className="space-y-2">
-                      {candidate.analysis_data.weaknesses.map((weakness, i) => (
-                        <div key={i} className="flex items-start gap-3 p-3 bg-yellow-50 rounded-lg">
-                          <AlertTriangle className="h-4 w-4 text-yellow-500 mt-0.5" />
-                          <span className="text-sm">{weakness}</span>
+                      )}
+                      
+                      {/* Debilidades para la vacante */}
+                      {candidate.analysis_data.compatibilidad.debilidades && 
+                       candidate.analysis_data.compatibilidad.debilidades.length > 0 && (
+                        <div className="mb-4">
+                          <h4 className="text-sm font-medium mb-2 text-yellow-700">Áreas de Preocupación</h4>
+                          <div className="space-y-2">
+                            {candidate.analysis_data.compatibilidad.debilidades.map((item, i) => (
+                              <div key={i} className="flex items-start gap-3 p-3 bg-yellow-50 rounded-lg">
+                                <AlertTriangle className="h-4 w-4 text-yellow-500 mt-0.5" />
+                                <span className="text-sm">{item}</span>
+                              </div>
+                            ))}
+                          </div>
                         </div>
-                      ))}
+                      )}
+                      
+                      {/* Recomendación */}
+                      {candidate.analysis_data.compatibilidad.recomendacion && (
+                        <div className="p-4 border rounded-lg bg-blue-50">
+                          <h4 className="text-sm font-medium mb-2 text-blue-700">Recomendación</h4>
+                          <p className="text-sm">{candidate.analysis_data.compatibilidad.recomendacion}</p>
+                        </div>
+                      )}
                     </div>
-                  </div>
-                )}
-                
-                {/* Análisis Detallado */}
-                <div>
-                  <h3 className="text-sm font-medium mb-2">Análisis Detallado</h3>
-                  <div className="prose prose-sm max-w-none text-sm">
-                    {candidate.analysis_data.recommendation || candidate.analysis_summary}
-                  </div>
-                </div>
+                  )}
+                </TabsContent>
               </CardContent>
             </Card>
           ) : (

@@ -13,7 +13,7 @@ serve(async (req) => {
   }
 
   try {
-    const { extractedText } = await req.json();
+    const { extractedText, jobDetails } = await req.json();
 
     if (!extractedText) {
       return errorResponse('Texto extraído no proporcionado', 400);
@@ -27,7 +27,7 @@ serve(async (req) => {
     
     // Enviar a GPT para análisis estructurado
     console.log('Enviando texto extraído para análisis estructurado...');
-    const analysis = await analyzeWithGPT(extractedText);
+    const analysis = await analyzeWithGPT(extractedText, jobDetails);
     console.log('Análisis estructurado completado');
 
     return new Response(JSON.stringify({
@@ -54,9 +54,64 @@ function errorResponse(message: string, status = 400): Response {
 }
 
 // Analiza el texto extraído con GPT-4o
-async function analyzeWithGPT(text: string): Promise<any> {
+async function analyzeWithGPT(text: string, jobDetails?: any): Promise<any> {
   try {
     console.log('Iniciando análisis del texto extraído');
+    
+    // Construir el sistema prompt con información de la vacante si está disponible
+    let systemPrompt = `Eres un reclutador experto. Tu tarea es analizar el texto de un CV y proporcionar un análisis estructurado.`;
+    
+    if (jobDetails) {
+      systemPrompt += `\n\nDebes también evaluar la compatibilidad del candidato con la siguiente vacante:
+Título: ${jobDetails.title || 'No especificado'}
+Requisitos: ${jobDetails.requirements || 'No especificados'}
+Responsabilidades: ${jobDetails.responsibilities || 'No especificadas'}
+Descripción: ${jobDetails.description || 'No especificada'}
+
+Calcula un porcentaje de compatibilidad (0-100) basado en cómo las habilidades, experiencia y educación del candidato se alinean con los requisitos de la vacante.`;
+    }
+    
+    systemPrompt += `\n\nTu respuesta debe estar en formato JSON con la siguiente estructura:
+{
+  "datosPersonales": {
+    "nombre": "string",
+    "telefono": "string",
+    "email": "string",
+    "ubicacion": "string",
+    "disponibilidad": "string",
+    "linkedin": "string"
+  },
+  "perfilProfesional": "string",
+  "experienciaLaboral": [
+    {
+      "empresa": "string",
+      "cargo": "string",
+      "fechas": "string",
+      "responsabilidades": ["string"]
+    }
+  ],
+  "educacion": [
+    {
+      "institucion": "string",
+      "carrera": "string",
+      "fechas": "string"
+    }
+  ],
+  "habilidades": ["string"],
+  "certificaciones": ["string"],
+  "idiomas": ["string"],
+  "fortalezas": ["string"],
+  "areasAMejorar": ["string"],
+  "compatibilidad": {
+    "porcentaje": number,
+    "fortalezas": ["string"],
+    "debilidades": ["string"],
+    "recomendacion": "string"
+  }
+}
+
+El contenido es texto plano extraído de un CV en PDF.`;
+    
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -68,23 +123,14 @@ async function analyzeWithGPT(text: string): Promise<any> {
         messages: [
           {
             role: 'system',
-            content: `Eres un reclutador experto. Tu tarea es analizar el texto de un CV, identificar secciones clave y estructurarlas así:
-- Datos personales
-- Perfil profesional
-- Experiencia laboral (empresa, cargo, fechas, responsabilidades)
-- Educación
-- Habilidades técnicas y blandas
-- Certificaciones
-- Idiomas
-- Otra información relevante.
-
-El contenido es texto plano extraído de un CV en PDF.`
+            content: systemPrompt
           },
           {
             role: 'user',
             content: text
           }
         ],
+        response_format: { type: "json_object" },
         temperature: 0.2,
         max_tokens: 4000
       })
