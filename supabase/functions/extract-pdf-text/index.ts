@@ -54,7 +54,7 @@ function errorResponse(message: string, status = 400): Response {
 }
 
 // Analiza el texto extraído con GPT-4o
-async function analyzeWithGPT(text: string): Promise<string> {
+async function analyzeWithGPT(text: string): Promise<any> {
   try {
     console.log('Iniciando análisis del texto extraído');
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
