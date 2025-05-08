@@ -21,6 +21,7 @@ const PDFViewer: React.FC<PDFViewerProps> = ({
 }) => {
   const [loading, setLoading] = useState(true);
   const [scale, setScale] = useState(1);
+  const [error, setError] = useState<string | null>(null);
 
   if (!url) return null;
 
@@ -36,6 +37,16 @@ const PDFViewer: React.FC<PDFViewerProps> = ({
     if (url) {
       window.open(url, '_blank');
     }
+  };
+
+  const handleLoad = () => {
+    setLoading(false);
+    setError(null);
+  };
+
+  const handleError = () => {
+    setLoading(false);
+    setError("No se pudo cargar el documento PDF. Intente descargar el archivo.");
   };
 
   return (
@@ -73,13 +84,24 @@ const PDFViewer: React.FC<PDFViewerProps> = ({
               <Loader2 className="h-8 w-8 animate-spin text-hrm-dark-cyan" />
             </div>
           )}
-          <iframe 
-            src={`${url}#view=FitH&zoom=${scale * 100}`}
-            className="w-full h-full border-0"
-            onLoad={() => setLoading(false)}
-            title="Visor de PDF"
-            style={{ transform: `scale(${scale})`, transformOrigin: 'top center' }}
-          />
+          {error ? (
+            <div className="flex flex-col items-center justify-center h-full">
+              <p className="text-destructive mb-4">{error}</p>
+              <Button onClick={handleDownload} className="bg-hrm-dark-cyan hover:bg-hrm-steel-blue">
+                <Download className="mr-2 h-4 w-4" />
+                Descargar PDF
+              </Button>
+            </div>
+          ) : (
+            <iframe 
+              src={`${url}#view=FitH&zoom=${scale * 100}`}
+              className="w-full h-full border-0"
+              onLoad={handleLoad}
+              onError={handleError}
+              title="Visor de PDF"
+              style={{ transform: `scale(${scale})`, transformOrigin: 'top center' }}
+            />
+          )}
         </div>
       </DialogContent>
     </Dialog>

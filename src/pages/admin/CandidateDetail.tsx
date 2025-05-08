@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { 
   Card, 
@@ -34,6 +34,10 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import PDFViewer from '@/components/ui/pdf-viewer';
+// Importar pdfjs para extraer texto
+import * as pdfjsLib from 'pdfjs-dist';
+// Configurar worker para pdfjs
+pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
 
 interface Application {
   id: string;
@@ -169,6 +173,41 @@ const CandidateDetail: React.FC = () => {
     if (id) fetchCandidate();
   }, [id, toast]);
 
+  // Función para extraer texto del PDF usando PDF.js
+  const extractTextFromPDF = async (pdfUrl: string): Promise<string> => {
+    try {
+      setExtractingText(true);
+      console.log('Descargando PDF desde:', pdfUrl);
+      
+      // Cargar el documento PDF
+      const loadingTask = pdfjsLib.getDocument(pdfUrl);
+      const pdf = await loadingTask.promise;
+      console.log(`PDF cargado con ${pdf.numPages} páginas`);
+      
+      let extractedText = '';
+      
+      // Extraer texto de todas las páginas
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+        const content = await page.getTextContent();
+        const pageText = content.items
+          .map((item: any) => item.str)
+          .join(' ');
+        
+        extractedText += pageText + '\n\n';
+        console.log(`Texto extraído de la página ${i}`);
+      }
+      
+      console.log(`Texto extraído completo, longitud: ${extractedText.length} caracteres`);
+      return extractedText;
+    } catch (error) {
+      console.error('Error al extraer texto del PDF:', error);
+      throw new Error(`Error al extraer texto: ${error.message}`);
+    } finally {
+      setExtractingText(false);
+    }
+  };
+
   const analyzeCV = async (applicationId?: string) => {
     if (!candidate?.resume_url) {
       toast({
@@ -207,39 +246,26 @@ const CandidateDetail: React.FC = () => {
         ? resumeUrl 
         : supabase.storage.from('resumes').getPublicUrl(resumeUrl).data.publicUrl;
 
-      // Paso 1: Extraer texto
-      setExtractingText(true);
+      // Paso 1: Extraer texto en el navegador
       toast({ title: "Extrayendo texto", description: "Procesando contenido del CV..." });
       
-      const extractionResponse = await supabase.functions.invoke('extract-pdf-text', {
-        body: { pdfUrl }
-      });
+      const extractedText = await extractTextFromPDF(pdfUrl);
+      setResumeContent(extractedText);
       
-      setExtractingText(false);
-      
-      if (extractionResponse.error || !extractionResponse.data?.success) {
-        throw new Error(extractionResponse.error?.message || extractionResponse.data?.error || "Error al extraer texto del PDF");
-      }
+      console.log('Texto extraído del CV:', extractedText.substring(0, 100) + '...');
 
-      const cvContent = extractionResponse.data.text;
-      setResumeContent(cvContent);
-      
-      console.log('Texto extraído del CV:', cvContent.substring(0, 100) + '...');
-
-      // Paso 2: Analizar con IA
+      // Paso 2: Enviar el texto a la Edge Function para análisis con IA
       toast({ title: "Analizando", description: "Evaluando ajuste del candidato..." });
 
-      const response = await supabase.functions.invoke('openai-assistant', {
-        body: {
-          prompt: cvContent,
-          type: 'cv-analysis',
-          context: jobContext
-        }
+      const response = await supabase.functions.invoke('extract-pdf-text', {
+        body: { extractedText }
       });
       
-      if (response.error) throw response.error;
+      if (!response.data?.success) {
+        throw new Error(response.error?.message || response.data?.error || "Error durante el análisis del CV");
+      }
 
-      const analysisResult = response.data.response;
+      const analysisResult = response.data.analysis;
       
       // Actualizar registro del candidato
       const { error: updateError } = await supabase

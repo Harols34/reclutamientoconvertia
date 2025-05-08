@@ -5,8 +5,6 @@ import { corsHeaders } from '../_shared/cors.ts';
 
 // Variables de entorno
 const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY') || Deno.env.get('OPENAI');
-const MAX_FILE_SIZE_MB = parseInt(Deno.env.get('MAX_FILE_SIZE_MB') || '10');
-const MAX_FILE_SIZE = MAX_FILE_SIZE_MB * 1024 * 1024;
 
 // Servidor principal
 serve(async (req) => {
@@ -15,50 +13,18 @@ serve(async (req) => {
   }
 
   try {
-    const { pdfUrl } = await req.json();
+    const { extractedText } = await req.json();
 
-    if (!pdfUrl) {
-      return errorResponse('URL del PDF no proporcionada', 400);
+    if (!extractedText) {
+      return errorResponse('Texto extraído no proporcionado', 400);
     }
 
     if (!OPENAI_API_KEY) {
       return errorResponse('Clave API de OpenAI no configurada', 500);
     }
 
-    // Log para depuración
-    console.log(`Procesando PDF desde URL: ${pdfUrl}`);
-
-    // Descargar PDF
-    const pdfResponse = await fetch(pdfUrl);
-    if (!pdfResponse.ok) {
-      console.error(`Error al descargar PDF: ${pdfResponse.status} ${pdfResponse.statusText}`);
-      return errorResponse(`No se pudo obtener el PDF: ${pdfResponse.status}`, 400);
-    }
-
-    const contentLength = parseInt(pdfResponse.headers.get('content-length') || '0');
-    if (contentLength > MAX_FILE_SIZE) {
-      console.error(`Archivo demasiado grande: ${contentLength} bytes (límite: ${MAX_FILE_SIZE} bytes)`);
-      return errorResponse(`El archivo excede el tamaño máximo de ${MAX_FILE_SIZE_MB}MB`, 400);
-    }
-
-    // Convertir el PDF a base64 para enviarlo a la API de OpenAI
-    const arrayBuffer = await pdfResponse.arrayBuffer();
-    const bytes = new Uint8Array(arrayBuffer);
+    console.log(`Recibido texto para análisis: ${extractedText.substring(0, 100)}...`);
     
-    console.log(`PDF descargado, tamaño: ${bytes.length} bytes`);
-
-    // En lugar de usar el formato de imagen, usamos el endpoint de chat completions
-    // con una descripción del archivo para extraer texto
-    console.log('Enviando solicitud a OpenAI para extracción de texto...');
-    const extractedText = await extractTextWithOpenAIChat(pdfUrl);
-
-    if (!extractedText || extractedText.length < 50) {
-      console.error('Texto extraído insuficiente o vacío');
-      return errorResponse('No se pudo extraer texto suficiente del PDF', 400);
-    }
-
-    console.log(`Texto extraído exitosamente, longitud: ${extractedText.length} caracteres`);
-
     // Enviar a GPT para análisis estructurado
     console.log('Enviando texto extraído para análisis estructurado...');
     const analysis = await analyzeWithGPT(extractedText);
@@ -85,52 +51,6 @@ function errorResponse(message: string, status = 400): Response {
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     status
   });
-}
-
-// Nueva función para extraer texto del PDF usando OpenAI con el enfoque de chat
-async function extractTextWithOpenAIChat(pdfUrl: string): Promise<string> {
-  try {
-    console.log('Iniciando extracción de texto con OpenAI (chat API)');
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${OPENAI_API_KEY}`
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o',
-        messages: [
-          {
-            role: 'system',
-            content: `Eres un sistema OCR avanzado especializado en extraer texto de currículums vitae.
-            Tu única tarea es extraer TODO el texto visible en el PDF que se encuentra en la URL proporcionada.
-            Extrae nombres, fechas, experiencia laboral, educación, habilidades, datos de contacto y cualquier otro texto visible.
-            No añadas ningún comentario, análisis ni formato especial. Devuelve solo el texto extraído tal como aparece en el documento.`
-          },
-          {
-            role: 'user',
-            content: `Por favor, extrae todo el texto del CV en formato PDF que se encuentra en esta URL: ${pdfUrl}`
-          }
-        ],
-        temperature: 0.1,
-        max_tokens: 4000
-      })
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      console.error('Error en la API de OpenAI durante extracción:', error);
-      throw new Error(`Error de OpenAI: ${JSON.stringify(error)}`);
-    }
-
-    const data = await response.json();
-    const extractedText = data.choices[0].message.content;
-    console.log(`Texto extraído con OpenAI: ${extractedText.length} caracteres`);
-    return extractedText;
-  } catch (error) {
-    console.error('Error extrayendo texto con OpenAI:', error);
-    throw new Error(`Error al extraer texto con OpenAI: ${error.message}`);
-  }
 }
 
 // Analiza el texto extraído con GPT-4o
