@@ -407,13 +407,19 @@ export const getPublicResumeUrl = (filePath: string) => {
 // Función para obtener el tipo de usuario por su ID (función auxiliar)
 export const getUserType = async (userId: string) => {
   try {
+    // Modificado para comprobar primero si existe un campo role
     const { data } = await supabase
       .from('profiles')
-      .select('role')
+      .select('*')  // Seleccionamos todos los campos en lugar de 'role'
       .eq('id', userId)
       .single();
     
-    return data?.role || 'user';
+    // Si se encuentra un perfil y tiene un campo 'role', lo devolvemos
+    if (data) {
+      return (data as any).role || 'user';
+    }
+    
+    return 'user'; // Valor por defecto
   } catch (error) {
     console.error('Error al obtener tipo de usuario:', error);
     return 'user';

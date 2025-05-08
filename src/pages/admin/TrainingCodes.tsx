@@ -11,7 +11,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Plus, Trash, RefreshCcw } from 'lucide-react';
 
 const TrainingCodes = () => {
-  const [codes, setCodes] = useState([]);
+  const [codes, setCodes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [expirationDays, setExpirationDays] = useState(7);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -74,7 +74,7 @@ const TrainingCodes = () => {
       
       // Calcular fecha de expiración
       const expiresAt = new Date();
-      expiresAt.setDate(expiresAt.getDate() + parseInt(expirationDays));
+      expiresAt.setDate(expiresAt.getDate() + expirationDays);
       
       const { error } = await supabase
         .from('training_codes')
@@ -102,7 +102,7 @@ const TrainingCodes = () => {
   };
 
   // Eliminar un código
-  const deleteCode = async (id) => {
+  const deleteCode = async (id: string) => {
     try {
       const { error } = await supabase
         .from('training_codes')
@@ -126,13 +126,19 @@ const TrainingCodes = () => {
   };
 
   // Formatear fecha
-  const formatDate = (dateString) => {
-    const options = { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' };
+  const formatDate = (dateString: string) => {
+    const options: Intl.DateTimeFormatOptions = { 
+      year: 'numeric', 
+      month: 'short', 
+      day: 'numeric', 
+      hour: '2-digit', 
+      minute: '2-digit' 
+    };
     return new Date(dateString).toLocaleDateString(undefined, options);
   };
 
   // Verificar si un código está expirado
-  const isExpired = (expiresAt) => {
+  const isExpired = (expiresAt: string) => {
     return new Date() > new Date(expiresAt);
   };
 

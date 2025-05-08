@@ -16,11 +16,29 @@ import {
 } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
+interface TrainingSession {
+  id: string;
+  candidate_name: string;
+  started_at: string;
+  ended_at: string | null;
+  score: number | null;
+  feedback: string | null;
+  public_visible: boolean;
+  training_codes: { code: string } | null;
+}
+
+interface TrainingMessage {
+  id: string;
+  sender_type: string;
+  content: string;
+  sent_at: string;
+}
+
 const TrainingSessions = () => {
-  const [sessions, setSessions] = useState([]);
+  const [sessions, setSessions] = useState<TrainingSession[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedSession, setSelectedSession] = useState(null);
-  const [sessionMessages, setSessionMessages] = useState([]);
+  const [selectedSession, setSelectedSession] = useState<TrainingSession | null>(null);
+  const [sessionMessages, setSessionMessages] = useState<TrainingMessage[]>([]);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [showDialog, setShowDialog] = useState(false);
   const { toast } = useToast();
@@ -58,7 +76,7 @@ const TrainingSessions = () => {
   };
 
   // Cargar mensajes de una sesión específica
-  const loadSessionMessages = async (sessionId) => {
+  const loadSessionMessages = async (sessionId: string) => {
     try {
       setLoadingMessages(true);
       const { data, error } = await supabase
@@ -82,7 +100,7 @@ const TrainingSessions = () => {
   };
 
   // Cambiar visibilidad pública de una sesión
-  const togglePublicVisibility = async (sessionId, currentValue) => {
+  const togglePublicVisibility = async (sessionId: string, currentValue: boolean) => {
     try {
       const { error } = await supabase
         .from('training_sessions')
@@ -121,26 +139,32 @@ const TrainingSessions = () => {
     };
   }, []);
 
-  const viewSessionDetails = (session) => {
+  const viewSessionDetails = (session: TrainingSession) => {
     setSelectedSession(session);
     loadSessionMessages(session.id);
     setShowDialog(true);
   };
 
   // Formatear fecha
-  const formatDate = (dateString) => {
+  const formatDate = (dateString: string | null) => {
     if (!dateString) return '---';
-    const options = { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' };
+    const options: Intl.DateTimeFormatOptions = { 
+      year: 'numeric', 
+      month: 'short', 
+      day: 'numeric', 
+      hour: '2-digit', 
+      minute: '2-digit' 
+    };
     return new Date(dateString).toLocaleDateString(undefined, options);
   };
 
   // Formatear duración
-  const formatDuration = (startDateString, endDateString) => {
+  const formatDuration = (startDateString: string, endDateString: string | null) => {
     if (!endDateString) return 'En progreso';
     
     const startDate = new Date(startDateString);
     const endDate = new Date(endDateString);
-    const durationMs = endDate - startDate;
+    const durationMs = endDate.getTime() - startDate.getTime();
     
     const minutes = Math.floor(durationMs / 60000);
     const seconds = Math.floor((durationMs % 60000) / 1000);

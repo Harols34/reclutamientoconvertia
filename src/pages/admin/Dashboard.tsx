@@ -37,9 +37,9 @@ const Dashboard = () => {
     },
   ]);
   
-  const [recentCandidates, setRecentCandidates] = useState([]);
-  const [popularJobs, setPopularJobs] = useState([]);
-  const [applicationsByStatus, setApplicationsByStatus] = useState([]);
+  const [recentCandidates, setRecentCandidates] = useState<any[]>([]);
+  const [popularJobs, setPopularJobs] = useState<any[]>([]);
+  const [applicationsByStatus, setApplicationsByStatus] = useState<any[]>([]);
   
   // Función para cargar los datos del dashboard
   const loadDashboardData = async () => {
@@ -118,12 +118,20 @@ const Dashboard = () => {
       setRecentCandidates(recentCandidatesData || []);
       
       // Cargar vacantes populares
-      const { data: popularJobsData, error: popularJobsError } = await supabase
-        .rpc('get_jobs_with_application_count')
-        .limit(5);
-      
-      if (popularJobsError) {
-        // Fallback si la función RPC no existe
+      try {
+        // Intentar usar la función RPC primero
+        const { data: popularJobsData, error: popularJobsError } = await supabase
+          .from('jobs')  // Cambio: usamos jobs directamente en lugar de la función RPC
+          .select('id, title, department, created_at, status')
+          .eq('status', 'open')
+          .order('created_at', { ascending: false })
+          .limit(5);
+          
+        if (popularJobsError) throw popularJobsError;
+        setPopularJobs(popularJobsData || []);
+      } catch (error) {
+        console.error("Error al obtener trabajos populares:", error);
+        // Fallback si hay error
         const { data: jobsData } = await supabase
           .from('jobs')
           .select('id, title, department, created_at, status')
@@ -132,8 +140,6 @@ const Dashboard = () => {
           .limit(5);
         
         setPopularJobs(jobsData || []);
-      } else {
-        setPopularJobs(popularJobsData || []);
       }
       
       // Cargar datos para el gráfico de aplicaciones por estado
@@ -144,7 +150,7 @@ const Dashboard = () => {
       if (applicationsError) throw applicationsError;
       
       // Agrupar aplicaciones por estado
-      const statusCounts = {};
+      const statusCounts: Record<string, number> = {};
       applicationsData?.forEach(app => {
         statusCounts[app.status] = (statusCounts[app.status] || 0) + 1;
       });
@@ -187,14 +193,18 @@ const Dashboard = () => {
   }, []);
   
   // Función para formatear fechas
-  const formatDate = (dateString) => {
-    const options = { year: 'numeric', month: 'short', day: 'numeric' };
+  const formatDate = (dateString: string) => {
+    const options: Intl.DateTimeFormatOptions = { 
+      year: 'numeric', 
+      month: 'short', 
+      day: 'numeric' 
+    };
     return new Date(dateString).toLocaleDateString(undefined, options);
   };
   
   // Función para determinar el color de estado
-  const getStatusColor = (status) => {
-    const statusColors = {
+  const getStatusColor = (status: string) => {
+    const statusColors: Record<string, string> = {
       'open': 'bg-hrm-dark-green/20 text-hrm-dark-green',
       'closed': 'bg-red-100 text-red-800',
       'draft': 'bg-yellow-100 text-yellow-800',
