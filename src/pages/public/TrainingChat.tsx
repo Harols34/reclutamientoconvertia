@@ -25,6 +25,8 @@ const TrainingChat = () => {
   const messagesEndRef = useRef(null);
   const { toast } = useToast();
   const timerRef = useRef(null);
+  const nameInputRef = useRef(null);
+  const messageInputRef = useRef(null);
 
   // Parsear parámetros de consulta para precargar el código (si existe)
   useEffect(() => {
@@ -83,6 +85,19 @@ const TrainingChat = () => {
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
   }, [messages]);
+
+  // Enfocar el input de nombre cuando cambia al paso de nombre
+  useEffect(() => {
+    if (step === 'name' && nameInputRef.current) {
+      setTimeout(() => {
+        nameInputRef.current.focus();
+      }, 100);
+    } else if (step === 'chat' && messageInputRef.current) {
+      setTimeout(() => {
+        messageInputRef.current.focus();
+      }, 100);
+    }
+  }, [step]);
 
   // Validar y verificar el código
   const validateCode = async () => {
@@ -273,6 +288,19 @@ const TrainingChat = () => {
     }
   };
 
+  // Manejar cambio en los campos de entrada
+  const handleCodeChange = (e) => {
+    setCode(e.target.value.toUpperCase());
+  };
+
+  const handleNameChange = (e) => {
+    setName(e.target.value);
+  };
+
+  const handleMessageChange = (e) => {
+    setMessage(e.target.value);
+  };
+
   // Formatear tiempo restante
   const formatTimeLeft = () => {
     const minutes = Math.floor(timeLeft / 60);
@@ -295,7 +323,7 @@ const TrainingChat = () => {
             <Input
               placeholder="Introduce tu código (ej: ABC123)"
               value={code}
-              onChange={(e) => setCode(e.target.value.toUpperCase())}
+              onChange={handleCodeChange}
               className="text-center uppercase font-mono text-lg"
               maxLength={10}
             />
@@ -327,10 +355,12 @@ const TrainingChat = () => {
         <div className="space-y-4">
           <div>
             <Input
+              ref={nameInputRef}
               placeholder="Nombre completo"
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={handleNameChange}
               className="text-lg"
+              autoFocus
             />
           </div>
         </div>
@@ -398,11 +428,13 @@ const TrainingChat = () => {
       <CardFooter className="border-t p-4">
         <div className="flex w-full gap-2">
           <Input
+            ref={messageInputRef}
             placeholder="Escribe tu mensaje..."
             value={message}
-            onChange={(e) => setMessage(e.target.value)}
+            onChange={handleMessageChange}
             onKeyPress={handleKeyPress}
             disabled={submitting || chatEnded}
+            autoFocus
           />
           <Button
             onClick={sendMessage}
