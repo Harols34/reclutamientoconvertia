@@ -30,7 +30,6 @@ import {
   Check,
   AlertTriangle,
   Star,
-  ChevronRight,
   GraduationCap,
   Award,
   Languages,
@@ -102,6 +101,7 @@ interface Candidate {
   skills?: string[];
   created_at: string;
   resume_url?: string;
+  resume_text?: string;
   analysis_summary?: string;
   analysis_data?: AnalysisData;
   applications?: Application[];
@@ -145,6 +145,11 @@ const CandidateDetail: React.FC = () => {
         
         if (candidateData) {
           console.log('Datos del candidato obtenidos:', candidateData);
+          
+          // Set resume content if it exists
+          if (candidateData.resume_text) {
+            setResumeContent(candidateData.resume_text);
+          }
           
           // Parse analysis_data si existe
           let analysisData: AnalysisData | null = null;
@@ -219,6 +224,42 @@ const CandidateDetail: React.FC = () => {
     
     if (id) fetchCandidate();
   }, [id, toast]);
+
+  const saveAnalysisData = async (analysisResult: any, extractedText: string) => {
+    try {
+      if (!id) return;
+
+      console.log('Guardando datos de análisis para el candidato:', id);
+      
+      // Call our edge function to save the data
+      const response = await supabase.functions.invoke('save-candidate-data', {
+        body: {
+          candidateId: id,
+          resumeText: extractedText,
+          analysisData: analysisResult
+        }
+      });
+      
+      if (!response.data?.success) {
+        throw new Error(response.error?.message || 'Error al guardar datos del análisis');
+      }
+      
+      console.log('Datos guardados correctamente');
+      
+      toast({
+        title: "Datos guardados",
+        description: "La información del candidato ha sido guardada en la base de datos"
+      });
+      
+    } catch (error: any) {
+      console.error('Error al guardar datos del candidato:', error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message || "No se pudo guardar los datos del candidato"
+      });
+    }
+  };
 
   const analyzeCV = async (applicationId?: string) => {
     if (!candidate?.resume_url) {
@@ -301,11 +342,15 @@ const CandidateDetail: React.FC = () => {
       
       if (updateError) throw updateError;
 
+      // Guardar los datos del análisis y texto del CV
+      await saveAnalysisData(analysisResult, resumeContent);
+
       // Actualizar estado local
       setCandidate(prev => prev ? { 
         ...prev, 
         analysis_summary: analysisResult,
-        analysis_data: parsedAnalysis 
+        analysis_data: parsedAnalysis,
+        resume_text: resumeContent
       } : null);
 
       toast({
@@ -328,6 +373,12 @@ const CandidateDetail: React.FC = () => {
   const handleTextExtracted = (text: string) => {
     console.log("Texto extraído en el componente principal:", text.substring(0, 100) + "...");
     setResumeContent(text);
+    
+    // Save the extracted text to the database
+    if (candidate) {
+      saveAnalysisData(candidate.analysis_summary, text);
+    }
+    
     toast({ 
       title: "Texto extraído", 
       description: "El contenido del CV ha sido extraído correctamente"
@@ -534,15 +585,16 @@ const CandidateDetail: React.FC = () => {
                     Análisis para: {jobDetails.title}
                   </CardDescription>
                 )}
-
+              </CardHeader>
+              <CardContent>
                 <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                  <TabsList className="grid grid-cols-3 mb-2">
+                  <TabsList className="grid grid-cols-3 mb-4">
                     <TabsTrigger value="perfil">Perfil</TabsTrigger>
                     <TabsTrigger value="experiencia">Experiencia</TabsTrigger>
                     <TabsTrigger value="evaluacion">Evaluación</TabsTrigger>
                   </TabsList>
 
-                  <TabsContent value="perfil" className="space-y-6 mt-0">
+                  <TabsContent value="perfil" className="space-y-6">
                     {/* Porcentaje de coincidencia */}
                     {candidate.analysis_data?.compatibilidad?.porcentaje !== undefined && (
                       <div className="p-4 border rounded-lg bg-muted/30">
@@ -620,7 +672,7 @@ const CandidateDetail: React.FC = () => {
                     )}
                   </TabsContent>
 
-                  <TabsContent value="experiencia" className="space-y-6 mt-0">
+                  <TabsContent value="experiencia" className="space-y-6">
                     {/* Experiencia laboral */}
                     {candidate.analysis_data.experienciaLaboral && candidate.analysis_data.experienciaLaboral.length > 0 && (
                       <div>
@@ -687,7 +739,7 @@ const CandidateDetail: React.FC = () => {
                     )}
                   </TabsContent>
 
-                  <TabsContent value="evaluacion" className="space-y-6 mt-0">
+                  <TabsContent value="evaluacion" className="space-y-6">
                     {/* Fortalezas */}
                     {candidate.analysis_data.fortalezas && candidate.analysis_data.fortalezas.length > 0 && (
                       <div>
@@ -772,10 +824,6 @@ const CandidateDetail: React.FC = () => {
                     )}
                   </TabsContent>
                 </Tabs>
-              </CardHeader>
-              
-              <CardContent className="space-y-6">
-                {/* Content moved inside TabsContent components */}
               </CardContent>
             </Card>
           ) : (

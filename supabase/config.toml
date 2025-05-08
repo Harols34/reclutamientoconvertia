@@ -1,18 +1,39 @@
 
 project_id = "kugocdtesaczbfrwblsi"
 
-[functions.create-application]
-verify_jwt = false
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "storage", "graphql_public"]
 
-[functions.openai-assistant]
-verify_jwt = false
-timeout_seconds = 120
+[db]
+port = 54322
+shadow_port = 54320
+major_version = 15
+
+[studio]
+enabled = true
+port = 54323
+
+[inbucket]
+enabled = true
+port = 54324
+
+[auth]
+enabled = true
+port = 54325
+
+[realtime]
+enabled = true
+
+[storage]
+enabled = true
+
+[edge-functions]
+enabled = true
+
+[functions.save-candidate-data]
+verify_jwt = true
 
 [functions.extract-pdf-text]
-verify_jwt = false
-timeout_seconds = 180
-
-# Variables de entorno para OpenAI
-[env]
-MAX_FILE_SIZE_MB = "10"
-ALLOWED_FILE_TYPES = "pdf,docx,doc,txt,jpg,png"
+verify_jwt = true

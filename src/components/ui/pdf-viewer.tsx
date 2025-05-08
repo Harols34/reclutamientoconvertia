@@ -40,6 +40,13 @@ const PDFViewer: React.FC<PDFViewerProps> = ({
     }
   }, []);
 
+  // Extract text automatically when PDF is loaded
+  useEffect(() => {
+    if (isOpen && url && onTextExtracted && !extractingText) {
+      extractText();
+    }
+  }, [isOpen, url]);
+
   if (!url) return null;
 
   const handleZoomIn = () => {
