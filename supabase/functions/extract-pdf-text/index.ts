@@ -4,7 +4,7 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { corsHeaders } from '../_shared/cors.ts';
 
 // Variables de entorno
-const OPENAI_API_KEY = Deno.env.get('OPENAI');
+const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY') || Deno.env.get('OPENAI');
 const MAX_FILE_SIZE_MB = parseInt(Deno.env.get('MAX_FILE_SIZE_MB') || '10');
 const MAX_FILE_SIZE = MAX_FILE_SIZE_MB * 1024 * 1024;
 
@@ -44,18 +44,13 @@ serve(async (req) => {
     // Convertir el PDF a base64 para enviarlo a la API de OpenAI
     const arrayBuffer = await pdfResponse.arrayBuffer();
     const bytes = new Uint8Array(arrayBuffer);
-    let binaryString = '';
-    for (let i = 0; i < bytes.length; i++) {
-      binaryString += String.fromCharCode(bytes[i]);
-    }
-    const base64Data = btoa(binaryString);
-    const dataUri = `data:application/pdf;base64,${base64Data}`;
     
-    console.log(`PDF convertido a base64, tamaño: ${base64Data.length} caracteres`);
+    console.log(`PDF descargado, tamaño: ${bytes.length} bytes`);
 
-    // Extraer texto usando GPT-4o
-    console.log('Enviando PDF a la API de OpenAI para extracción de texto...');
-    const extractedText = await extractTextWithOpenAI(dataUri);
+    // En lugar de usar el formato de imagen, usamos el endpoint de chat completions
+    // con una descripción del archivo para extraer texto
+    console.log('Enviando solicitud a OpenAI para extracción de texto...');
+    const extractedText = await extractTextWithOpenAIChat(pdfUrl);
 
     if (!extractedText || extractedText.length < 50) {
       console.error('Texto extraído insuficiente o vacío');
@@ -92,10 +87,10 @@ function errorResponse(message: string, status = 400): Response {
   });
 }
 
-// Nueva función para extraer texto del PDF usando OpenAI
-async function extractTextWithOpenAI(pdfDataUri: string): Promise<string> {
+// Nueva función para extraer texto del PDF usando OpenAI con el enfoque de chat
+async function extractTextWithOpenAIChat(pdfUrl: string): Promise<string> {
   try {
-    console.log('Iniciando extracción de texto con OpenAI');
+    console.log('Iniciando extracción de texto con OpenAI (chat API)');
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -108,24 +103,13 @@ async function extractTextWithOpenAI(pdfDataUri: string): Promise<string> {
           {
             role: 'system',
             content: `Eres un sistema OCR avanzado especializado en extraer texto de currículums vitae.
-            Tu única tarea es extraer TODO el texto visible en el PDF proporcionado.
+            Tu única tarea es extraer TODO el texto visible en el PDF que se encuentra en la URL proporcionada.
             Extrae nombres, fechas, experiencia laboral, educación, habilidades, datos de contacto y cualquier otro texto visible.
             No añadas ningún comentario, análisis ni formato especial. Devuelve solo el texto extraído tal como aparece en el documento.`
           },
           {
             role: 'user',
-            content: [
-              {
-                type: "text",
-                text: "Extrae todo el texto de este CV en formato PDF:"
-              },
-              {
-                type: "image_url",
-                image_url: {
-                  url: pdfDataUri
-                }
-              }
-            ]
+            content: `Por favor, extrae todo el texto del CV en formato PDF que se encuentra en esta URL: ${pdfUrl}`
           }
         ],
         temperature: 0.1,
