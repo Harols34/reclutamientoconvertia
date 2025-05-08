@@ -20,8 +20,8 @@ serve(async (req) => {
     const openaiApiKey = Deno.env.get('OPENAI_API_KEY') || '';
 
     // Verificar que las variables de entorno estén configuradas
-    if (!supabaseUrl || !supabaseServiceKey || !openaiApiKey) {
-      throw new Error('Faltan variables de entorno requeridas');
+    if (!supabaseUrl || !supabaseServiceKey) {
+      throw new Error('Faltan variables de entorno requeridas para Supabase');
     }
 
     // Inicializar el cliente de Supabase con la clave de servicio
@@ -42,14 +42,23 @@ serve(async (req) => {
       throw new Error('No se especificó una acción');
     }
 
-    console.log(`Ejecutando acción: ${action}`);
+    console.log(`Ejecutando acción: ${action} con datos:`, JSON.stringify(body));
 
     // Verificar acción solicitada
-    if (action === 'start-session') {
+    if (action === 'validate-code') {
+      return await handleValidateCode(supabase, trainingCode, corsHeaders);
+    } else if (action === 'start-session') {
       return await handleStartSession(supabase, trainingCode, candidateName, corsHeaders);
     } else if (action === 'send-message') {
+      // Verificar si necesitamos la clave de OpenAI
+      if (!openaiApiKey) {
+        throw new Error('Falta la clave API de OpenAI para esta acción');
+      }
       return await handleChatMessage(supabase, openaiApiKey, sessionId, message, corsHeaders);
     } else if (action === 'end-session') {
+      if (!openaiApiKey) {
+        throw new Error('Falta la clave API de OpenAI para esta acción');
+      }
       return await handleEndSession(supabase, openaiApiKey, sessionId, corsHeaders);
     } else {
       throw new Error('Acción no válida');
@@ -68,6 +77,101 @@ serve(async (req) => {
     );
   }
 });
+
+// Nueva función para validar código sin crear sesión
+async function handleValidateCode(supabase, trainingCode, corsHeaders) {
+  if (!trainingCode) {
+    return new Response(
+      JSON.stringify({ error: 'Código de entrenamiento no proporcionado' }),
+      { 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 400
+      }
+    );
+  }
+
+  try {
+    console.log(`Validando código: "${trainingCode}"`);
+
+    // Verificar que el código de entrenamiento exista y sea válido
+    const { data: codeData, error: codeError } = await supabase
+      .from('training_codes')
+      .select('id, is_used, expires_at')
+      .eq('code', trainingCode)
+      .maybeSingle();
+
+    console.log('Resultado de búsqueda de código:', codeData, codeError);
+
+    if (codeError) {
+      console.error('Error en la consulta:', codeError);
+      return new Response(
+        JSON.stringify({ error: 'Error al verificar código: ' + codeError.message }),
+        { 
+          status: 500, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      );
+    }
+
+    if (!codeData) {
+      console.log(`Código no encontrado: "${trainingCode}"`);
+      return new Response(
+        JSON.stringify({ error: 'Código de entrenamiento no encontrado' }),
+        { 
+          status: 404, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      );
+    }
+
+    // Verificar que el código no haya sido usado
+    if (codeData.is_used) {
+      return new Response(
+        JSON.stringify({ error: 'Este código ya ha sido utilizado' }),
+        { 
+          status: 400, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      );
+    }
+
+    // Verificar que el código no haya expirado
+    const now = new Date();
+    const expiresAt = new Date(codeData.expires_at);
+    
+    if (now > expiresAt) {
+      return new Response(
+        JSON.stringify({ error: 'Este código ha expirado' }),
+        { 
+          status: 400, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      );
+    }
+
+    return new Response(
+      JSON.stringify({ 
+        success: true, 
+        code: {
+          id: codeData.id,
+          expiresAt: codeData.expires_at
+        }
+      }),
+      { 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      }
+    );
+  } catch (error) {
+    console.error('Error en handleValidateCode:', error);
+    return new Response(
+      JSON.stringify({ error: 'Error al validar código: ' + error.message }),
+      { 
+        status: 500, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      }
+    );
+  }
+}
 
 // Función para iniciar una nueva sesión de entrenamiento
 async function handleStartSession(supabase, trainingCode, candidateName, corsHeaders) {
@@ -93,21 +197,33 @@ async function handleStartSession(supabase, trainingCode, candidateName, corsHea
   }
 
   try {
-    console.log(`Verificando código: ${trainingCode}`);
+    console.log(`Verificando código: "${trainingCode}"`);
 
     // Verificar que el código de entrenamiento exista y sea válido
     const { data: codeData, error: codeError } = await supabase
       .from('training_codes')
       .select('id, is_used, expires_at')
       .eq('code', trainingCode)
-      .single();
+      .maybeSingle();
+
+    console.log('Resultado de la consulta:', codeData, codeError);
 
     if (codeError) {
       console.error('Error al buscar código:', codeError);
       return new Response(
-        JSON.stringify({ error: 'Código de entrenamiento no válido' }),
+        JSON.stringify({ error: 'Error en base de datos: ' + codeError.message }),
         { 
-          status: 400, 
+          status: 500, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      );
+    }
+
+    if (!codeData) {
+      return new Response(
+        JSON.stringify({ error: 'Código de entrenamiento no encontrado' }),
+        { 
+          status: 404, 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         }
       );
@@ -140,14 +256,14 @@ async function handleStartSession(supabase, trainingCode, candidateName, corsHea
       );
     }
 
-    console.log('Creando nueva sesión de entrenamiento');
+    console.log('Creando nueva sesión de entrenamiento para:', candidateName);
 
     // Crear nueva sesión de entrenamiento
     const { data: sessionData, error: sessionError } = await supabase
       .from('training_sessions')
       .insert({
         training_code_id: codeData.id,
-        candidate_name: candidateName,
+        candidate_name: candidateName.trim(),
         started_at: new Date().toISOString()
       })
       .select()
@@ -246,9 +362,20 @@ async function handleChatMessage(supabase, openaiApiKey, sessionId, message, cor
       .from('training_sessions')
       .select('id')
       .eq('id', sessionId)
-      .single();
+      .maybeSingle();
 
     if (sessionError) {
+      console.error('Error al buscar sesión:', sessionError);
+      return new Response(
+        JSON.stringify({ error: 'Error al verificar sesión: ' + sessionError.message }),
+        { 
+          status: 500, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      );
+    }
+
+    if (!sessionData) {
       return new Response(
         JSON.stringify({ error: 'Sesión no encontrada' }),
         { 
@@ -351,12 +478,14 @@ async function handleChatMessage(supabase, openaiApiKey, sessionId, message, cor
 
       if (!response.ok) {
         const errorData = await response.text();
+        console.error('Error de OpenAI:', response.status, errorData);
         throw new Error(`Error de OpenAI (${response.status}): ${errorData}`);
       }
 
       const data = await response.json();
       
       if (!data.choices || !data.choices[0]) {
+        console.error('Respuesta de OpenAI inválida:', data);
         throw new Error('Respuesta de OpenAI inválida');
       }
 
@@ -425,9 +554,20 @@ async function handleEndSession(supabase, openaiApiKey, sessionId, corsHeaders) 
       .from('training_sessions')
       .select('id, started_at')
       .eq('id', sessionId)
-      .single();
+      .maybeSingle();
 
     if (sessionError) {
+      console.error('Error al buscar sesión:', sessionError);
+      return new Response(
+        JSON.stringify({ error: 'Error al verificar sesión: ' + sessionError.message }),
+        { 
+          status: 500, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      );
+    }
+
+    if (!existingSession) {
       return new Response(
         JSON.stringify({ error: 'Sesión no encontrada' }),
         { 
@@ -448,7 +588,7 @@ async function handleEndSession(supabase, openaiApiKey, sessionId, corsHeaders) 
       .single();
 
     if (updateError) {
-      throw new Error('Error al actualizar la sesión');
+      throw new Error('Error al actualizar la sesión: ' + updateError.message);
     }
 
     // Obtener todos los mensajes de la sesión
@@ -459,7 +599,7 @@ async function handleEndSession(supabase, openaiApiKey, sessionId, corsHeaders) 
       .order('sent_at', { ascending: true });
 
     if (messagesError) {
-      throw new Error('Error al obtener mensajes');
+      throw new Error('Error al obtener mensajes: ' + messagesError.message);
     }
 
     if (!messagesData || messagesData.length === 0) {
@@ -560,12 +700,14 @@ async function handleEndSession(supabase, openaiApiKey, sessionId, corsHeaders) 
 
       if (!response.ok) {
         const errorData = await response.text();
+        console.error('Error de OpenAI en evaluación:', response.status, errorData);
         throw new Error(`Error de OpenAI (${response.status}): ${errorData}`);
       }
 
       const data = await response.json();
       
       if (!data.choices || !data.choices[0]) {
+        console.error('Respuesta de OpenAI inválida:', data);
         throw new Error('Respuesta de OpenAI inválida');
       }
 

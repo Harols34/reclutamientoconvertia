@@ -97,28 +97,28 @@ const TrainingChat = () => {
 
     setLoading(true);
     try {
-      // Verificar si el código existe y es válido
-      const { data, error } = await supabase
-        .from('training_codes')
-        .select('id, is_used, expires_at')
-        .eq('code', code.trim())
-        .single();
+      console.log('Verificando código en cliente:', code.trim());
+      
+      // Verificar directamente con la función de Supabase para evitar problemas con RLS
+      const { data, error } = await supabase.functions.invoke('training-chat', {
+        body: {
+          action: 'validate-code',
+          trainingCode: code.trim()
+        },
+      });
       
       if (error) {
-        throw new Error('Código no válido o no encontrado');
+        console.error('Error al validar código:', error);
+        throw new Error(error.message || 'Error al validar código');
       }
       
-      if (data.is_used) {
-        throw new Error('Este código ya ha sido utilizado');
+      if (!data || data.error) {
+        console.error('Respuesta de validación:', data);
+        throw new Error(data?.error || 'Código no válido o no encontrado');
       }
       
-      const now = new Date();
-      const expiresAt = new Date(data.expires_at);
+      console.log('Código validado correctamente:', data);
       
-      if (now > expiresAt) {
-        throw new Error('Este código ha expirado');
-      }
-
       // Avanzar al siguiente paso
       setStep('name');
     } catch (error) {
@@ -146,6 +146,8 @@ const TrainingChat = () => {
 
     setLoading(true);
     try {
+      console.log('Iniciando sesión con código:', code.trim(), 'y nombre:', name.trim());
+      
       // Usar directamente supabase functions para evitar errores de formato
       const { data, error } = await supabase.functions.invoke('training-chat', {
         body: {
@@ -162,9 +164,10 @@ const TrainingChat = () => {
       
       if (!data || !data.session) {
         console.error('Respuesta inválida:', data);
-        throw new Error('Respuesta inválida del servidor');
+        throw new Error(data?.error || 'Respuesta inválida del servidor');
       }
       
+      console.log('Sesión iniciada correctamente:', data.session);
       setSessionId(data.session.id);
       
       // Inicializar lista de mensajes con el mensaje de bienvenida
