@@ -1,3 +1,4 @@
+
 // Follow this setup guide to integrate the Deno language server with your editor:
 // https://deno.land/manual/getting_started/setup_your_environment
 // This enables autocomplete, go to definition, etc.
@@ -21,7 +22,7 @@ serve(async (req) => {
     
     if (!prompt) {
       return new Response(
-        JSON.stringify({ error: 'Prompt is required' }),
+        JSON.stringify({ error: 'Se requiere un prompt' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
       )
     }
@@ -32,12 +33,13 @@ serve(async (req) => {
       { global: { headers: { Authorization: req.headers.get('Authorization')! } } }
     )
     
-    // Get the OpenAI API key from Supabase secrets
-    const apiKey = Deno.env.get('OPENAI')
+    // Obtener la clave API de OpenAI de los secretos de Supabase
+    const apiKey = Deno.env.get('OPENAI_API_KEY')
     
     if (!apiKey) {
+      console.error("Error: OPENAI_API_KEY no configurada. Variables disponibles:", Object.keys(Deno.env.toObject()));
       return new Response(
-        JSON.stringify({ error: 'OpenAI API key not found' }),
+        JSON.stringify({ error: 'Clave API de OpenAI no encontrada' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
       )
     }
@@ -45,16 +47,16 @@ serve(async (req) => {
     let systemPrompt = ''
     let jobsData = []
     
-    // Special handling for CV text extraction
+    // Manejo especial para la extracción de texto de CV
     if (type === 'extract-cv-text') {
       console.log('Extracción de texto solicitada para URL: ', prompt);
       
       try {
-        // If the prompt is a URL, we need to download the PDF file first
+        // Si el prompt es una URL, necesitamos descargar primero el archivo PDF
         if (prompt.startsWith('http')) {
           console.log('URL detectada, descargando PDF...');
           
-          // Download the PDF file from the URL
+          // Descargar el archivo PDF desde la URL
           const pdfResponse = await fetch(prompt);
           if (!pdfResponse.ok) {
             throw new Error(`No se pudo descargar el PDF desde la URL: ${pdfResponse.status}`);
@@ -63,7 +65,7 @@ serve(async (req) => {
           const pdfBlob = await pdfResponse.blob();
           console.log(`PDF descargado, tamaño: ${pdfBlob.size} bytes`);
           
-          // Extract text using the enhanced method
+          // Extraer texto usando el método mejorado
           const extractedText = await extractTextFromPDF(apiKey, pdfBlob);
           console.log(`Texto extraído, longitud: ${extractedText.length} caracteres`);
           
@@ -72,11 +74,11 @@ serve(async (req) => {
             { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         } 
-        // If not a URL, assume it's a filename in storage
+        // Si no es una URL, asumir que es un nombre de archivo en storage
         else {
           console.log('Intentando leer archivo de storage:', prompt);
           
-          // Try to download the file from storage
+          // Intentar descargar el archivo desde storage
           const { data: fileData, error: fileError } = await supabaseClient
             .storage
             .from('resumes')
@@ -93,7 +95,7 @@ serve(async (req) => {
           
           console.log(`CV descargado de storage, tamaño: ${fileData.size} bytes`);
           
-          // Extract text from the PDF
+          // Extraer texto del PDF
           const extractedText = await extractTextFromPDF(apiKey, fileData);
           console.log(`Texto extraído, longitud: ${extractedText.length} caracteres`);
           
@@ -105,13 +107,13 @@ serve(async (req) => {
       } catch (error) {
         console.error('Error extrayendo texto del CV:', error);
         return new Response(
-          JSON.stringify({ error: 'Error extracting CV text', details: error.message }),
+          JSON.stringify({ error: 'Error al extraer texto del CV', details: error.message }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
         );
       }
     }
     
-    // Fetch active jobs data to provide to the chatbot context
+    // Obtener datos de vacantes activas para proporcionar al chatbot
     if (type === 'chatbot') {
       try {
         const { data: jobs, error: jobsError } = await supabaseClient
@@ -123,11 +125,11 @@ serve(async (req) => {
           jobsData = jobs;
         }
       } catch (jobError) {
-        console.error('Error fetching jobs data:', jobError);
+        console.error('Error obteniendo datos de vacantes:', jobError);
       }
     }
     
-    // Different prompt types for different assistant tasks
+    // Diferentes tipos de prompt para diferentes tareas del asistente
     if (type === 'cv-analysis') {
       systemPrompt = `Eres un asistente experto en recursos humanos especializado en análisis de CVs.
       
@@ -157,7 +159,7 @@ serve(async (req) => {
       
       Contexto (requisitos del trabajo): ${context || 'No proporcionados'}`
     } else if (type === 'chatbot') {
-      // Parse the context to get the custom prompt
+      // Analizar el contexto para obtener el prompt personalizado
       let parsedContext;
       try {
         parsedContext = JSON.parse(context);
@@ -181,7 +183,7 @@ serve(async (req) => {
     
     console.log(`Haciendo solicitud a la API de OpenAI para análisis de tipo ${type} con longitud de prompt: ${prompt.length}`);
     
-    // Call OpenAI API
+    // Llamada a la API de OpenAI
     const openAIResponse = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -189,7 +191,7 @@ serve(async (req) => {
         'Authorization': `Bearer ${apiKey}`
       },
       body: JSON.stringify({
-        model: 'gpt-4o-mini',  // Using the newer, more efficient model
+        model: 'gpt-4o-mini',  // Usando el modelo más nuevo y eficiente
         messages: [
           {
             role: 'system',
@@ -234,12 +236,12 @@ serve(async (req) => {
   }
 })
 
-// Improved function to extract text from PDF using OpenAI APIs
+// Función mejorada para extraer texto de PDF usando APIs de OpenAI
 async function extractTextFromPDF(apiKey: string, fileData: Blob): Promise<string> {
   console.log("Iniciando proceso de extracción de texto del PDF...");
   
   try {
-    // First convert the blob to base64
+    // Primero convertir el blob a base64
     const arrayBuffer = await fileData.arrayBuffer();
     const bytes = new Uint8Array(arrayBuffer);
     let binaryString = '';
@@ -250,10 +252,10 @@ async function extractTextFromPDF(apiKey: string, fileData: Blob): Promise<strin
     
     console.log(`Archivo convertido a base64, longitud: ${base64Data.length}`);
     
-    // Try multiple approaches to ensure we get good text extraction
+    // Probar múltiples enfoques para asegurar que obtengamos una buena extracción de texto
     let extractedText = "";
     
-    // First approach: Use GPT-4o Vision
+    // Primer enfoque: Usar GPT-4o Vision
     try {
       console.log("Intentando extracción con GPT-4o...");
       
@@ -306,23 +308,23 @@ async function extractTextFromPDF(apiKey: string, fileData: Blob): Promise<strin
       
       console.log(`Texto extraído con GPT-4o, longitud: ${extractedText.length} caracteres`);
       
-      // If we got a good result, return it
+      // Si obtuvimos un buen resultado, lo devolvemos
       if (extractedText && extractedText.length > 200) {
         return extractedText;
       }
       
-      // Otherwise, continue to the next method
+      // De lo contrario, continuamos con el siguiente método
       console.log("Extracción con GPT-4o no produjo suficiente texto, intentando método alternativo...");
     } catch (visionError) {
       console.error("Error en extracción con GPT-4o:", visionError);
-      // Continue to the fallback method
+      // Continuamos con el método de respaldo
     }
     
-    // Second approach: Use gpt-4o-mini with a chunk of the base64 data
+    // Segundo enfoque: Usar gpt-4o-mini con un fragmento de los datos base64
     try {
       console.log("Intentando extracción con GPT-4o-mini...");
       
-      // We'll tell the model this is a base64 encoded PDF and ask it to extract as much as possible
+      // Le diremos al modelo que esto es un PDF codificado en base64 y pediremos que extraiga todo lo posible
       const textExtractResponse = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -357,17 +359,17 @@ async function extractTextFromPDF(apiKey: string, fileData: Blob): Promise<strin
         
         console.log(`Texto extraído con GPT-4o-mini, longitud: ${miniExtractedText.length} caracteres`);
         
-        // If we got some text from this method and it's better than what we had, use it
+        // Si obtuvimos algún texto de este método y es mejor que lo que teníamos, lo usamos
         if (miniExtractedText && miniExtractedText.length > extractedText.length) {
           extractedText = miniExtractedText;
         }
       }
     } catch (miniError) {
       console.error("Error en extracción con GPT-4o-mini:", miniError);
-      // Continue to the next step
+      // Continuamos con el siguiente paso
     }
     
-    // If we still don't have good text, try one more approach with explicit OCR instructions
+    // Si todavía no tenemos un buen texto, intentamos un último enfoque con instrucciones de OCR explícitas
     if (!extractedText || extractedText.length < 100) {
       try {
         console.log("Intentando último método de extracción con GPT-4o y enfoque en OCR...");
@@ -415,7 +417,7 @@ async function extractTextFromPDF(apiKey: string, fileData: Blob): Promise<strin
           
           console.log(`Texto extraído con enfoque OCR, longitud: ${ocrText.length} caracteres`);
           
-          // If we got a better result, use it
+          // Si obtuvimos un mejor resultado, lo usamos
           if (ocrText && ocrText.length > extractedText.length) {
             extractedText = ocrText;
           }
@@ -425,13 +427,13 @@ async function extractTextFromPDF(apiKey: string, fileData: Blob): Promise<strin
       }
     }
     
-    // If we got any text at all, return it
+    // Si obtuvimos algún texto, lo devolvemos
     if (extractedText && extractedText.length > 0) {
       console.log(`Texto final extraído, longitud: ${extractedText.length} caracteres`);
       return extractedText;
     }
     
-    // If all methods failed
+    // Si todos los métodos fallaron
     throw new Error("No se pudo extraer texto del PDF. El documento podría estar en un formato no compatible.");
     
   } catch (error) {

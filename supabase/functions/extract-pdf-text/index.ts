@@ -28,7 +28,8 @@ serve(async (req) => {
 
     // Verificar si tenemos la clave API de OpenAI
     if (!OPENAI_API_KEY) {
-      console.error("Error: OPENAI_API_KEY no está configurada");
+      console.error("Error: OPENAI_API_KEY no está configurada. Valor actual:", Deno.env.get('OPENAI_API_KEY'));
+      console.error("Variables de entorno disponibles:", Object.keys(Deno.env.toObject()));
       return new Response(
         JSON.stringify({ success: false, error: 'Clave API de OpenAI no configurada' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
@@ -62,6 +63,7 @@ serve(async (req) => {
     const pdfBase64 = btoa(String.fromCharCode(...new Uint8Array(pdfArrayBuffer)));
 
     console.log("Convirtiendo PDF a base64 completado. Longitud:", pdfBase64.length);
+    console.log("OPENAI_API_KEY configurado:", !!OPENAI_API_KEY, "Longitud:", OPENAI_API_KEY ? OPENAI_API_KEY.length : 0);
 
     // Usamos múltiples métodos para la extracción de texto y combinamos los resultados
     const results = await Promise.allSettled([
