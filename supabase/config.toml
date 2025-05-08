@@ -14,6 +14,6 @@ timeout_seconds = 180
 
 # Variables de entorno para OpenAI
 [env]
-OPENAI_API_KEY = "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"
+OPENAI_API_KEY = "${OPENAI}"
 MAX_FILE_SIZE_MB = "10"
 ALLOWED_FILE_TYPES = "pdf,docx,doc,txt,jpg,png"

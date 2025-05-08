@@ -26,6 +26,15 @@ serve(async (req) => {
 
     console.log(`Intentando extraer texto de: ${pdfUrl}`);
 
+    // Verificar si tenemos la clave API de OpenAI
+    if (!OPENAI_API_KEY) {
+      console.error("Error: OPENAI_API_KEY no está configurada");
+      return new Response(
+        JSON.stringify({ success: false, error: 'Clave API de OpenAI no configurada' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
+      );
+    }
+
     // Obtener el contenido del PDF
     const pdfResponse = await fetch(pdfUrl);
     if (!pdfResponse.ok) {
@@ -51,6 +60,8 @@ serve(async (req) => {
     // Obtener el buffer del PDF para análisis con OCR y GPT
     const pdfArrayBuffer = await pdfResponse.arrayBuffer();
     const pdfBase64 = btoa(String.fromCharCode(...new Uint8Array(pdfArrayBuffer)));
+
+    console.log("Convirtiendo PDF a base64 completado. Longitud:", pdfBase64.length);
 
     // Usamos múltiples métodos para la extracción de texto y combinamos los resultados
     const results = await Promise.allSettled([
@@ -115,6 +126,8 @@ async function extractTextWithGPT4Vision(base64Data: string): Promise<string> {
       throw new Error("OPENAI_API_KEY no está configurada");
     }
 
+    console.log("Iniciando extracción con GPT-4o Vision");
+
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -155,6 +168,7 @@ async function extractTextWithGPT4Vision(base64Data: string): Promise<string> {
     }
 
     const result = await response.json();
+    console.log('Extracción con GPT-4o Vision completada');
     return result.choices[0]?.message?.content || '';
   } catch (error) {
     console.error('Error en extractTextWithGPT4Vision:', error);
@@ -168,6 +182,8 @@ async function extractTextWithGPT4Mini(pdfUrl: string): Promise<string> {
     if (!OPENAI_API_KEY) {
       throw new Error("OPENAI_API_KEY no está configurada");
     }
+
+    console.log("Iniciando extracción con GPT-4o Mini");
 
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -201,6 +217,7 @@ async function extractTextWithGPT4Mini(pdfUrl: string): Promise<string> {
     }
 
     const result = await response.json();
+    console.log('Extracción con GPT-4o Mini completada');
     return result.choices[0]?.message?.content || '';
   } catch (error) {
     console.error('Error en extractTextWithGPT4Mini:', error);

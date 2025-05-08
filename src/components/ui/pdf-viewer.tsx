@@ -77,7 +77,7 @@ const PDFViewer: React.FC<PDFViewerProps> = ({
             src={`${url}#view=FitH&zoom=${scale * 100}`}
             className="w-full h-full border-0"
             onLoad={() => setLoading(false)}
-            title="PDF Viewer"
+            title="Visor de PDF"
             style={{ transform: `scale(${scale})`, transformOrigin: 'top center' }}
           />
         </div>
