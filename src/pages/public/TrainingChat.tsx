@@ -150,8 +150,8 @@ const TrainingChat = () => {
       const { data, error } = await supabase.functions.invoke('training-chat', {
         body: {
           action: 'start-session',
-          trainingCode: code,
-          candidateName: name,
+          trainingCode: code.trim(),
+          candidateName: name.trim(),
         },
       });
       
@@ -161,16 +161,22 @@ const TrainingChat = () => {
       }
       
       if (!data || !data.session) {
+        console.error('Respuesta inválida:', data);
         throw new Error('Respuesta inválida del servidor');
       }
       
       setSessionId(data.session.id);
-      setMessages([{
-        id: 'welcome',
-        sender_type: 'ai',
-        content: data.welcomeMessage,
-        sent_at: new Date().toISOString(),
-      }]);
+      
+      // Inicializar lista de mensajes con el mensaje de bienvenida
+      if (data.welcomeMessage) {
+        setMessages([{
+          id: 'welcome',
+          sender_type: 'ai',
+          content: data.welcomeMessage,
+          sent_at: new Date().toISOString(),
+        }]);
+      }
+      
       setStep('chat');
     } catch (error) {
       console.error('Error al iniciar entrenamiento:', error);

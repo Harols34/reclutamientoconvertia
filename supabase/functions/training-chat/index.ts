@@ -42,6 +42,8 @@ serve(async (req) => {
       throw new Error('No se especificó una acción');
     }
 
+    console.log(`Ejecutando acción: ${action}`);
+
     // Verificar acción solicitada
     if (action === 'start-session') {
       return await handleStartSession(supabase, trainingCode, candidateName, corsHeaders);
@@ -91,6 +93,8 @@ async function handleStartSession(supabase, trainingCode, candidateName, corsHea
   }
 
   try {
+    console.log(`Verificando código: ${trainingCode}`);
+
     // Verificar que el código de entrenamiento exista y sea válido
     const { data: codeData, error: codeError } = await supabase
       .from('training_codes')
@@ -99,6 +103,7 @@ async function handleStartSession(supabase, trainingCode, candidateName, corsHea
       .single();
 
     if (codeError) {
+      console.error('Error al buscar código:', codeError);
       return new Response(
         JSON.stringify({ error: 'Código de entrenamiento no válido' }),
         { 
@@ -107,6 +112,8 @@ async function handleStartSession(supabase, trainingCode, candidateName, corsHea
         }
       );
     }
+
+    console.log('Datos del código:', codeData);
 
     // Verificar que el código no haya sido usado
     if (codeData.is_used) {
@@ -133,6 +140,8 @@ async function handleStartSession(supabase, trainingCode, candidateName, corsHea
       );
     }
 
+    console.log('Creando nueva sesión de entrenamiento');
+
     // Crear nueva sesión de entrenamiento
     const { data: sessionData, error: sessionError } = await supabase
       .from('training_sessions')
@@ -147,7 +156,7 @@ async function handleStartSession(supabase, trainingCode, candidateName, corsHea
     if (sessionError) {
       console.error('Error al crear sesión:', sessionError);
       return new Response(
-        JSON.stringify({ error: 'No se pudo crear la sesión de entrenamiento' }),
+        JSON.stringify({ error: 'No se pudo crear la sesión de entrenamiento: ' + sessionError.message }),
         { 
           status: 500, 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -155,11 +164,18 @@ async function handleStartSession(supabase, trainingCode, candidateName, corsHea
       );
     }
 
+    console.log('Sesión creada:', sessionData);
+
     // Marcar el código como usado
-    await supabase
+    const { error: updateError } = await supabase
       .from('training_codes')
       .update({ is_used: true })
       .eq('id', codeData.id);
+
+    if (updateError) {
+      console.error('Error al actualizar código:', updateError);
+      // No devolvemos error aquí para no interrumpir el flujo, ya que la sesión fue creada
+    }
 
     // Enviar mensaje inicial de bienvenida como IA
     const welcomeMessage = "¡Hola! Soy un cliente interesado en los servicios de CONVERT-IA. ¿Podrías ayudarme a entender qué ofrecen y cómo pueden ayudarme?";
@@ -174,7 +190,10 @@ async function handleStartSession(supabase, trainingCode, candidateName, corsHea
 
     if (messageError) {
       console.error('Error al guardar mensaje inicial:', messageError);
+      // No interrumpimos el flujo por este error
     }
+
+    console.log('Mensaje de bienvenida guardado');
 
     return new Response(
       JSON.stringify({ 
