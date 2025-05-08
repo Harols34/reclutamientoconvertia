@@ -125,7 +125,7 @@ const TrainingCodes = () => {
     }
   };
 
-  // Formatear fecha
+  // Formatear fecha - Corrigiendo el error de TypeScript
   const formatDate = (dateString: string) => {
     const options: Intl.DateTimeFormatOptions = { 
       year: 'numeric', 
