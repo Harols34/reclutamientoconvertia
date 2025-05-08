@@ -4,7 +4,6 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { corsHeaders } from '../_shared/cors.ts';
 
 // Configuración para la API de OpenAI
-// Obtenemos directamente la clave de API de la variable de entorno OPENAI
 const OPENAI_API_KEY = Deno.env.get('OPENAI');
 const MAX_FILE_SIZE_MB = parseInt(Deno.env.get('MAX_FILE_SIZE_MB') || '10');
 const MAX_FILE_SIZE = MAX_FILE_SIZE_MB * 1024 * 1024;
@@ -60,11 +59,8 @@ serve(async (req) => {
       );
     }
 
-    // Ya no convertimos a base64 para GPT-4 Vision ya que no acepta PDFs
-    console.log("Usando solo GPT-4o Mini para la extracción");
-
-    // Usar GPT-4o Mini con la URL para extraer el texto
-    const extractedText = await extractTextWithGPT4Mini(pdfUrl);
+    // Usar GPT-4o directamente con la URL para extraer el texto
+    const extractedText = await extractTextWithGPT(pdfUrl);
     
     if (!extractedText || extractedText.length < 50) {
       console.error("La extracción de texto falló o produjo resultados insuficientes");
@@ -92,16 +88,16 @@ serve(async (req) => {
   }
 });
 
-// Función para extraer texto usando GPT-4o Mini con la URL
-async function extractTextWithGPT4Mini(pdfUrl: string): Promise<string> {
+// Función simplificada para extraer texto usando GPT-4o directamente con la URL
+async function extractTextWithGPT(pdfUrl: string): Promise<string> {
   try {
-    // Usar directamente la variable OPENAI_API_KEY del scope externo
     if (!OPENAI_API_KEY) {
       throw new Error("API de OpenAI no configurada");
     }
 
     console.log("Iniciando extracción con GPT-4o");
 
+    // Llamada directa a GPT-4o con la URL del PDF
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -113,17 +109,25 @@ async function extractTextWithGPT4Mini(pdfUrl: string): Promise<string> {
         messages: [
           {
             role: 'system',
-            content: `Eres un asistente especializado en extraer texto de PDFs de CV. 
-                      Tu tarea es analizar el contenido de un PDF de CV y extraer 
-                      toda la información relevante: datos personales, experiencia laboral,
-                      educación, habilidades, certificaciones, etc. Hazlo de forma estructurada.`
+            content: `Eres un asistente especializado en extraer texto de documentos, especialmente CVs.
+                     Tu tarea es acceder a la URL del PDF proporcionada, extraer todo su contenido textual y
+                     organizarlo en secciones claras: datos personales, resumen profesional, experiencia laboral,
+                     educación, habilidades, certificaciones, idiomas y cualquier otra información relevante.
+                     Asegúrate de mantener la estructura original del CV y extraer TODOS los datos de contacto,
+                     nombres, fechas, títulos de posiciones, empresas, y cualquier otra información
+                     que encuentres en el documento. Presenta la información de manera estructurada y completa.`
           },
           {
             role: 'user',
-            content: `Por favor, analiza y extrae todo el texto de este CV en PDF ubicado en la URL: ${pdfUrl}.
-                     Asegúrate de incluir toda la información relevante estructurada por secciones.`
+            content: `Por favor, extrae y estructura todo el contenido de este CV ubicado en: ${pdfUrl}
+                     Necesito toda la información posible: datos personales completos, historial laboral
+                     con fechas y empresas, formación académica, habilidades técnicas y blandas,
+                     certificaciones, idiomas y cualquier otra información relevante.
+                     Asegúrate de capturar nombres completos, correos electrónicos, números telefónicos y
+                     cualquier otra información de contacto presente en el documento.`
           }
         ],
+        temperature: 0.1,
         max_tokens: 4000
       })
     });
@@ -137,8 +141,9 @@ async function extractTextWithGPT4Mini(pdfUrl: string): Promise<string> {
     const result = await response.json();
     console.log('Extracción con GPT-4o completada');
     return result.choices[0]?.message?.content || '';
+    
   } catch (error) {
-    console.error('Error en extractTextWithGPT4Mini:', error);
-    return '';
+    console.error('Error en extractTextWithGPT:', error);
+    throw error;
   }
 }
