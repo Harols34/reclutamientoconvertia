@@ -1,12 +1,17 @@
-
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { PDFDocument } from "https://cdn.skypack.dev/pdf-lib@^1.16.0";
+import * as pdfjsLib from "https://cdn.skypack.dev/pdfjs-dist@^2.10.377";
+import { readAll } from "https://deno.land/std@0.168.0/streams/read_all.ts";
+import mammoth from "https://esm.sh/mammoth@1.4.0";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+// Initialize PDF.js
+pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdn.jsdelivr.net/npm/pdfjs-dist@2.10.377/build/pdf.worker.min.js";
 
 serve(async (req) => {
   // Handle CORS preflight requests
@@ -15,19 +20,20 @@ serve(async (req) => {
   }
 
   try {
-    const { pdfUrl } = await req.json();
+    const { pdfUrl, fileType = 'pdf' } = await req.json();
     
     if (!pdfUrl) {
       return new Response(
-        JSON.stringify({ error: 'URL del PDF es requerida' }),
+        JSON.stringify({ error: 'URL del documento es requerida' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
       );
     }
-    
-    console.log('Iniciando extracción de texto del PDF:', pdfUrl);
+
+    console.log('Iniciando extracción de texto del documento:', pdfUrl);
     
     // Get the OpenAI API key from environment variables
     const apiKey = Deno.env.get('OPENAI_API_KEY');
+    const maxFileSize = parseInt(Deno.env.get('MAX_FILE_SIZE_MB') || '10') * 1024 * 1024;
     
     if (!apiKey) {
       return new Response(
@@ -36,86 +42,221 @@ serve(async (req) => {
       );
     }
 
-    // Extract text using our multi-method approach
-    const extractedText = await extractTextFromPDF(apiKey, pdfUrl);
-    
-    return new Response(
-      JSON.stringify({ text: extractedText, success: true }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    // Download the file first
+    const fileResponse = await fetch(pdfUrl);
+    if (!fileResponse.ok) {
+      throw new Error(`Error descargando documento: ${fileResponse.status}`);
+    }
+
+    // Check file size
+    const contentLength = parseInt(fileResponse.headers.get('content-length') || '0');
+    if (contentLength > maxFileSize) {
+      throw new Error(`El archivo excede el tamaño máximo permitido de ${maxFileSize / (1024 * 1024)}MB`);
+    }
+
+    const fileBlob = await fileResponse.blob();
+    console.log(`Documento descargado, tamaño: ${fileBlob.size} bytes, tipo: ${fileType}`);
+
+    // Extract text based on file type
+    let extractedText = '';
+    let pages = 1;
+    let methodUsed = '';
+
+    try {
+      switch (fileType.toLowerCase()) {
+        case 'pdf':
+          // Try multiple PDF extraction methods
+          const pdfResults = await Promise.allSettled([
+            extractWithPDFLib(fileBlob),
+            extractWithPDFJS(fileBlob),
+            extractWithGPT4Vision(apiKey, fileBlob)
+          ]);
+
+          // Log results of each method
+          console.log("Resultados de extracción PDF:");
+          pdfResults.forEach((result, index) => {
+            const methods = ["PDF-lib", "PDF.js", "GPT-4 Vision"];
+            if (result.status === "fulfilled") {
+              console.log(`- ${methods[index]}: Éxito (${result.value.text.length} caracteres)`);
+            } else {
+              console.log(`- ${methods[index]}: Error (${result.reason})`);
+            }
+          });
+
+          // Get the best result
+          const successfulExtractions = pdfResults
+            .filter((r): r is PromiseFulfilledResult<{text: string, pages?: number}> => 
+              r.status === "fulfilled" && r.value.text.length > 50);
+
+          if (successfulExtractions.length > 0) {
+            // Sort by length and take the longest
+            successfulExtractions.sort((a, b) => b.value.text.length - a.value.text.length);
+            extractedText = successfulExtractions[0].value.text;
+            pages = successfulExtractions[0].value.pages || 1;
+            methodUsed = successfulExtractions[0].value.method || 'PDF-lib';
+          } else {
+            throw new Error("Todos los métodos de extracción PDF fallaron");
+          }
+          break;
+
+        case 'docx':
+        case 'doc':
+          const arrayBuffer = await fileBlob.arrayBuffer();
+          const result = await mammoth.extractRawText({ arrayBuffer });
+          extractedText = result.value;
+          methodUsed = 'Mammoth';
+          break;
+
+        case 'txt':
+          extractedText = await fileBlob.text();
+          methodUsed = 'Direct text';
+          break;
+
+        case 'jpg':
+        case 'png':
+        case 'image':
+          extractedText = await extractWithOCR(apiKey, fileBlob);
+          methodUsed = 'OCR';
+          break;
+
+        default:
+          throw new Error(`Tipo de archivo no soportado: ${fileType}`);
+      }
+
+      if (!extractedText || extractedText.trim().length < 20) {
+        throw new Error("El texto extraído es demasiado corto o vacío");
+      }
+
+      console.log(`Extracción exitosa usando ${methodUsed}. Texto: ${extractedText.substring(0, 100)}...`);
+
+      return new Response(
+        JSON.stringify({ 
+          text: extractedText, 
+          success: true,
+          metadata: {
+            method: methodUsed,
+            length: extractedText.length,
+            pages,
+            fileType
+          }
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+
+    } catch (extractionError) {
+      console.error('Error en extracción principal:', extractionError);
+      // Fallback to GPT-4 Vision if other methods fail
+      console.log('Intentando extracción con GPT-4 Vision como fallback...');
+      
+      try {
+        const visionResult = await extractWithGPT4Vision(apiKey, fileBlob);
+        extractedText = visionResult.text;
+        methodUsed = 'GPT-4 Vision (fallback)';
+
+        return new Response(
+          JSON.stringify({ 
+            text: extractedText, 
+            success: true,
+            metadata: {
+              method: methodUsed,
+              length: extractedText.length,
+              pages: 1,
+              fileType,
+              warning: "Used fallback method"
+            }
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      } catch (fallbackError) {
+        console.error('Fallback también falló:', fallbackError);
+        throw new Error(`Extracción fallida: ${extractionError.message}. Fallback también falló: ${fallbackError.message}`);
+      }
+    }
+
   } catch (error) {
     console.error('Error procesando solicitud:', error);
     
     return new Response(
-      JSON.stringify({ error: 'Error en el servidor', details: error.message }),
+      JSON.stringify({ 
+        error: 'Error en el servidor', 
+        details: error.message,
+        stack: error.stack 
+      }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
     );
   }
 });
 
-// Comprehensive text extraction function
-async function extractTextFromPDF(apiKey: string, pdfUrl: string): Promise<string> {
-  console.log("Iniciando proceso de extracción de texto del PDF...");
-  
-  // Try to extract text using multiple methods and combine the results
-  const extractionResults = await Promise.allSettled([
-    extractWithGPT4Vision(apiKey, pdfUrl),
-    extractWithGPT4Mini(apiKey, pdfUrl),
-    extractWithOCR(apiKey, pdfUrl),
-  ]);
-  
-  // Log the results of each method
-  console.log("Resultados de extracción:");
-  extractionResults.forEach((result, index) => {
-    const method = ["GPT-4o Vision", "GPT-4o Mini", "OCR"][index];
-    if (result.status === "fulfilled") {
-      console.log(`- ${method}: Éxito (${result.value.length} caracteres)`);
-    } else {
-      console.log(`- ${method}: Error (${result.reason})`);
+// PDF extraction using pdf-lib
+async function extractWithPDFLib(fileBlob: Blob): Promise<{text: string, pages: number, method: string}> {
+  try {
+    console.log("Intentando extracción con PDF-lib...");
+    const arrayBuffer = await fileBlob.arrayBuffer();
+    const pdfDoc = await PDFDocument.load(new Uint8Array(arrayBuffer));
+    const pages = pdfDoc.getPageCount();
+    let fullText = '';
+
+    for (let i = 0; i < pages; i++) {
+      const page = pdfDoc.getPage(i);
+      const text = await page.getText();
+      fullText += text + '\n\n';
     }
-  });
-  
-  // Collect successful extraction results
-  const successfulTexts = extractionResults
-    .filter((result): result is PromiseFulfilledResult<string> => 
-      result.status === "fulfilled" && result.value.length > 100)
-    .map(result => result.value);
-  
-  // If we have at least one successful extraction, use the longest one
-  if (successfulTexts.length > 0) {
-    // Sort by length (descending) and take the longest
-    const longestText = successfulTexts.sort((a, b) => b.length - a.length)[0];
-    console.log(`Texto final extraído con éxito (${longestText.length} caracteres)`);
-    return longestText;
+
+    return {
+      text: fullText.trim(),
+      pages,
+      method: 'PDF-lib'
+    };
+  } catch (error) {
+    console.error("PDF-lib extraction error:", error);
+    throw error;
   }
-  
-  throw new Error("No se pudo extraer texto del PDF utilizando ninguno de los métodos disponibles");
 }
 
-// Method 1: Extract text using GPT-4o Vision
-async function extractWithGPT4Vision(apiKey: string, pdfUrl: string): Promise<string> {
+// PDF extraction using PDF.js
+async function extractWithPDFJS(fileBlob: Blob): Promise<{text: string, pages: number, method: string}> {
   try {
-    console.log("Intentando extracción con GPT-4o Vision...");
-    
-    // Download PDF file first
-    const pdfResponse = await fetch(pdfUrl);
-    if (!pdfResponse.ok) {
-      throw new Error(`Error descargando PDF: ${pdfResponse.status}`);
+    console.log("Intentando extracción con PDF.js...");
+    const arrayBuffer = await fileBlob.arrayBuffer();
+    const loadingTask = pdfjsLib.getDocument(new Uint8Array(arrayBuffer));
+    const pdfDocument = await loadingTask.promise;
+    const pages = pdfDocument.numPages;
+    let fullText = '';
+
+    for (let i = 1; i <= pages; i++) {
+      const page = await pdfDocument.getPage(i);
+      const textContent = await page.getTextContent();
+      const pageText = textContent.items.map(item => item.str).join(' ');
+      fullText += pageText + '\n\n';
     }
-    
-    const pdfBlob = await pdfResponse.blob();
-    console.log(`PDF descargado, tamaño: ${pdfBlob.size} bytes`);
+
+    return {
+      text: fullText.trim(),
+      pages,
+      method: 'PDF.js'
+    };
+  } catch (error) {
+    console.error("PDF.js extraction error:", error);
+    throw error;
+  }
+}
+
+// OCR extraction using GPT-4 Vision
+async function extractWithGPT4Vision(apiKey: string, fileBlob: Blob): Promise<{text: string, pages: number, method: string}> {
+  try {
+    console.log("Intentando extracción con GPT-4 Vision...");
     
     // Convert to base64 for API
-    const arrayBuffer = await pdfBlob.arrayBuffer();
+    const arrayBuffer = await fileBlob.arrayBuffer();
     const bytes = new Uint8Array(arrayBuffer);
     let binaryString = '';
     for (let i = 0; i < bytes.length; i++) {
       binaryString += String.fromCharCode(bytes[i]);
     }
     const base64Data = btoa(binaryString);
-    
-    // Use GPT-4o Vision to extract text from the PDF
+    const mimeType = fileBlob.type || 'application/pdf';
+
+    // Use GPT-4 Vision to extract text
     const visionResponse = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -123,124 +264,71 @@ async function extractWithGPT4Vision(apiKey: string, pdfUrl: string): Promise<st
         'Authorization': `Bearer ${apiKey}`
       },
       body: JSON.stringify({
-        model: "gpt-4o",
+        model: "gpt-4-vision-preview",
         messages: [
           {
             role: "system",
-            content: `Eres un sistema OCR avanzado especializado en extraer texto de documentos PDF.
-            Tu tarea es extraer TODA la información textual del documento, especialmente si es un CV.
-            Incluye nombres, fechas, experiencia laboral, educación, habilidades, certificaciones,
-            y cualquier otra información relevante. Devuelve el texto extraído en formato plano y estructurado.
-            NO AÑADAS INTERPRETACIONES, solo extrae lo que ves en el documento.`
+            content: `Eres un sistema avanzado de extracción de texto. Tu tarea es extraer TODO el texto del documento proporcionado, 
+            manteniendo la estructura original. No interpretes, analices o resumas el contenido, solo extrae el texto tal como aparece. 
+            Conserva saltos de línea, viñetas, tablas y formato básico.`
           },
           {
             role: "user",
             content: [
               {
                 type: "text",
-                text: "Extrae todo el texto visible de este CV en formato PDF:"
+                text: "Extrae todo el texto de este documento, manteniendo el formato original:"
               },
               {
                 type: "image_url",
                 image_url: {
-                  url: `data:application/pdf;base64,${base64Data}`
+                  url: `data:${mimeType};base64,${base64Data}`
                 }
               }
             ]
           }
         ],
-        max_tokens: 4000
+        max_tokens: 4096
       })
     });
     
     if (!visionResponse.ok) {
       const errorData = await visionResponse.json();
-      console.error("Error en GPT-4o Vision:", errorData);
-      throw new Error(`Error en GPT-4o Vision: ${JSON.stringify(errorData)}`);
+      console.error("Error en GPT-4 Vision:", errorData);
+      throw new Error(`Error en GPT-4 Vision: ${JSON.stringify(errorData)}`);
     }
     
     const visionResult = await visionResponse.json();
     const extractedText = visionResult.choices[0].message.content;
     
-    console.log(`Texto extraído con GPT-4o Vision: ${extractedText.substring(0, 100)}...`);
-    return extractedText;
+    console.log(`Texto extraído con GPT-4 Vision: ${extractedText.substring(0, 100)}...`);
+    return {
+      text: extractedText,
+      pages: 1, // GPT-4 Vision doesn't provide page count
+      method: 'GPT-4 Vision'
+    };
   } catch (error) {
     console.error("Error en extractWithGPT4Vision:", error);
     throw error;
   }
 }
 
-// Method 2: Extract text using GPT-4o Mini with file URL
-async function extractWithGPT4Mini(apiKey: string, pdfUrl: string): Promise<string> {
+// Basic OCR function (in a real implementation, use a dedicated OCR service)
+async function extractWithOCR(apiKey: string, fileBlob: Blob): Promise<string> {
   try {
-    console.log("Intentando extracción con GPT-4o Mini...");
+    console.log("Intentando extracción con OCR...");
     
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
-      },
-      body: JSON.stringify({
-        model: "gpt-4o-mini",
-        messages: [
-          {
-            role: "system",
-            content: `Tu tarea es analizar la URL de un PDF de un CV y extraer la mayor cantidad
-            de información posible. El PDF contiene un currículum vitae. Por favor extrae toda la
-            información importante como nombre, experiencia laboral, educación, habilidades, etc.
-            Solo proporciona el texto extraído, sin comentarios adicionales.`
-          },
-          {
-            role: "user",
-            content: `Extrae el texto de este PDF de CV: ${pdfUrl}`
-          }
-        ],
-        max_tokens: 2000
-      })
-    });
-    
-    if (!response.ok) {
-      const errorData = await response.json();
-      console.error("Error en GPT-4o Mini:", errorData);
-      throw new Error(`Error en GPT-4o Mini: ${JSON.stringify(errorData)}`);
-    }
-    
-    const result = await response.json();
-    const extractedText = result.choices[0].message.content;
-    
-    console.log(`Texto extraído con GPT-4o Mini: ${extractedText.substring(0, 100)}...`);
-    return extractedText;
-  } catch (error) {
-    console.error("Error en extractWithGPT4Mini:", error);
-    throw error;
-  }
-}
-
-// Method 3: Extract using OCR approach
-async function extractWithOCR(apiKey: string, pdfUrl: string): Promise<string> {
-  try {
-    console.log("Intentando extracción con enfoque OCR...");
-    
-    // Download PDF file first
-    const pdfResponse = await fetch(pdfUrl);
-    if (!pdfResponse.ok) {
-      throw new Error(`Error descargando PDF: ${pdfResponse.status}`);
-    }
-    
-    const pdfBlob = await pdfResponse.blob();
-    console.log(`PDF descargado para OCR, tamaño: ${pdfBlob.size} bytes`);
-    
-    // Convert to base64 for API
-    const arrayBuffer = await pdfBlob.arrayBuffer();
+    // Convert to base64
+    const arrayBuffer = await fileBlob.arrayBuffer();
     const bytes = new Uint8Array(arrayBuffer);
     let binaryString = '';
     for (let i = 0; i < bytes.length; i++) {
       binaryString += String.fromCharCode(bytes[i]);
     }
     const base64Data = btoa(binaryString);
-    
-    // Try with a different prompt approach specifically for OCR
+    const mimeType = fileBlob.type || 'image/jpeg';
+
+    // Use GPT-4 Vision as OCR
     const ocrResponse = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -248,45 +336,39 @@ async function extractWithOCR(apiKey: string, pdfUrl: string): Promise<string> {
         'Authorization': `Bearer ${apiKey}`
       },
       body: JSON.stringify({
-        model: "gpt-4o",
+        model: "gpt-4-vision-preview",
         messages: [
           {
             role: "system",
-            content: `Ignora todo el formato visual y únicamente enfócate en extraer el texto 
-            del documento como si fueras un OCR avanzado. No añadas ninguna interpretación o
-            comentario. Solo proporciona el texto extraído línea por línea.`
+            content: "Actúa como un sistema OCR avanzado. Extrae TODO el texto de la imagen, manteniendo la estructura y formato original. No interpretes ni analices el contenido."
           },
           {
             role: "user",
             content: [
               {
                 type: "text",
-                text: "Conviértete en un sistema OCR y extrae únicamente el texto de este documento:"
+                text: "Extrae todo el texto de esta imagen:"
               },
               {
                 type: "image_url",
                 image_url: {
-                  url: `data:application/pdf;base64,${base64Data}`
+                  url: `data:${mimeType};base64,${base64Data}`
                 }
               }
             ]
           }
         ],
-        max_tokens: 4000
+        max_tokens: 4096
       })
     });
     
     if (!ocrResponse.ok) {
       const errorData = await ocrResponse.json();
-      console.error("Error en enfoque OCR:", errorData);
-      throw new Error(`Error en enfoque OCR: ${JSON.stringify(errorData)}`);
+      throw new Error(`OCR failed: ${JSON.stringify(errorData)}`);
     }
     
     const ocrResult = await ocrResponse.json();
-    const extractedText = ocrResult.choices[0].message.content;
-    
-    console.log(`Texto extraído con enfoque OCR: ${extractedText.substring(0, 100)}...`);
-    return extractedText;
+    return ocrResult.choices[0].message.content;
   } catch (error) {
     console.error("Error en extractWithOCR:", error);
     throw error;
