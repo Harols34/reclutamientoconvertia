@@ -4,7 +4,7 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { corsHeaders } from '../_shared/cors.ts';
 
 // Configuración para la API de OpenAI
-const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
+const OPENAI_API_KEY = Deno.env.get('OPENAI') || Deno.env.get('OPENAI_API_KEY');
 const MAX_FILE_SIZE_MB = parseInt(Deno.env.get('MAX_FILE_SIZE_MB') || '10');
 const MAX_FILE_SIZE = MAX_FILE_SIZE_MB * 1024 * 1024;
 
@@ -28,13 +28,14 @@ serve(async (req) => {
 
     // Verificar si tenemos la clave API de OpenAI
     if (!OPENAI_API_KEY) {
-      console.error("Error: OPENAI_API_KEY no está configurada. Valor actual:", Deno.env.get('OPENAI_API_KEY'));
-      console.error("Variables de entorno disponibles:", Object.keys(Deno.env.toObject()));
+      console.error("Error: API de OpenAI no configurada. Variables de entorno disponibles:", Object.keys(Deno.env.toObject()));
       return new Response(
-        JSON.stringify({ success: false, error: 'Clave API de OpenAI no configurada' }),
+        JSON.stringify({ success: false, error: 'Clave API de OpenAI no configurada en OPENAI o OPENAI_API_KEY' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
       );
     }
+
+    console.log("Clave API de OpenAI encontrada con longitud:", OPENAI_API_KEY.length);
 
     // Obtener el contenido del PDF
     const pdfResponse = await fetch(pdfUrl);
@@ -63,7 +64,6 @@ serve(async (req) => {
     const pdfBase64 = btoa(String.fromCharCode(...new Uint8Array(pdfArrayBuffer)));
 
     console.log("Convirtiendo PDF a base64 completado. Longitud:", pdfBase64.length);
-    console.log("OPENAI_API_KEY configurado:", !!OPENAI_API_KEY, "Longitud:", OPENAI_API_KEY ? OPENAI_API_KEY.length : 0);
 
     // Usamos múltiples métodos para la extracción de texto y combinamos los resultados
     const results = await Promise.allSettled([
@@ -124,8 +124,9 @@ serve(async (req) => {
 // Función para extraer texto usando GPT-4o Vision
 async function extractTextWithGPT4Vision(base64Data: string): Promise<string> {
   try {
-    if (!OPENAI_API_KEY) {
-      throw new Error("OPENAI_API_KEY no está configurada");
+    const apiKey = Deno.env.get('OPENAI') || Deno.env.get('OPENAI_API_KEY');
+    if (!apiKey) {
+      throw new Error("API de OpenAI no configurada");
     }
 
     console.log("Iniciando extracción con GPT-4o Vision");
@@ -134,7 +135,7 @@ async function extractTextWithGPT4Vision(base64Data: string): Promise<string> {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${OPENAI_API_KEY}`
+        'Authorization': `Bearer ${apiKey}`
       },
       body: JSON.stringify({
         model: 'gpt-4o',
@@ -181,8 +182,9 @@ async function extractTextWithGPT4Vision(base64Data: string): Promise<string> {
 // Función para extraer texto usando GPT-4o Mini con la URL
 async function extractTextWithGPT4Mini(pdfUrl: string): Promise<string> {
   try {
-    if (!OPENAI_API_KEY) {
-      throw new Error("OPENAI_API_KEY no está configurada");
+    const apiKey = Deno.env.get('OPENAI') || Deno.env.get('OPENAI_API_KEY');
+    if (!apiKey) {
+      throw new Error("API de OpenAI no configurada");
     }
 
     console.log("Iniciando extracción con GPT-4o Mini");
@@ -191,7 +193,7 @@ async function extractTextWithGPT4Mini(pdfUrl: string): Promise<string> {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${OPENAI_API_KEY}`
+        'Authorization': `Bearer ${apiKey}`
       },
       body: JSON.stringify({
         model: 'gpt-4o-mini',
