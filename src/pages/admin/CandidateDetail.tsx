@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { 
@@ -44,6 +43,9 @@ interface Application {
   job_department?: string;
   created_at: string;
   job_type?: string;
+  job_requirements?: string | null;
+  job_responsibilities?: string | null;
+  job_description?: string | null;
 }
 
 interface Candidate {
