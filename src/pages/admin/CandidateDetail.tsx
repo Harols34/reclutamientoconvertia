@@ -101,7 +101,7 @@ interface Candidate {
   skills?: string[];
   created_at: string;
   resume_url?: string;
-  resume_text?: string;
+  resume_text?: string; // Added to match the database schema
   analysis_summary?: string;
   analysis_data?: AnalysisData;
   applications?: Application[];
@@ -331,16 +331,6 @@ const CandidateDetail: React.FC = () => {
         console.error("Error al parsear el análisis:", error);
         parsedAnalysis = { error: "No se pudo parsear el análisis" };
       }
-
-      // Actualizar registro del candidato
-      const { error: updateError } = await supabase
-        .from('candidates')
-        .update({ 
-          analysis_summary: analysisResult
-        })
-        .eq('id', candidate.id);
-      
-      if (updateError) throw updateError;
 
       // Guardar los datos del análisis y texto del CV
       await saveAnalysisData(analysisResult, resumeContent);

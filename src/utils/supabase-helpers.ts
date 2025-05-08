@@ -79,6 +79,7 @@ export type AppDatabase = {
           analysis_summary: string | null;
           experience_years: number | null;
           skills: string[] | null;
+          resume_text: string | null; // Added resume_text field
         };
         Insert: {
           id?: string;
@@ -95,6 +96,7 @@ export type AppDatabase = {
           analysis_summary?: string | null;
           experience_years?: number | null;
           skills?: string[] | null;
+          resume_text?: string | null; // Added resume_text field
         };
         Update: {
           id?: string;
@@ -111,6 +113,7 @@ export type AppDatabase = {
           analysis_summary?: string | null;
           experience_years?: number | null;
           skills?: string[] | null;
+          resume_text?: string | null; // Added resume_text field
         };
       };
       applications: {

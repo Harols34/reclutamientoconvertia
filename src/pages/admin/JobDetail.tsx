@@ -1,6 +1,6 @@
 
 import React, { useEffect, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -11,6 +11,7 @@ import { supabase } from '@/integrations/supabase/client';
 const JobDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [job, setJob] = useState<any>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -63,6 +64,12 @@ const JobDetail: React.FC = () => {
       fetchJobDetail();
     }
   }, [id, toast]);
+
+  // Function to handle navigation without page reload
+  const handleNavigate = (path: string) => (e: React.MouseEvent) => {
+    e.preventDefault();
+    navigate(path);
+  };
   
   const jobTypeLabels = {
     'full-time': 'Tiempo Completo',
@@ -100,10 +107,10 @@ const JobDetail: React.FC = () => {
           <CardContent>
             <p className="text-gray-600 mb-6">La vacante que estás buscando no existe o ha sido eliminada.</p>
             <Button asChild>
-              <Link to="/admin/jobs">
+              <a href="/admin/jobs" onClick={handleNavigate("/admin/jobs")}>
                 <ArrowLeft className="mr-2 h-4 w-4" />
                 Volver a vacantes
-              </Link>
+              </a>
             </Button>
           </CardContent>
         </Card>
@@ -115,16 +122,16 @@ const JobDetail: React.FC = () => {
     <div className="py-6">
       <div className="mb-6 flex justify-between">
         <Button variant="outline" asChild>
-          <Link to="/admin/jobs">
+          <a href="/admin/jobs" onClick={handleNavigate("/admin/jobs")}>
             <ArrowLeft className="mr-2 h-4 w-4" />
             Volver a vacantes
-          </Link>
+          </a>
         </Button>
         <Button asChild className="bg-hrm-dark-cyan hover:bg-hrm-steel-blue">
-          <Link to={`/admin/jobs/${job.id}/edit`}>
+          <a href={`/admin/jobs/${job.id}/edit`} onClick={handleNavigate(`/admin/jobs/${job.id}/edit`)}>
             <Pencil className="mr-2 h-4 w-4" />
             Editar vacante
-          </Link>
+          </a>
         </Button>
       </div>
       
@@ -212,9 +219,9 @@ const JobDetail: React.FC = () => {
             className="bg-hrm-dark-cyan hover:bg-hrm-steel-blue" 
             asChild
           >
-            <Link to={`/admin/candidates?job=${job.id}`}>
+            <a href={`/admin/candidates?job=${job.id}`} onClick={handleNavigate(`/admin/candidates?job=${job.id}`)}>
               Ver candidatos
-            </Link>
+            </a>
           </Button>
         </CardFooter>
       </Card>
