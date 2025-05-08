@@ -60,43 +60,13 @@ serve(async (req) => {
       );
     }
 
-    // Obtener el buffer del PDF para análisis con OCR y GPT
-    const pdfArrayBuffer = await pdfResponse.arrayBuffer();
-    const pdfBase64 = btoa(String.fromCharCode(...new Uint8Array(pdfArrayBuffer)));
+    // Ya no convertimos a base64 para GPT-4 Vision ya que no acepta PDFs
+    console.log("Usando solo GPT-4o Mini para la extracción");
 
-    console.log("Convirtiendo PDF a base64 completado. Longitud:", pdfBase64.length);
-
-    // Usamos múltiples métodos para la extracción de texto y combinamos los resultados
-    const results = await Promise.allSettled([
-      extractTextWithGPT4Vision(pdfBase64),
-      extractTextWithGPT4Mini(pdfUrl)
-    ]);
-
-    console.log("Resultados de extracción:", results.map(r => r.status));
-
-    // Procesar los resultados de los diferentes métodos
-    let extractedText = "";
-    let longestText = "";
+    // Usar GPT-4o Mini con la URL para extraer el texto
+    const extractedText = await extractTextWithGPT4Mini(pdfUrl);
     
-    for (const result of results) {
-      if (result.status === 'fulfilled' && result.value) {
-        // Mantener el texto más largo como el mejor resultado
-        if (result.value.length > longestText.length) {
-          longestText = result.value;
-        }
-        
-        // También agregamos a la versión combinada si tiene contenido útil
-        if (result.value.length > 50 && !extractedText.includes(result.value)) {
-          if (extractedText) extractedText += "\n\n";
-          extractedText += result.value;
-        }
-      }
-    }
-
-    // Si la extracción combinada es muy larga, usamos solo el texto más largo
-    const finalText = extractedText.length > 10000 ? longestText : extractedText;
-    
-    if (!finalText || finalText.length < 50) {
+    if (!extractedText || extractedText.length < 50) {
       console.error("La extracción de texto falló o produjo resultados insuficientes");
       return new Response(
         JSON.stringify({ 
@@ -107,10 +77,10 @@ serve(async (req) => {
       );
     }
 
-    console.log(`Texto extraído exitosamente (${finalText.length} caracteres)`);
+    console.log(`Texto extraído exitosamente (${extractedText.length} caracteres)`);
     
     return new Response(
-      JSON.stringify({ success: true, text: finalText }),
+      JSON.stringify({ success: true, text: extractedText }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error) {
@@ -122,15 +92,15 @@ serve(async (req) => {
   }
 });
 
-// Función para extraer texto usando GPT-4o Vision
-async function extractTextWithGPT4Vision(base64Data: string): Promise<string> {
+// Función para extraer texto usando GPT-4o Mini con la URL
+async function extractTextWithGPT4Mini(pdfUrl: string): Promise<string> {
   try {
     // Usar directamente la variable OPENAI_API_KEY del scope externo
     if (!OPENAI_API_KEY) {
       throw new Error("API de OpenAI no configurada");
     }
 
-    console.log("Iniciando extracción con GPT-4o Vision");
+    console.log("Iniciando extracción con GPT-4o");
 
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -143,72 +113,15 @@ async function extractTextWithGPT4Vision(base64Data: string): Promise<string> {
         messages: [
           {
             role: 'system',
-            content: `Eres un asistente especializado en extraer texto de CVs en formato PDF. 
-                     Extrae todo el texto visible en el CV manteniendo la estructura original. 
-                     Incluye toda la información relevante: datos personales, experiencia laboral, 
-                     educación, habilidades, etc. Formatea el texto de manera clara y organizada.`
+            content: `Eres un asistente especializado en extraer texto de PDFs de CV. 
+                      Tu tarea es analizar el contenido de un PDF de CV y extraer 
+                      toda la información relevante: datos personales, experiencia laboral,
+                      educación, habilidades, certificaciones, etc. Hazlo de forma estructurada.`
           },
           {
             role: 'user',
-            content: [
-              { type: 'text', text: 'Por favor, extrae todo el texto de este CV en PDF:' },
-              {
-                type: 'image_url',
-                image_url: {
-                  url: `data:application/pdf;base64,${base64Data}`
-                }
-              }
-            ]
-          }
-        ],
-        max_tokens: 4000
-      })
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      console.error('Error en la API de OpenAI Vision:', errorData);
-      throw new Error(`Error en la API de OpenAI Vision: ${response.status}`);
-    }
-
-    const result = await response.json();
-    console.log('Extracción con GPT-4o Vision completada');
-    return result.choices[0]?.message?.content || '';
-  } catch (error) {
-    console.error('Error en extractTextWithGPT4Vision:', error);
-    return '';
-  }
-}
-
-// Función para extraer texto usando GPT-4o Mini con la URL
-async function extractTextWithGPT4Mini(pdfUrl: string): Promise<string> {
-  try {
-    // Usar directamente la variable OPENAI_API_KEY del scope externo
-    if (!OPENAI_API_KEY) {
-      throw new Error("API de OpenAI no configurada");
-    }
-
-    console.log("Iniciando extracción con GPT-4o Mini");
-
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${OPENAI_API_KEY}`
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        messages: [
-          {
-            role: 'system',
-            content: `Eres un asistente especializado en extraer texto de URLs de CV. 
-                      Tu tarea es obtener y formatear todo el contenido textual de un archivo PDF de CV.`
-          },
-          {
-            role: 'user',
-            content: `Por favor, extrae todo el texto de este CV en PDF ubicado en la URL: ${pdfUrl}.
-                     Asegúrate de incluir toda la información relevante: datos personales, experiencia laboral,
-                     educación, habilidades, certificaciones, etc.`
+            content: `Por favor, analiza y extrae todo el texto de este CV en PDF ubicado en la URL: ${pdfUrl}.
+                     Asegúrate de incluir toda la información relevante estructurada por secciones.`
           }
         ],
         max_tokens: 4000
@@ -222,7 +135,7 @@ async function extractTextWithGPT4Mini(pdfUrl: string): Promise<string> {
     }
 
     const result = await response.json();
-    console.log('Extracción con GPT-4o Mini completada');
+    console.log('Extracción con GPT-4o completada');
     return result.choices[0]?.message?.content || '';
   } catch (error) {
     console.error('Error en extractTextWithGPT4Mini:', error);
