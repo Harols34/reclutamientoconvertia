@@ -535,245 +535,247 @@ const CandidateDetail: React.FC = () => {
                   </CardDescription>
                 )}
 
-                <Tabs defaultValue={activeTab} onValueChange={setActiveTab} className="w-full">
+                <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                   <TabsList className="grid grid-cols-3 mb-2">
                     <TabsTrigger value="perfil">Perfil</TabsTrigger>
                     <TabsTrigger value="experiencia">Experiencia</TabsTrigger>
                     <TabsTrigger value="evaluacion">Evaluación</TabsTrigger>
                   </TabsList>
+
+                  <TabsContent value="perfil" className="space-y-6 mt-0">
+                    {/* Porcentaje de coincidencia */}
+                    {candidate.analysis_data?.compatibilidad?.porcentaje !== undefined && (
+                      <div className="p-4 border rounded-lg bg-muted/30">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="font-medium">Compatibilidad con la vacante</span>
+                          <span className={`font-bold ${
+                            candidate.analysis_data.compatibilidad.porcentaje >= 75
+                              ? 'text-green-600'
+                              : candidate.analysis_data.compatibilidad.porcentaje >= 50
+                              ? 'text-yellow-600'
+                              : 'text-red-600'
+                          }`}>
+                            {candidate.analysis_data.compatibilidad.porcentaje}%
+                          </span>
+                        </div>
+                        <Progress 
+                          value={candidate.analysis_data.compatibilidad.porcentaje} 
+                          className={`h-2 ${
+                            candidate.analysis_data.compatibilidad.porcentaje >= 75
+                              ? 'bg-green-100 [&>div]:bg-green-600'
+                              : candidate.analysis_data.compatibilidad.porcentaje >= 50
+                              ? 'bg-yellow-100 [&>div]:bg-yellow-600'
+                              : 'bg-red-100 [&>div]:bg-red-600'
+                          }`}
+                        />
+                      </div>
+                    )}
+
+                    {/* Perfil profesional */}
+                    {candidate.analysis_data.perfilProfesional && (
+                      <div>
+                        <h3 className="text-base font-medium mb-2 flex items-center">
+                          <User className="mr-2 h-4 w-4 text-hrm-dark-cyan" />
+                          Perfil Profesional
+                        </h3>
+                        <div className="text-sm text-gray-700">
+                          {candidate.analysis_data.perfilProfesional}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Habilidades */}
+                    {candidate.analysis_data.habilidades && candidate.analysis_data.habilidades.length > 0 && (
+                      <div>
+                        <h3 className="text-base font-medium mb-2 flex items-center">
+                          <Star className="mr-2 h-4 w-4 text-hrm-dark-cyan" />
+                          Habilidades
+                        </h3>
+                        <div className="flex flex-wrap gap-2">
+                          {candidate.analysis_data.habilidades.map((skill, i) => (
+                            <Badge key={i} variant="secondary">
+                              {skill}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Idiomas */}
+                    {candidate.analysis_data.idiomas && candidate.analysis_data.idiomas.length > 0 && 
+                     candidate.analysis_data.idiomas[0] !== 'No especificado' && (
+                      <div>
+                        <h3 className="text-base font-medium mb-2 flex items-center">
+                          <Languages className="mr-2 h-4 w-4 text-hrm-dark-cyan" />
+                          Idiomas
+                        </h3>
+                        <div className="flex flex-wrap gap-2">
+                          {candidate.analysis_data.idiomas.map((language, i) => (
+                            <Badge key={i} variant="outline">
+                              {language}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </TabsContent>
+
+                  <TabsContent value="experiencia" className="space-y-6 mt-0">
+                    {/* Experiencia laboral */}
+                    {candidate.analysis_data.experienciaLaboral && candidate.analysis_data.experienciaLaboral.length > 0 && (
+                      <div>
+                        <h3 className="text-base font-medium mb-3 flex items-center">
+                          <Briefcase className="mr-2 h-4 w-4 text-hrm-dark-cyan" />
+                          Experiencia Laboral
+                        </h3>
+                        <div className="space-y-4">
+                          {candidate.analysis_data.experienciaLaboral.map((exp, i) => (
+                            <div key={i} className="border rounded-lg p-4">
+                              <div className="font-medium">{exp.cargo}</div>
+                              <div className="text-sm text-muted-foreground mb-2">
+                                {exp.empresa} | {exp.fechas}
+                              </div>
+                              {exp.responsabilidades && exp.responsabilidades.length > 0 && (
+                                <div className="mt-2">
+                                  <h4 className="text-xs uppercase font-medium text-muted-foreground mb-1">Responsabilidades</h4>
+                                  <ul className="text-sm space-y-1 list-disc pl-4">
+                                    {exp.responsabilidades.map((resp, j) => (
+                                      <li key={j}>{resp}</li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Educación */}
+                    {candidate.analysis_data.educacion && candidate.analysis_data.educacion.length > 0 && (
+                      <div>
+                        <h3 className="text-base font-medium mb-3 flex items-center">
+                          <GraduationCap className="mr-2 h-4 w-4 text-hrm-dark-cyan" />
+                          Educación
+                        </h3>
+                        <div className="space-y-3">
+                          {candidate.analysis_data.educacion.map((edu, i) => (
+                            <div key={i} className="border rounded-lg p-3">
+                              <div className="font-medium">{edu.carrera}</div>
+                              <div className="text-sm text-muted-foreground">
+                                {edu.institucion} | {edu.fechas}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Certificaciones */}
+                    {candidate.analysis_data.certificaciones && candidate.analysis_data.certificaciones.length > 0 && (
+                      <div>
+                        <h3 className="text-base font-medium mb-2 flex items-center">
+                          <Award className="mr-2 h-4 w-4 text-hrm-dark-cyan" />
+                          Certificaciones
+                        </h3>
+                        <ul className="list-disc pl-5 space-y-1 text-sm">
+                          {candidate.analysis_data.certificaciones.map((cert, i) => (
+                            <li key={i}>{cert}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </TabsContent>
+
+                  <TabsContent value="evaluacion" className="space-y-6 mt-0">
+                    {/* Fortalezas */}
+                    {candidate.analysis_data.fortalezas && candidate.analysis_data.fortalezas.length > 0 && (
+                      <div>
+                        <h3 className="text-base font-medium mb-2 flex items-center">
+                          <Lightbulb className="mr-2 h-4 w-4 text-hrm-dark-cyan" />
+                          Fortalezas
+                        </h3>
+                        <div className="space-y-2">
+                          {candidate.analysis_data.fortalezas.map((strength, i) => (
+                            <div key={i} className="flex items-start gap-3 p-3 bg-green-50 rounded-lg">
+                              <Check className="h-4 w-4 text-green-500 mt-0.5" />
+                              <span className="text-sm">{strength}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Áreas a mejorar */}
+                    {candidate.analysis_data.areasAMejorar && candidate.analysis_data.areasAMejorar.length > 0 && (
+                      <div>
+                        <h3 className="text-base font-medium mb-2 flex items-center">
+                          <Lightbulb className="mr-2 h-4 w-4 text-hrm-dark-cyan" />
+                          Áreas a Mejorar
+                        </h3>
+                        <div className="space-y-2">
+                          {candidate.analysis_data.areasAMejorar.map((area, i) => (
+                            <div key={i} className="flex items-start gap-3 p-3 bg-yellow-50 rounded-lg">
+                              <AlertTriangle className="h-4 w-4 text-yellow-500 mt-0.5" />
+                              <span className="text-sm">{area}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Compatibilidad */}
+                    {candidate.analysis_data.compatibilidad && (
+                      <div>
+                        <h3 className="text-base font-medium mb-2">Compatibilidad con la Vacante</h3>
+                        
+                        {/* Fortalezas para la vacante */}
+                        {candidate.analysis_data.compatibilidad.fortalezas && 
+                         candidate.analysis_data.compatibilidad.fortalezas.length > 0 && (
+                          <div className="mb-4">
+                            <h4 className="text-sm font-medium mb-2 text-green-700">Puntos Fuertes</h4>
+                            <div className="space-y-2">
+                              {candidate.analysis_data.compatibilidad.fortalezas.map((item, i) => (
+                                <div key={i} className="flex items-start gap-3 p-3 bg-green-50 rounded-lg">
+                                  <Check className="h-4 w-4 text-green-500 mt-0.5" />
+                                  <span className="text-sm">{item}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        
+                        {/* Debilidades para la vacante */}
+                        {candidate.analysis_data.compatibilidad.debilidades && 
+                         candidate.analysis_data.compatibilidad.debilidades.length > 0 && (
+                          <div className="mb-4">
+                            <h4 className="text-sm font-medium mb-2 text-yellow-700">Áreas de Preocupación</h4>
+                            <div className="space-y-2">
+                              {candidate.analysis_data.compatibilidad.debilidades.map((item, i) => (
+                                <div key={i} className="flex items-start gap-3 p-3 bg-yellow-50 rounded-lg">
+                                  <AlertTriangle className="h-4 w-4 text-yellow-500 mt-0.5" />
+                                  <span className="text-sm">{item}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        
+                        {/* Recomendación */}
+                        {candidate.analysis_data.compatibilidad.recomendacion && (
+                          <div className="p-4 border rounded-lg bg-blue-50">
+                            <h4 className="text-sm font-medium mb-2 text-blue-700">Recomendación</h4>
+                            <p className="text-sm">{candidate.analysis_data.compatibilidad.recomendacion}</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </TabsContent>
                 </Tabs>
               </CardHeader>
               
               <CardContent className="space-y-6">
-                <TabsContent value="perfil" className="space-y-6 mt-0">
-                  {/* Porcentaje de coincidencia */}
-                  {candidate.analysis_data?.compatibilidad?.porcentaje !== undefined && (
-                    <div className="p-4 border rounded-lg bg-muted/30">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="font-medium">Compatibilidad con la vacante</span>
-                        <span className={`font-bold ${
-                          candidate.analysis_data.compatibilidad.porcentaje >= 75
-                            ? 'text-green-600'
-                            : candidate.analysis_data.compatibilidad.porcentaje >= 50
-                            ? 'text-yellow-600'
-                            : 'text-red-600'
-                        }`}>
-                          {candidate.analysis_data.compatibilidad.porcentaje}%
-                        </span>
-                      </div>
-                      <Progress 
-                        value={candidate.analysis_data.compatibilidad.porcentaje} 
-                        className={`h-2 ${
-                          candidate.analysis_data.compatibilidad.porcentaje >= 75
-                            ? 'bg-green-100 [&>div]:bg-green-600'
-                            : candidate.analysis_data.compatibilidad.porcentaje >= 50
-                            ? 'bg-yellow-100 [&>div]:bg-yellow-600'
-                            : 'bg-red-100 [&>div]:bg-red-600'
-                        }`}
-                      />
-                    </div>
-                  )}
-
-                  {/* Perfil profesional */}
-                  {candidate.analysis_data.perfilProfesional && (
-                    <div>
-                      <h3 className="text-base font-medium mb-2 flex items-center">
-                        <User className="mr-2 h-4 w-4 text-hrm-dark-cyan" />
-                        Perfil Profesional
-                      </h3>
-                      <div className="text-sm text-gray-700">
-                        {candidate.analysis_data.perfilProfesional}
-                      </div>
-                    </div>
-                  )}
-                  
-                  {/* Habilidades */}
-                  {candidate.analysis_data.habilidades && candidate.analysis_data.habilidades.length > 0 && (
-                    <div>
-                      <h3 className="text-base font-medium mb-2 flex items-center">
-                        <Star className="mr-2 h-4 w-4 text-hrm-dark-cyan" />
-                        Habilidades
-                      </h3>
-                      <div className="flex flex-wrap gap-2">
-                        {candidate.analysis_data.habilidades.map((skill, i) => (
-                          <Badge key={i} variant="secondary">
-                            {skill}
-                          </Badge>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Idiomas */}
-                  {candidate.analysis_data.idiomas && candidate.analysis_data.idiomas.length > 0 && 
-                   candidate.analysis_data.idiomas[0] !== 'No especificado' && (
-                    <div>
-                      <h3 className="text-base font-medium mb-2 flex items-center">
-                        <Languages className="mr-2 h-4 w-4 text-hrm-dark-cyan" />
-                        Idiomas
-                      </h3>
-                      <div className="flex flex-wrap gap-2">
-                        {candidate.analysis_data.idiomas.map((language, i) => (
-                          <Badge key={i} variant="outline">
-                            {language}
-                          </Badge>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </TabsContent>
-
-                <TabsContent value="experiencia" className="space-y-6 mt-0">
-                  {/* Experiencia laboral */}
-                  {candidate.analysis_data.experienciaLaboral && candidate.analysis_data.experienciaLaboral.length > 0 && (
-                    <div>
-                      <h3 className="text-base font-medium mb-3 flex items-center">
-                        <Briefcase className="mr-2 h-4 w-4 text-hrm-dark-cyan" />
-                        Experiencia Laboral
-                      </h3>
-                      <div className="space-y-4">
-                        {candidate.analysis_data.experienciaLaboral.map((exp, i) => (
-                          <div key={i} className="border rounded-lg p-4">
-                            <div className="font-medium">{exp.cargo}</div>
-                            <div className="text-sm text-muted-foreground mb-2">
-                              {exp.empresa} | {exp.fechas}
-                            </div>
-                            {exp.responsabilidades && exp.responsabilidades.length > 0 && (
-                              <div className="mt-2">
-                                <h4 className="text-xs uppercase font-medium text-muted-foreground mb-1">Responsabilidades</h4>
-                                <ul className="text-sm space-y-1 list-disc pl-4">
-                                  {exp.responsabilidades.map((resp, j) => (
-                                    <li key={j}>{resp}</li>
-                                  ))}
-                                </ul>
-                              </div>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  
-                  {/* Educación */}
-                  {candidate.analysis_data.educacion && candidate.analysis_data.educacion.length > 0 && (
-                    <div>
-                      <h3 className="text-base font-medium mb-3 flex items-center">
-                        <GraduationCap className="mr-2 h-4 w-4 text-hrm-dark-cyan" />
-                        Educación
-                      </h3>
-                      <div className="space-y-3">
-                        {candidate.analysis_data.educacion.map((edu, i) => (
-                          <div key={i} className="border rounded-lg p-3">
-                            <div className="font-medium">{edu.carrera}</div>
-                            <div className="text-sm text-muted-foreground">
-                              {edu.institucion} | {edu.fechas}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  
-                  {/* Certificaciones */}
-                  {candidate.analysis_data.certificaciones && candidate.analysis_data.certificaciones.length > 0 && (
-                    <div>
-                      <h3 className="text-base font-medium mb-2 flex items-center">
-                        <Award className="mr-2 h-4 w-4 text-hrm-dark-cyan" />
-                        Certificaciones
-                      </h3>
-                      <ul className="list-disc pl-5 space-y-1 text-sm">
-                        {candidate.analysis_data.certificaciones.map((cert, i) => (
-                          <li key={i}>{cert}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                </TabsContent>
-
-                <TabsContent value="evaluacion" className="space-y-6 mt-0">
-                  {/* Fortalezas */}
-                  {candidate.analysis_data.fortalezas && candidate.analysis_data.fortalezas.length > 0 && (
-                    <div>
-                      <h3 className="text-base font-medium mb-2 flex items-center">
-                        <Lightbulb className="mr-2 h-4 w-4 text-hrm-dark-cyan" />
-                        Fortalezas
-                      </h3>
-                      <div className="space-y-2">
-                        {candidate.analysis_data.fortalezas.map((strength, i) => (
-                          <div key={i} className="flex items-start gap-3 p-3 bg-green-50 rounded-lg">
-                            <Check className="h-4 w-4 text-green-500 mt-0.5" />
-                            <span className="text-sm">{strength}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  
-                  {/* Áreas a mejorar */}
-                  {candidate.analysis_data.areasAMejorar && candidate.analysis_data.areasAMejorar.length > 0 && (
-                    <div>
-                      <h3 className="text-base font-medium mb-2 flex items-center">
-                        <Lightbulb className="mr-2 h-4 w-4 text-hrm-dark-cyan" />
-                        Áreas a Mejorar
-                      </h3>
-                      <div className="space-y-2">
-                        {candidate.analysis_data.areasAMejorar.map((area, i) => (
-                          <div key={i} className="flex items-start gap-3 p-3 bg-yellow-50 rounded-lg">
-                            <AlertTriangle className="h-4 w-4 text-yellow-500 mt-0.5" />
-                            <span className="text-sm">{area}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  
-                  {/* Compatibilidad */}
-                  {candidate.analysis_data.compatibilidad && (
-                    <div>
-                      <h3 className="text-base font-medium mb-2">Compatibilidad con la Vacante</h3>
-                      
-                      {/* Fortalezas para la vacante */}
-                      {candidate.analysis_data.compatibilidad.fortalezas && 
-                       candidate.analysis_data.compatibilidad.fortalezas.length > 0 && (
-                        <div className="mb-4">
-                          <h4 className="text-sm font-medium mb-2 text-green-700">Puntos Fuertes</h4>
-                          <div className="space-y-2">
-                            {candidate.analysis_data.compatibilidad.fortalezas.map((item, i) => (
-                              <div key={i} className="flex items-start gap-3 p-3 bg-green-50 rounded-lg">
-                                <Check className="h-4 w-4 text-green-500 mt-0.5" />
-                                <span className="text-sm">{item}</span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                      
-                      {/* Debilidades para la vacante */}
-                      {candidate.analysis_data.compatibilidad.debilidades && 
-                       candidate.analysis_data.compatibilidad.debilidades.length > 0 && (
-                        <div className="mb-4">
-                          <h4 className="text-sm font-medium mb-2 text-yellow-700">Áreas de Preocupación</h4>
-                          <div className="space-y-2">
-                            {candidate.analysis_data.compatibilidad.debilidades.map((item, i) => (
-                              <div key={i} className="flex items-start gap-3 p-3 bg-yellow-50 rounded-lg">
-                                <AlertTriangle className="h-4 w-4 text-yellow-500 mt-0.5" />
-                                <span className="text-sm">{item}</span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                      
-                      {/* Recomendación */}
-                      {candidate.analysis_data.compatibilidad.recomendacion && (
-                        <div className="p-4 border rounded-lg bg-blue-50">
-                          <h4 className="text-sm font-medium mb-2 text-blue-700">Recomendación</h4>
-                          <p className="text-sm">{candidate.analysis_data.compatibilidad.recomendacion}</p>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </TabsContent>
+                {/* Content moved inside TabsContent components */}
               </CardContent>
             </Card>
           ) : (
