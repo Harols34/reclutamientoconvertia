@@ -4,7 +4,9 @@ project_id = "kugocdtesaczbfrwblsi"
 [api]
 enabled = true
 port = 54321
-schemas = ["public", "storage", "graphql_public"]
+schemas = ["public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
 
 [db]
 port = 54322
@@ -14,26 +16,23 @@ major_version = 15
 [studio]
 enabled = true
 port = 54323
+api_url = "http://localhost"
 
 [inbucket]
 enabled = true
 port = 54324
 
 [auth]
-enabled = true
-port = 54325
-
-[realtime]
+enable_signup = true
 enabled = true
 
 [storage]
 enabled = true
 
-[edge-functions]
+[realtime]
 enabled = true
 
-[functions.save-candidate-data]
-verify_jwt = true
-
-[functions.extract-pdf-text]
-verify_jwt = true
+[functions]
+serve_local_storage = true
+[functions.training-chat]
+verify_jwt = false

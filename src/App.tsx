@@ -18,6 +18,7 @@ import JobsList from "./pages/public/JobsList";
 import JobDetail from "./pages/public/JobDetail";
 import ThankYou from "./pages/public/ThankYou";
 import ApplicationForm from "./components/candidates/ApplicationForm";
+import TrainingChat from "./pages/public/TrainingChat"; // Nueva página de entrenamiento
 
 // Admin Pages
 import Login from "./pages/admin/Login";
@@ -31,6 +32,8 @@ import CandidateDetail from "./pages/admin/CandidateDetail";
 import ChatbotManager from "./pages/admin/ChatbotManager";
 import Reports from "./pages/admin/Reports";
 import Settings from "./pages/admin/Settings";
+import TrainingCodes from "./pages/admin/TrainingCodes"; // Nueva página de códigos
+import TrainingSessions from "./pages/admin/TrainingSessions"; // Nueva página de sesiones
 
 const queryClient = new QueryClient();
 
@@ -84,6 +87,7 @@ const App = () => {
                 <Route path="jobs/:jobId" element={<JobDetail />} />
                 <Route path="postularse/:jobId" element={<ApplicationForm />} />
                 <Route path="gracias" element={<ThankYou />} />
+                <Route path="entrenamiento" element={<TrainingChat />} />
               </Route>
 
               {/* Admin Routes */}
@@ -105,6 +109,8 @@ const App = () => {
                 <Route path="chatbot" element={<ChatbotManager />} />
                 <Route path="reports" element={<Reports />} />
                 <Route path="settings" element={<Settings />} />
+                <Route path="training-codes" element={<TrainingCodes />} />
+                <Route path="training-sessions" element={<TrainingSessions />} />
               </Route>
 
               {/* Catch all */}

@@ -290,6 +290,84 @@ export type AppDatabase = {
           settings?: Record<string, any>;
         };
       };
+      training_codes: {
+        Row: {
+          id: string;
+          code: string;
+          is_used: boolean;
+          created_at: string;
+          expires_at: string;
+        };
+        Insert: {
+          id?: string;
+          code: string;
+          is_used?: boolean;
+          created_at?: string;
+          expires_at: string;
+        };
+        Update: {
+          id?: string;
+          code?: string;
+          is_used?: boolean;
+          created_at?: string;
+          expires_at?: string;
+        };
+      };
+      training_sessions: {
+        Row: {
+          id: string;
+          training_code_id: string;
+          candidate_name: string;
+          started_at: string;
+          ended_at: string | null;
+          score: number | null;
+          feedback: string | null;
+          public_visible: boolean;
+        };
+        Insert: {
+          id?: string;
+          training_code_id: string;
+          candidate_name: string;
+          started_at?: string;
+          ended_at?: string | null;
+          score?: number | null;
+          feedback?: string | null;
+          public_visible?: boolean;
+        };
+        Update: {
+          id?: string;
+          training_code_id?: string;
+          candidate_name?: string;
+          started_at?: string;
+          ended_at?: string | null;
+          score?: number | null;
+          feedback?: string | null;
+          public_visible?: boolean;
+        };
+      };
+      training_messages: {
+        Row: {
+          id: string;
+          session_id: string;
+          sender_type: 'ai' | 'candidate';
+          content: string;
+          sent_at: string;
+        };
+        Insert: {
+          id?: string;
+          session_id: string;
+          sender_type: 'ai' | 'candidate';
+          content: string;
+          sent_at?: string;
+        };
+        Update: {
+          id?: string;
+          session_id?: string;
+          sender_type?: 'ai' | 'candidate';
+          content?: string;
+          sent_at?: string;
+        };
+      };
     };
   };
 };
@@ -324,4 +402,20 @@ export const getPublicResumeUrl = (filePath: string) => {
     .getPublicUrl(filePath);
     
   return data?.publicUrl || null;
+};
+
+// Función para obtener el tipo de usuario por su ID (función auxiliar)
+export const getUserType = async (userId: string) => {
+  try {
+    const { data } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', userId)
+      .single();
+    
+    return data?.role || 'user';
+  } catch (error) {
+    console.error('Error al obtener tipo de usuario:', error);
+    return 'user';
+  }
 };
