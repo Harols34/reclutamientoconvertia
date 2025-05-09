@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
-import { Send, Clock } from 'lucide-react';
+import { Send, Clock, RefreshCw } from 'lucide-react';
 import { MessageList } from './MessageList';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { useToast } from '@/hooks/use-toast';
@@ -37,11 +37,13 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
   const [initialHint, setInitialHint] = useState(true);
   const [channelEstablished, setChannelEstablished] = useState(false);
   const [reconnecting, setReconnecting] = useState(false);
+  const [reconnectAttempts, setReconnectAttempts] = useState(0);
   const messageInputRef = useRef<HTMLInputElement>(null);
   const timerRef = useRef<number | null>(null);
   const realtimeRef = useRef<RealtimeConnection | null>(null);
   const { toast } = useToast();
   const receivedMessagesRef = useRef<Set<string>>(new Set());
+  const messageQueueRef = useRef<any[]>([]);
 
   // Start timer when chat begins
   useEffect(() => {
@@ -74,6 +76,61 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
     }
   }, []);
 
+  // Initial fetch of messages in case we missed some
+  useEffect(() => {
+    const fetchExistingMessages = async () => {
+      if (!sessionId) return;
+      
+      try {
+        const { data, error } = await supabase
+          .from('training_messages')
+          .select('*')
+          .eq('session_id', sessionId)
+          .order('sent_at', { ascending: true });
+        
+        if (error) {
+          console.error('Error fetching messages:', error);
+          return;
+        }
+        
+        if (data && data.length > 0) {
+          console.log('Fetched existing messages:', data.length);
+          
+          // Add all messages to the cache to prevent duplicates
+          data.forEach(msg => {
+            receivedMessagesRef.current.add(msg.id);
+          });
+          
+          // Set messages, but only if we don't already have them
+          setMessages(prevMessages => {
+            if (prevMessages.length === 0) {
+              return data;
+            }
+            
+            // Merge messages without duplicates
+            const existingIds = new Set(prevMessages.map(msg => msg.id));
+            const newMessages = data.filter(msg => !existingIds.has(msg.id));
+            
+            if (newMessages.length > 0) {
+              return [...prevMessages, ...newMessages];
+            }
+            
+            return prevMessages;
+          });
+          
+          // Hide hint if we have messages
+          if (initialHint && data.length > 0) {
+            setInitialHint(false);
+          }
+        }
+      } catch (err) {
+        console.error('Error in fetchExistingMessages:', err);
+      }
+    };
+    
+    fetchExistingMessages();
+  }, [sessionId, setMessages, supabase, initialHint]);
+
   // Set up real-time subscription for messages
   useEffect(() => {
     if (!sessionId) return;
@@ -89,12 +146,14 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
       }
       
       receivedMessagesRef.current.add(payload.new.id);
+      console.log('New message received from realtime:', payload.new);
       
       // Add new message to state
       setMessages(prevMessages => {
+        // Check if message already exists
         const messageExists = prevMessages.some(msg => msg.id === payload.new.id);
         if (!messageExists) {
-          console.log('Adding new message to state:', payload.new);
+          console.log('Adding message to state:', payload.new.sender_type, payload.new.id);
           
           // Hide the initial hint once we start receiving messages
           if (initialHint) setInitialHint(false);
@@ -110,11 +169,19 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
       sessionId,
       onMessage: handleNewMessage,
       onConnectionChange: (connected) => {
+        console.log('Realtime connection status changed:', connected);
         setChannelEstablished(connected);
         setReconnecting(!connected);
+        
+        if (connected) {
+          setReconnectAttempts(0);
+        } else {
+          setReconnectAttempts(prev => prev + 1);
+        }
       },
-      retryLimit: 30, // Increase retry limit
-      retryDelay: 2000 // Slightly shorter retry delay
+      retryLimit: 20,
+      retryDelay: 2000,
+      debugMode: true
     });
     
     realtimeRef.current = realtime;
@@ -131,7 +198,15 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
 
   // Debug: monitor messages changes
   useEffect(() => {
-    console.log('Messages updated in ChatScreen:', messages);
+    console.log('Messages updated in ChatScreen:', messages.length);
+    
+    // Check for AI messages
+    const aiMessages = messages.filter(msg => msg.sender_type === 'ai');
+    console.log('AI messages:', aiMessages.length);
+    
+    if (aiMessages.length > 0) {
+      console.log('Last AI message:', aiMessages[aiMessages.length - 1].content.substring(0, 50) + '...');
+    }
   }, [messages]);
 
   // Send message
@@ -182,10 +257,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
       // Check if we need to re-establish the real-time connection
       if (!channelEstablished && realtimeRef.current) {
         console.log('Real-time connection not established. Attempting to reconnect...');
-        realtimeRef.current.disconnect();
-        setTimeout(() => {
-          if (realtimeRef.current) realtimeRef.current.connect();
-        }, 1000);
+        forceReconnect();
       }
       
     } catch (error: any) {
@@ -227,10 +299,51 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
         description: 'Intentando reconectar al servicio de mensajes en tiempo real...',
       });
       
-      realtimeRef.current.disconnect();
-      setTimeout(() => {
-        if (realtimeRef.current) realtimeRef.current.connect();
-      }, 1000);
+      // Clear message cache to avoid duplicate filtering issues
+      realtimeRef.current.clearMessageCache();
+      realtimeRef.current.forceTriggerReconnect();
+      
+      // Also re-fetch messages to ensure we haven't missed any
+      refetchMessages();
+    }
+  };
+  
+  // Function to manually fetch messages
+  const refetchMessages = async () => {
+    if (!sessionId) return;
+    
+    try {
+      console.log('Manually refetching messages...');
+      const { data, error } = await supabase
+        .from('training_messages')
+        .select('*')
+        .eq('session_id', sessionId)
+        .order('sent_at', { ascending: true });
+      
+      if (error) {
+        console.error('Error refetching messages:', error);
+        return;
+      }
+      
+      if (data && data.length > 0) {
+        console.log('Refetched messages:', data.length);
+        
+        // Update messages state without duplicates
+        setMessages(prevMessages => {
+          const existingIds = new Set(prevMessages.map(msg => msg.id));
+          const newMessages = data.filter(msg => !existingIds.has(msg.id));
+          
+          if (newMessages.length > 0) {
+            console.log('Adding', newMessages.length, 'new messages from refetch');
+            return [...prevMessages, ...newMessages];
+          }
+          
+          console.log('No new messages found in refetch');
+          return prevMessages;
+        });
+      }
+    } catch (err) {
+      console.error('Error in refetchMessages:', err);
     }
   };
 
@@ -291,16 +404,31 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
           </div>
           {!channelEstablished && (
             <div className="flex items-center justify-between text-amber-600 text-sm mt-2 p-2 bg-amber-50 rounded">
-              <span>Reconectando al servicio de mensajes en tiempo real...</span>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={forceReconnect} 
-                className="text-xs"
-                disabled={reconnecting}
-              >
-                Forzar reconexión
-              </Button>
+              <span>
+                {reconnectAttempts > 3 
+                  ? 'Problemas de conexión. Intente actualizar la página o haga clic en Refrescar mensajes.' 
+                  : 'Reconectando al servicio de mensajes en tiempo real...'}
+              </span>
+              <div className="flex gap-2">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={forceReconnect} 
+                  className="text-xs"
+                  disabled={reconnecting}
+                >
+                  <RefreshCw className={`h-3 w-3 mr-1 ${reconnecting ? 'animate-spin' : ''}`} />
+                  Forzar reconexión
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={refetchMessages}
+                  className="text-xs"
+                >
+                  Refrescar mensajes
+                </Button>
+              </div>
             </div>
           )}
         </div>

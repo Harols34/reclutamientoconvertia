@@ -48,44 +48,55 @@ MessageBubble.displayName = 'MessageBubble';
 export const MessageList: React.FC<MessageListProps> = ({ messages }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const previousMessagesCountRef = useRef<number>(0);
+  const processedMessageIds = useRef<Set<string>>(new Set());
   
-  // Unique messages based on ID to prevent duplicates
-  const uniqueMessages = useMemo(() => {
-    const seen = new Map();
-    return messages.filter(message => {
+  // Process messages to ensure uniqueness and proper ordering
+  const processedMessages = useMemo(() => {
+    // Ensure unique messages by ID
+    const uniqueMessages = messages.filter(message => {
       const key = message.id;
-      if (!seen.has(key)) {
-        seen.set(key, true);
+      if (!key) return true; // Keep messages without ID (temporary)
+      
+      if (!processedMessageIds.current.has(key)) {
+        processedMessageIds.current.add(key);
         return true;
       }
       return false;
+    });
+    
+    // Sort messages by timestamp
+    return [...uniqueMessages].sort((a, b) => {
+      return new Date(a.sent_at).getTime() - new Date(b.sent_at).getTime();
     });
   }, [messages]);
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
-    if (messagesEndRef.current && uniqueMessages.length > previousMessagesCountRef.current) {
+    if (messagesEndRef.current && processedMessages.length > previousMessagesCountRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
-      previousMessagesCountRef.current = uniqueMessages.length;
+      previousMessagesCountRef.current = processedMessages.length;
     }
-  }, [uniqueMessages]);
+  }, [processedMessages]);
   
-  // Debug: Log messages when they change
+  // Debug: Log message processing
   useEffect(() => {
-    console.log('Messages in MessageList:', uniqueMessages.length);
-    if (uniqueMessages.length !== messages.length) {
-      console.log('Filtered out', messages.length - uniqueMessages.length, 'duplicate messages');
+    console.log('Messages in MessageList:', processedMessages.length);
+    console.log('AI messages count:', processedMessages.filter(m => m.sender_type === 'ai').length);
+    console.log('Candidate messages count:', processedMessages.filter(m => m.sender_type === 'candidate').length);
+    
+    if (processedMessages.length !== messages.length) {
+      console.log('Filtered out', messages.length - processedMessages.length, 'duplicate messages');
     }
-  }, [messages, uniqueMessages]);
+  }, [messages, processedMessages]);
 
   return (
     <div className="flex flex-col space-y-4 w-full">
-      {uniqueMessages.length === 0 ? (
+      {processedMessages.length === 0 ? (
         <div className="text-center py-8 text-gray-500 italic">
           Inicia la conversación enviando un mensaje...
         </div>
       ) : (
-        uniqueMessages.map((msg, index) => (
+        processedMessages.map((msg, index) => (
           <MessageBubble 
             key={msg.id || `message-${index}-${Date.now()}`} 
             message={msg} 
