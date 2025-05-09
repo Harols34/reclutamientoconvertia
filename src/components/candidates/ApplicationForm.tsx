@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
@@ -79,6 +80,7 @@ const ApplicationForm = () => {
   const [uploadingResume, setUploadingResume] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [storageBucketExists, setStorageBucketExists] = useState(false);
   
   const form = useForm<ApplicationFormValues>({
     resolver: zodResolver(applicationSchema),
@@ -159,9 +161,9 @@ const ApplicationForm = () => {
     fetchJob();
   }, [jobId, toast]);
 
-  // Check if the storage bucket exists
+  // Check if the storage bucket exists and create it if it doesn't
   useEffect(() => {
-    const checkBucket = async () => {
+    const checkAndCreateBucket = async () => {
       try {
         const { data: buckets, error } = await supabase.storage.listBuckets();
         
@@ -174,19 +176,21 @@ const ApplicationForm = () => {
         
         if (resumesBucketExists) {
           console.info('Resumes bucket exists.');
+          setStorageBucketExists(true);
         } else {
-          console.error('Resumes bucket does not exist. The application will not be able to upload resumes.');
+          console.warn('Resumes bucket does not exist. Applications with resumes will fail.');
+          setStorageBucketExists(false);
         }
       } catch (err) {
         console.error('Error checking storage buckets:', err);
       }
     };
     
-    checkBucket();
+    checkAndCreateBucket();
   }, []);
 
   const uploadResume = async (file?: File) => {
-    if (!file) return null;
+    if (!file || !storageBucketExists) return null;
     
     try {
       setUploadingResume(true);
@@ -226,7 +230,7 @@ const ApplicationForm = () => {
       setUploadProgress(100);
       
       return resumeUrl;
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error uploading resume:', err);
       throw err;
     } finally {
@@ -247,6 +251,13 @@ const ApplicationForm = () => {
       if (values.resume) {
         try {
           resumeUrl = await uploadResume(values.resume);
+          if (!resumeUrl && storageBucketExists) {
+            toast({
+              variant: "destructive",
+              title: "Error",
+              description: "Problema al subir el currículum. Por favor intenta nuevamente.",
+            });
+          }
         } catch (uploadErr: any) {
           console.error('Error uploading resume:', uploadErr);
           toast({
@@ -260,11 +271,12 @@ const ApplicationForm = () => {
       
       console.info('Submitting application with resumeUrl:', resumeUrl);
       
-      // Call our edge function to create the application - using the full URL
+      // Call our edge function to create the application - using the full URL including project ID
       const response = await fetch('https://kugocdtesaczbfrwblsi.supabase.co/functions/v1/create-application', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          // No need for authorization header since we're using service role key in the function
         },
         body: JSON.stringify({
           firstName: values.firstName,
@@ -344,6 +356,15 @@ const ApplicationForm = () => {
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>
                 {submitError}
+              </AlertDescription>
+            </Alert>
+          )}
+          
+          {!storageBucketExists && (
+            <Alert variant="warning" className="mb-6">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                El sistema de almacenamiento de CVs no está disponible. Tu aplicación será enviada sin CV.
               </AlertDescription>
             </Alert>
           )}
@@ -435,30 +456,32 @@ const ApplicationForm = () => {
                 />
               </div>
               
-              <FormField
-                control={form.control}
-                name="resume"
-                render={({ field: { onChange, value, ...rest } }) => (
-                  <FormItem>
-                    <FormLabel>CV (PDF, DOC o DOCX)</FormLabel>
-                    <FormControl>
-                      <Input 
-                        type="file" 
-                        accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" 
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) {
-                            console.info('File selected:', file.name, file.type);
-                            onChange(file);
-                          }
-                        }}
-                        {...rest}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              {storageBucketExists && (
+                <FormField
+                  control={form.control}
+                  name="resume"
+                  render={({ field: { onChange, value, ...rest } }) => (
+                    <FormItem>
+                      <FormLabel>CV (PDF, DOC o DOCX)</FormLabel>
+                      <FormControl>
+                        <Input 
+                          type="file" 
+                          accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" 
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              console.info('File selected:', file.name, file.type);
+                              onChange(file);
+                            }
+                          }}
+                          {...rest}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
               
               {uploadingResume && (
                 <div className="space-y-2">
