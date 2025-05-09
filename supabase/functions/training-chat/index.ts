@@ -1,4 +1,3 @@
-
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
@@ -96,7 +95,7 @@ async function handleValidateCode(supabase, trainingCode, corsHeaders) {
     // Verificar que el código de entrenamiento exista y sea válido
     const { data: codeData, error: codeError } = await supabase
       .from('training_codes')
-      .select('id, is_used, expires_at')
+      .select('id, expires_at')
       .eq('code', trainingCode)
       .maybeSingle();
 
@@ -119,17 +118,6 @@ async function handleValidateCode(supabase, trainingCode, corsHeaders) {
         JSON.stringify({ error: 'Código de entrenamiento no encontrado' }),
         { 
           status: 404, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        }
-      );
-    }
-
-    // Verificar que el código no haya sido usado
-    if (codeData.is_used) {
-      return new Response(
-        JSON.stringify({ error: 'Este código ya ha sido utilizado' }),
-        { 
-          status: 400, 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         }
       );
@@ -202,7 +190,7 @@ async function handleStartSession(supabase, trainingCode, candidateName, corsHea
     // Verificar que el código de entrenamiento exista y sea válido
     const { data: codeData, error: codeError } = await supabase
       .from('training_codes')
-      .select('id, is_used, expires_at')
+      .select('id, expires_at')
       .eq('code', trainingCode)
       .maybeSingle();
 
@@ -230,17 +218,6 @@ async function handleStartSession(supabase, trainingCode, candidateName, corsHea
     }
 
     console.log('Datos del código:', codeData);
-
-    // Verificar que el código no haya sido usado
-    if (codeData.is_used) {
-      return new Response(
-        JSON.stringify({ error: 'Este código ya ha sido utilizado' }),
-        { 
-          status: 400, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        }
-      );
-    }
 
     // Verificar que el código no haya expirado
     const now = new Date();
@@ -281,17 +258,6 @@ async function handleStartSession(supabase, trainingCode, candidateName, corsHea
     }
 
     console.log('Sesión creada:', sessionData);
-
-    // Marcar el código como usado
-    const { error: updateError } = await supabase
-      .from('training_codes')
-      .update({ is_used: true })
-      .eq('id', codeData.id);
-
-    if (updateError) {
-      console.error('Error al actualizar código:', updateError);
-      // No devolvemos error aquí para no interrumpir el flujo, ya que la sesión fue creada
-    }
 
     // Enviar mensaje inicial de bienvenida como IA
     const welcomeMessage = "¡Hola! Soy un cliente interesado en los servicios de CONVERT-IA. ¿Podrías ayudarme a entender qué ofrecen y cómo pueden ayudarme?";
