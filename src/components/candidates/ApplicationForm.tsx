@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
@@ -162,55 +161,73 @@ const ApplicationForm = () => {
     fetchJob();
   }, [jobId, toast]);
 
-  // Check if the storage bucket exists and create it if it doesn't
+  // Mejorada la función para verificar y crear el bucket si es necesario
   useEffect(() => {
     const checkAndCreateBucket = async () => {
       try {
         setCreatingBucket(true);
+        console.log('Verificando bucket de almacenamiento de CVs...');
+        
         // First check if the bucket exists
         const { data: buckets, error } = await supabase.storage.listBuckets();
         
         if (error) {
           console.error('Error checking storage buckets:', error);
+          setStorageBucketExists(false);
           return;
         }
         
-        const resumesBucketExists = buckets?.some(bucket => bucket.name === 'resumes');
+        // Verify if resumes bucket exists
+        const resumesBucketExists = buckets?.some(bucket => bucket.id === 'resumes');
         
         if (resumesBucketExists) {
-          console.info('Resumes bucket exists.');
+          console.log('Bucket de CVs encontrado correctamente');
           setStorageBucketExists(true);
-        } else {
-          console.warn('Resumes bucket does not exist. Will try to create it.');
-          
-          try {
-            // Creating bucket via the admin procedures 
-            // is handled by the SQL migration we ran earlier
+          return;
+        }
+        
+        console.warn('El bucket de CVs no existe. Intentando crear uno nuevo...');
+        
+        // Try to create the bucket directly through API call
+        try {
+          const { data, error: createError } = await supabase
+            .storage
+            .createBucket('resumes', { public: true });
             
-            // Let's verify the bucket was created
-            const { data: updatedBuckets, error: updateError } = await supabase.storage.listBuckets();
-            
-            if (!updateError && updatedBuckets) {
-              const bucketCreated = updatedBuckets.some(bucket => bucket.name === 'resumes');
-              if (bucketCreated) {
-                console.info('Resumes bucket was successfully created.');
-                setStorageBucketExists(true);
-                toast({
-                  title: "Almacenamiento de CVs activado",
-                  description: "Ahora puedes subir tu currículum.",
-                });
-              } else {
-                console.warn('Bucket was not created. Fallback to application without resume.');
-                setStorageBucketExists(false);
-              }
-            }
-          } catch (createErr) {
-            console.error('Error creating storage bucket:', createErr);
+          if (createError) {
+            console.error('Error creating bucket:', createError);
             setStorageBucketExists(false);
+            return;
           }
+          
+          console.log('Bucket creado exitosamente:', data);
+          setStorageBucketExists(true);
+          
+          // Verify bucket permissions
+          try {
+            await supabase.storage.from('resumes').upload('test.txt', new Blob(['test']), {
+              cacheControl: '3600',
+              upsert: true
+            });
+            
+            console.log('Permisos de bucket verificados correctamente');
+            
+            // Clean up test file
+            await supabase.storage.from('resumes').remove(['test.txt']);
+          } catch (permErr) {
+            console.error('Error verificando permisos del bucket:', permErr);
+          }
+          
+          toast({
+            title: "Almacenamiento de CVs activado",
+            description: "El sistema de almacenamiento de CVs está listo para usar.",
+          });
+        } catch (createBucketErr) {
+          console.error('Error during bucket creation:', createBucketErr);
+          setStorageBucketExists(false);
         }
       } catch (err) {
-        console.error('Error checking storage buckets:', err);
+        console.error('Error general en comprobación de bucket:', err);
         setStorageBucketExists(false);
       } finally {
         setCreatingBucket(false);
@@ -220,13 +237,38 @@ const ApplicationForm = () => {
     checkAndCreateBucket();
   }, [toast]);
 
+  // Mejorada la función de subida de archivos
   const uploadResume = async (file?: File) => {
-    if (!file || !storageBucketExists) return null;
+    if (!file) return null;
+    
+    // Si el bucket no existe, intentar crearlo antes de subir
+    if (!storageBucketExists) {
+      try {
+        setUploadingResume(true);
+        setUploadProgress(10);
+        
+        // Intento final de crear el bucket si no existe
+        const { data: createData, error: createError } = await supabase
+          .storage
+          .createBucket('resumes', { public: true });
+          
+        if (createError) {
+          console.error('Error final al crear bucket:', createError);
+          throw new Error('No se pudo crear el almacenamiento para CVs');
+        } else {
+          console.log('Bucket creado en último intento:', createData);
+          setStorageBucketExists(true);
+        }
+      } catch (err) {
+        console.error('Error en último intento de crear bucket:', err);
+        throw new Error('El sistema de almacenamiento no está disponible');
+      }
+    }
     
     try {
       setUploadingResume(true);
       setUploadProgress(10);
-      console.info('Starting file upload to resumes bucket');
+      console.info('Iniciando subida de archivo al bucket resumes');
       
       const fileExt = file.name.split('.').pop() || '';
       const sanitizedFileName = file.name.replace(/[^a-zA-Z0-9._]/g, '_');
@@ -245,7 +287,7 @@ const ApplicationForm = () => {
       setUploadProgress(70);
       
       if (uploadError) {
-        console.error('Resume upload error:', uploadError);
+        console.error('Error en subida de CV:', uploadError);
         throw new Error('Error al subir el currículum: ' + uploadError.message);
       }
       
@@ -257,12 +299,12 @@ const ApplicationForm = () => {
         .getPublicUrl(fileName);
         
       const resumeUrl = publicUrlData?.publicUrl;
-      console.info('Resume uploaded successfully:', resumeUrl);
+      console.info('CV subido exitosamente:', resumeUrl);
       setUploadProgress(100);
       
       return resumeUrl;
     } catch (err: any) {
-      console.error('Error uploading resume:', err);
+      console.error('Error al subir CV:', err);
       throw err;
     } finally {
       setUploadingResume(false);
@@ -378,8 +420,8 @@ const ApplicationForm = () => {
     <div className="hrm-container max-w-2xl mx-auto">
       <Card className="shadow-md">
         <CardHeader>
-          <CardTitle className="text-hrm-dark-cyan">Aplicando para: {job.title}</CardTitle>
-          <CardDescription>Departamento: {job.department}</CardDescription>
+          <CardTitle className="text-hrm-dark-cyan">Aplicando para: {job?.title}</CardTitle>
+          <CardDescription>Departamento: {job?.department}</CardDescription>
         </CardHeader>
         <CardContent>
           {submitError && (
@@ -409,6 +451,7 @@ const ApplicationForm = () => {
           
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+              
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <FormField
                   control={form.control}
@@ -494,32 +537,30 @@ const ApplicationForm = () => {
                 />
               </div>
               
-              {storageBucketExists && (
-                <FormField
-                  control={form.control}
-                  name="resume"
-                  render={({ field: { onChange, value, ...rest } }) => (
-                    <FormItem>
-                      <FormLabel>CV (PDF, DOC o DOCX)</FormLabel>
-                      <FormControl>
-                        <Input 
-                          type="file" 
-                          accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" 
-                          onChange={(e) => {
-                            const file = e.target.files?.[0];
-                            if (file) {
-                              console.info('File selected:', file.name, file.type);
-                              onChange(file);
-                            }
-                          }}
-                          {...rest}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              )}
+              <FormField
+                control={form.control}
+                name="resume"
+                render={({ field: { onChange, value, ...rest } }) => (
+                  <FormItem>
+                    <FormLabel>CV (PDF, DOC o DOCX)</FormLabel>
+                    <FormControl>
+                      <Input 
+                        type="file" 
+                        accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" 
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            console.info('File selected:', file.name, file.type);
+                            onChange(file);
+                          }
+                        }}
+                        {...rest}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
               
               {uploadingResume && (
                 <div className="space-y-2">
