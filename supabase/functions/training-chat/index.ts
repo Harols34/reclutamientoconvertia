@@ -1,3 +1,4 @@
+
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
@@ -257,29 +258,13 @@ async function handleStartSession(supabase, trainingCode, candidateName, corsHea
 
     console.log('Sesión creada:', sessionData);
 
-    // Enviar mensaje inicial de bienvenida como IA
-    const welcomeMessage = "¡Hola! Soy un cliente interesado en los servicios de CONVERT-IA. ¿Podrías ayudarme a entender qué ofrecen y cómo pueden ayudarme?";
-    
-    const { error: messageError } = await supabase
-      .from('training_messages')
-      .insert({
-        session_id: sessionData.id,
-        sender_type: 'ai',
-        content: welcomeMessage,
-      });
-
-    if (messageError) {
-      console.error('Error al guardar mensaje inicial:', messageError);
-      // No interrumpimos el flujo por este error
-    }
-
-    console.log('Mensaje de bienvenida guardado');
+    // A diferencia de antes, NO enviamos mensaje inicial
+    // Esperamos que el candidato inicie la conversación
 
     return new Response(
       JSON.stringify({ 
         success: true, 
-        session: sessionData,
-        welcomeMessage
+        session: sessionData
       }),
       { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -326,7 +311,7 @@ async function handleChatMessage(supabase, openaiApiKey, sessionId, message, cor
     // Verify that the session exists
     const { data: sessionData, error: sessionError } = await supabase
       .from('training_sessions')
-      .select('id')
+      .select('id, candidate_name')
       .eq('id', sessionId)
       .maybeSingle();
 
@@ -393,36 +378,79 @@ async function handleChatMessage(supabase, openaiApiKey, sessionId, message, cor
       );
     }
 
+    // Analyze message history to identify candidate name and products/services mentioned
+    let candidateName = sessionData.candidate_name || "representante";
+    let productsMentioned = [];
+    let isFirstMessage = historyData.length <= 1; // Considering current message is already in history
+    
+    // Extract product/service mentions from candidate messages
+    for (const msg of historyData) {
+      if (msg.sender_type === 'candidate') {
+        // Check for product/service mentions in candidate messages
+        const lowerMsg = msg.content.toLowerCase();
+        
+        // Detect common product types
+        if (lowerMsg.includes('plan') || lowerMsg.includes('móvil') || lowerMsg.includes('celular')) {
+          productsMentioned.push('plan móvil');
+        }
+        if (lowerMsg.includes('internet') || lowerMsg.includes('fibra') || lowerMsg.includes('wifi')) {
+          productsMentioned.push('internet');
+        }
+        if (lowerMsg.includes('tv') || lowerMsg.includes('televisión') || lowerMsg.includes('cable')) {
+          productsMentioned.push('TV');
+        }
+        if (lowerMsg.includes('combo') || lowerMsg.includes('paquete')) {
+          productsMentioned.push('combo');
+        }
+        if (lowerMsg.includes('hogar') || lowerMsg.includes('casa') || lowerMsg.includes('seguridad')) {
+          productsMentioned.push('servicios para el hogar');
+        }
+        if (lowerMsg.includes('tecnología') || lowerMsg.includes('electrodoméstico') || lowerMsg.includes('dispositivo')) {
+          productsMentioned.push('productos tecnológicos');
+        }
+      }
+    }
+    
+    // Get unique product mentions
+    productsMentioned = [...new Set(productsMentioned)];
+
     // Prepare messages for OpenAI
     const messages = [
       {
         role: "system",
-        content: `Eres un cliente potencial de una empresa de tecnología llamada CONVERT-IA que se especializa en servicios de reclutamiento y soluciones de IA. 
-        Estás hablando con un representante de ventas. Tu objetivo es simular una conversación natural para evaluar sus habilidades de atención al cliente.
+        content: `Eres un cliente potencial que está interesado en los servicios que ofrece CONVERT-IA, una empresa que ofrece diversos productos y servicios.
         
-        Características del cliente (tú):
-        - Tienes un nivel medio de interés en los servicios
-        - Quieres saber cómo la IA puede ayudar en el proceso de reclutamiento
-        - Estás preocupado por los costos y el tiempo de implementación
-        - Te preocupa la privacidad de los datos
+        El representante con el que hablas se llama ${candidateName}.
+        
+        Para esta conversación, actúa como un cliente real con estas características:
+        - Eres una persona ocupada con poco tiempo
+        - Tienes interés en lo que te ofrecen pero necesitas estar convencido
+        - Haces preguntas sobre beneficios, precios y detalles
+        - Planteas objeciones razonables para ver cómo responde el representante
+        - Tu objetivo es evaluar las habilidades de atención al cliente del representante
+        
+        ${productsMentioned.length > 0 
+          ? `El representante te ha mencionado: ${productsMentioned.join(', ')}. Centra la conversación en estos productos/servicios.` 
+          : 'No hay productos específicos mencionados aún. En tu primera respuesta, pregunta qué servicios o productos pueden ofrecerte.'}
+        
+        ${isFirstMessage 
+          ? 'Esta es la primera interacción del representante. Responde como un cliente que ha sido contactado, preguntando qué productos o servicios pueden ofrecerte.' 
+          : 'Continúa la conversación de manera natural, haciendo preguntas o planteando objeciones sobre lo que te han ofrecido.'}
         
         Comportamiento:
-        - Haz preguntas específicas sobre los servicios
-        - Pide ejemplos de cómo han ayudado a otras empresas
-        - Menciona algunas objeciones sobre el precio o la complejidad
-        - Sé cortés pero exigente con la información
+        - Usa un tono conversacional y natural
+        - Mantén respuestas concisas (máximo 3 frases)
+        - Haz preguntas específicas sobre lo que te ofrecen
+        - Muestra interés pero también escepticismo
+        - Plantea al menos una objeción (precio, calidad, necesidad, etc.)
         
         IMPORTANTE:
-        - Mantén respuestas concisas (máximo 3 frases)
-        - NO menciones que eres una IA o un evaluador
-        - Actúa como un cliente real que tiene dudas genuinas
-        - NO des feedback sobre el desempeño del candidato
-        - La conversación es para evaluar al representante, pero no lo menciones
+        - Nunca menciones que eres una IA o un evaluador
+        - No des feedback sobre el desempeño del candidato
+        - Sólo actúas como cliente, no ofreces productos/servicios
+        - No propongas cerrar la venta, eso debe hacerlo el representante
         
-        Si este es el primer mensaje del candidato y solo te está saludando o presentándose, 
-        preséntate como Juan Pérez, un gerente de recursos humanos de una empresa mediana que está 
-        buscando mejorar su proceso de reclutamiento, y pregunta directamente: "¿Qué servicios 
-        específicos ofrece CONVERT-IA para empresas como la mía?"`
+        Objetivo: Simular una conversación de venta realista donde el representante debe persuadirte.`
       }
     ];
 

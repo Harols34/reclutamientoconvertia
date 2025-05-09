@@ -33,6 +33,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
 }) => {
   const [message, setMessage] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [initialHint, setInitialHint] = useState(true);
   const messageInputRef = useRef<HTMLInputElement>(null);
   const timerRef = useRef<number | null>(null);
   const { toast } = useToast();
@@ -91,6 +92,8 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
             setMessages(prevMessages => {
               const messageExists = prevMessages.some(msg => msg.id === payload.new.id);
               if (!messageExists) {
+                // Hide the initial hint once we start receiving messages
+                if (initialHint) setInitialHint(false);
                 return [...prevMessages, payload.new];
               }
               return prevMessages;
@@ -107,7 +110,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
       console.log('Cleaning up subscription');
       supabase.removeChannel(channel);
     };
-  }, [sessionId, setMessages, supabase]);
+  }, [sessionId, setMessages, supabase, initialHint]);
 
   // Send message
   const sendMessage = async () => {
@@ -148,6 +151,11 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
       }
       
       console.log('Message sent successfully:', data);
+      
+      // If initializing chat, hide the hint
+      if (initialHint) {
+        setInitialHint(false);
+      }
       
     } catch (error: any) {
       console.error('Error sending message:', error);
@@ -192,11 +200,17 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
           </div>
         </div>
         <CardDescription>
-          Actúa como representante de CONVERT-IA y responde a las preguntas del cliente
+          Inicia la conversación como representante de CONVERT-IA y espera la respuesta del cliente
         </CardDescription>
       </CardHeader>
       <CardContent className="p-0">
         <div className="h-[400px] overflow-y-auto p-4">
+          {initialHint && messages.length === 0 && (
+            <div className="bg-blue-50 p-3 rounded-lg mb-4 text-blue-800 text-sm">
+              <strong>Sugerencia:</strong> Inicia la conversación presentándote y ofreciendo ayuda.
+              Por ejemplo: "Hola, soy [tu nombre] de CONVERT-IA, ¿en qué puedo ayudarte hoy?"
+            </div>
+          )}
           <MessageList messages={messages} />
         </div>
       </CardContent>

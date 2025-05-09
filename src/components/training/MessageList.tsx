@@ -26,7 +26,7 @@ export const MessageList: React.FC<MessageListProps> = ({ messages }) => {
     <div className="flex flex-col space-y-4 w-full">
       {messages.length === 0 ? (
         <div className="text-center py-8 text-gray-500 italic">
-          Esperando mensajes...
+          Inicia la conversación enviando un mensaje...
         </div>
       ) : (
         messages.map((msg, index) => (
