@@ -367,8 +367,8 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
         <div className="h-[400px] overflow-y-auto p-4">
           {initialHint && messages.length === 0 && (
             <div className="bg-blue-50 p-3 rounded-lg mb-4 text-blue-800 text-sm">
-              <strong>Sugerencia:</strong> Inicia la conversación presentándote y ofreciendo ayuda.
-              Por ejemplo: "Hola, soy [tu nombre] de CONVERT-IA, ¿en qué puedo ayudarte hoy?"
+              <strong>Sugerencia:</strong> Inicia la conversación presentándote y ofreciendo un producto.
+              Por ejemplo: "Hola, soy [tu nombre] de CONVERT-IA, vengo a ofrecerte el servicio *******"
             </div>
           )}
           <MessageList messages={messages} />
