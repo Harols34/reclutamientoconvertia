@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
@@ -361,7 +360,7 @@ const ApplicationForm = () => {
           )}
           
           {!storageBucketExists && (
-            <Alert variant="warning" className="mb-6">
+            <Alert variant="destructive" className="mb-6">
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>
                 El sistema de almacenamiento de CVs no está disponible. Tu aplicación será enviada sin CV.
