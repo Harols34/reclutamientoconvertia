@@ -74,10 +74,10 @@ export class RealtimeConnection {
               this.log('Duplicate message detected, ignoring', payload.new?.id);
             }
           })
-        .on('system', (payload) => {
+        .on('system', { type: '*' }, (payload) => {
           this.log('System event:', payload);
         })
-        .on('presence', (payload) => {
+        .on('presence', { event: '*' }, (payload) => {
           this.log('Presence event:', payload);
         })
         .subscribe((status: string) => this.handleSubscriptionStatus(status));
