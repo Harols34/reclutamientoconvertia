@@ -301,7 +301,7 @@ async function handleStartSession(supabase, trainingCode, candidateName, corsHea
 
 // Función para manejar los mensajes del chat
 async function handleChatMessage(supabase, openaiApiKey, sessionId, message, corsHeaders) {
-  // Verificar parámetros requeridos
+  // Verify parameters required
   if (!sessionId) {
     return new Response(
       JSON.stringify({ error: 'ID de sesión no proporcionado' }),
@@ -323,7 +323,7 @@ async function handleChatMessage(supabase, openaiApiKey, sessionId, message, cor
   }
 
   try {
-    // Verificar que la sesión exista
+    // Verify that the session exists
     const { data: sessionData, error: sessionError } = await supabase
       .from('training_sessions')
       .select('id')
@@ -331,7 +331,7 @@ async function handleChatMessage(supabase, openaiApiKey, sessionId, message, cor
       .maybeSingle();
 
     if (sessionError) {
-      console.error('Error al buscar sesión:', sessionError);
+      console.error('Error finding session:', sessionError);
       return new Response(
         JSON.stringify({ error: 'Error al verificar sesión: ' + sessionError.message }),
         { 
@@ -351,7 +351,7 @@ async function handleChatMessage(supabase, openaiApiKey, sessionId, message, cor
       );
     }
 
-    // Guardar mensaje del candidato
+    // Save candidate's message
     const { error: messageError } = await supabase
       .from('training_messages')
       .insert({
@@ -361,7 +361,7 @@ async function handleChatMessage(supabase, openaiApiKey, sessionId, message, cor
       });
 
     if (messageError) {
-      console.error('Error al guardar mensaje:', messageError);
+      console.error('Error saving message:', messageError);
       return new Response(
         JSON.stringify({ error: 'Error al guardar el mensaje' }),
         { 
@@ -371,7 +371,7 @@ async function handleChatMessage(supabase, openaiApiKey, sessionId, message, cor
       );
     }
 
-    // Obtener historial de mensajes para contexto
+    // Get message history for context
     const { data: historyData, error: historyError } = await supabase
       .from('training_messages')
       .select('*')
@@ -379,7 +379,7 @@ async function handleChatMessage(supabase, openaiApiKey, sessionId, message, cor
       .order('sent_at', { ascending: true });
 
     if (historyError) {
-      console.error('Error al obtener historial de mensajes:', historyError);
+      console.error('Error getting message history:', historyError);
       return new Response(
         JSON.stringify({ error: 'Error al obtener historial de mensajes' }),
         { 
@@ -389,7 +389,7 @@ async function handleChatMessage(supabase, openaiApiKey, sessionId, message, cor
       );
     }
 
-    // Preparar mensajes para OpenAI
+    // Prepare messages for OpenAI
     const messages = [
       {
         role: "system",
@@ -413,11 +413,16 @@ async function handleChatMessage(supabase, openaiApiKey, sessionId, message, cor
         - NO menciones que eres una IA o un evaluador
         - Actúa como un cliente real que tiene dudas genuinas
         - NO des feedback sobre el desempeño del candidato
-        - La conversación es para evaluar al representante, pero no lo menciones`
+        - La conversación es para evaluar al representante, pero no lo menciones
+        
+        Si este es el primer mensaje del candidato y solo te está saludando o presentándose, 
+        preséntate como Juan Pérez, un gerente de recursos humanos de una empresa mediana que está 
+        buscando mejorar su proceso de reclutamiento, y pregunta directamente: "¿Qué servicios 
+        específicos ofrece CONVERT-IA para empresas como la mía?"`
       }
     ];
 
-    // Añadir historial de mensajes
+    // Add message history
     historyData.forEach(msg => {
       const role = msg.sender_type === 'ai' ? 'assistant' : 'user';
       messages.push({
@@ -426,8 +431,10 @@ async function handleChatMessage(supabase, openaiApiKey, sessionId, message, cor
       });
     });
 
+    console.log('Sending message to OpenAI:', JSON.stringify(messages));
+
     try {
-      // Llamar a OpenAI para generar respuesta
+      // Call OpenAI to generate response
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -444,20 +451,22 @@ async function handleChatMessage(supabase, openaiApiKey, sessionId, message, cor
 
       if (!response.ok) {
         const errorData = await response.text();
-        console.error('Error de OpenAI:', response.status, errorData);
-        throw new Error(`Error de OpenAI (${response.status}): ${errorData}`);
+        console.error('OpenAI error:', response.status, errorData);
+        throw new Error(`OpenAI error (${response.status}): ${errorData}`);
       }
 
       const data = await response.json();
+      console.log('OpenAI response:', JSON.stringify(data));
       
       if (!data.choices || !data.choices[0]) {
-        console.error('Respuesta de OpenAI inválida:', data);
-        throw new Error('Respuesta de OpenAI inválida');
+        console.error('Invalid OpenAI response:', data);
+        throw new Error('Invalid OpenAI response');
       }
 
       const aiResponse = data.choices[0].message.content;
+      console.log('AI response content:', aiResponse);
 
-      // Guardar respuesta de la IA
+      // Save AI response
       const { error: aiMessageError } = await supabase
         .from('training_messages')
         .insert({
@@ -467,7 +476,7 @@ async function handleChatMessage(supabase, openaiApiKey, sessionId, message, cor
         });
 
       if (aiMessageError) {
-        console.error('Error al guardar respuesta de IA:', aiMessageError);
+        console.error('Error saving AI response:', aiMessageError);
       }
 
       return new Response(
@@ -480,7 +489,7 @@ async function handleChatMessage(supabase, openaiApiKey, sessionId, message, cor
         }
       );
     } catch (error) {
-      console.error('Error con OpenAI:', error);
+      console.error('Error with OpenAI:', error);
       return new Response(
         JSON.stringify({ error: 'Error al generar respuesta: ' + error.message }),
         { 
@@ -490,7 +499,7 @@ async function handleChatMessage(supabase, openaiApiKey, sessionId, message, cor
       );
     }
   } catch (error) {
-    console.error('Error en handleChatMessage:', error);
+    console.error('Error in handleChatMessage:', error);
     return new Response(
       JSON.stringify({ error: 'Error al procesar mensaje: ' + error.message }),
       { 

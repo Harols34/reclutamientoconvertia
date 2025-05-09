@@ -27,7 +27,7 @@ export const MessageList: React.FC<MessageListProps> = ({ messages }) => {
                 : 'bg-gray-100'
             }`}
           >
-            <p>{msg.content}</p>
+            <p className="whitespace-pre-wrap">{msg.content}</p>
             <div className="text-xs mt-1 opacity-70">
               {new Date(msg.sent_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
             </div>

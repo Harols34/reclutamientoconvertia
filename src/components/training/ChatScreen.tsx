@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { Send, Clock } from 'lucide-react';
 import { MessageList } from './MessageList';
 import { SupabaseClient } from '@supabase/supabase-js';
+import { useToast } from '@/hooks/use-toast';
 
 interface ChatScreenProps {
   sessionId: string | null;
@@ -35,6 +36,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
   const messageInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const timerRef = useRef<number | null>(null);
+  const { toast } = useToast();
 
   // Start timer when chat begins
   useEffect(() => {
@@ -101,10 +103,25 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
       });
       
       if (error) {
+        console.error('Error sending message:', error);
+        toast({
+          title: 'Error',
+          description: error.message || 'Error al enviar mensaje',
+          variant: 'destructive',
+        });
         throw new Error(error.message || 'Error al enviar mensaje');
       }
+      
+      // Response will be added via real-time subscription
+      console.log('Message sent successfully:', data);
+      
     } catch (error) {
-      console.error('Error al enviar mensaje:', error);
+      console.error('Error sending message:', error);
+      toast({
+        title: 'Error',
+        description: 'No se pudo enviar el mensaje',
+        variant: 'destructive',
+      });
     } finally {
       setSubmitting(false);
       // Focus back on the input after sending
