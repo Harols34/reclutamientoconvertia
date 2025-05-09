@@ -34,8 +34,10 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
   const [message, setMessage] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [initialHint, setInitialHint] = useState(true);
+  const [channelEstablished, setChannelEstablished] = useState(false);
   const messageInputRef = useRef<HTMLInputElement>(null);
   const timerRef = useRef<number | null>(null);
+  const channelRef = useRef<any>(null);
   const { toast } = useToast();
 
   // Start timer when chat begins
@@ -75,55 +77,90 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
 
     console.log('Setting up real-time subscription for session:', sessionId);
     
-    // Enable realtime on the channel
-    // Clear any existing subscriptions first
-    supabase.removeAllChannels();
+    // Clean up any existing subscriptions first
+    if (channelRef.current) {
+      console.log('Removing existing channel:', channelRef.current);
+      supabase.removeChannel(channelRef.current);
+      channelRef.current = null;
+    }
     
-    // Subscribe to message changes for this session
-    const channel = supabase
-      .channel(`training-chat-${sessionId}`)
-      .on('postgres_changes', 
-        { 
-          event: 'INSERT', 
-          schema: 'public', 
-          table: 'training_messages', 
-          filter: `session_id=eq.${sessionId}` 
-        }, 
-        (payload) => {
-          console.log('Received real-time message:', payload);
-          if (payload.new) {
-            // Only add the message if it's not already in the list
-            setMessages(prevMessages => {
-              const messageExists = prevMessages.some(msg => msg.id === payload.new.id);
-              if (!messageExists) {
-                // Hide the initial hint once we start receiving messages
-                if (initialHint) setInitialHint(false);
-                
-                console.log('Adding new message to state:', payload.new);
-                return [...prevMessages, payload.new];
-              }
-              return prevMessages;
+    // Create a unique channel name combining the session ID and a timestamp
+    // This helps prevent channel name collisions
+    const channelName = `training-chat-${sessionId}-${Date.now()}`;
+    console.log('Creating new channel:', channelName);
+    
+    try {
+      // Subscribe to message changes for this session
+      const channel = supabase
+        .channel(channelName)
+        .on('postgres_changes', 
+          { 
+            event: 'INSERT', 
+            schema: 'public', 
+            table: 'training_messages', 
+            filter: `session_id=eq.${sessionId}` 
+          }, 
+          (payload) => {
+            console.log('Received real-time message:', payload);
+            if (payload.new) {
+              // Only add the message if it's not already in the list
+              setMessages(prevMessages => {
+                const messageExists = prevMessages.some(msg => msg.id === payload.new.id);
+                if (!messageExists) {
+                  // Hide the initial hint once we start receiving messages
+                  if (initialHint) setInitialHint(false);
+                  
+                  console.log('Adding new message to state:', payload.new);
+                  return [...prevMessages, payload.new];
+                }
+                return prevMessages;
+              });
+            }
+          })
+        .subscribe((status) => {
+          console.log('Subscription status:', status);
+          if (status === 'SUBSCRIBED') {
+            setChannelEstablished(true);
+            console.log('Successfully subscribed to real-time updates');
+          } else {
+            console.error('Failed to subscribe to real-time updates, status:', status);
+            setChannelEstablished(false);
+            toast({
+              title: 'Error de conexión',
+              description: 'No se pudo conectar a tiempo real. Intentando reconectar...',
+              variant: 'destructive',
             });
+            
+            // Attempt to reconnect after a delay
+            setTimeout(() => {
+              if (channelRef.current) {
+                supabase.removeChannel(channelRef.current);
+                channelRef.current = null;
+                // The next render will attempt to reconnect
+              }
+            }, 3000);
           }
-        })
-      .subscribe((status) => {
-        console.log('Subscription status:', status);
-        if (status !== 'SUBSCRIBED') {
-          console.error('Failed to subscribe to real-time updates');
-          toast({
-            title: 'Error',
-            description: 'No se pudo conectar a tiempo real. Por favor, recarga la página.',
-            variant: 'destructive',
-          });
-        }
-      });
+        });
 
-    console.log('Subscription channel created:', channel);
+      console.log('Subscription channel created:', channel);
+      channelRef.current = channel;
         
-    return () => {
-      console.log('Cleaning up subscription');
-      supabase.removeChannel(channel);
-    };
+      return () => {
+        console.log('Cleaning up subscription');
+        if (channel) {
+          supabase.removeChannel(channel);
+          channelRef.current = null;
+        }
+      };
+    } catch (error) {
+      console.error('Error setting up real-time subscription:', error);
+      toast({
+        title: 'Error',
+        description: 'Error al configurar actualizaciones en tiempo real. Por favor, recarga la página.',
+        variant: 'destructive',
+      });
+      return () => {};
+    }
   }, [sessionId, setMessages, supabase, initialHint, toast]);
 
   // Debug: monitor messages changes
@@ -174,6 +211,19 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
       // If initializing chat, hide the hint
       if (initialHint) {
         setInitialHint(false);
+      }
+
+      // Check if we need to re-establish the real-time connection
+      if (!channelEstablished) {
+        console.log('Real-time connection not established. Attempting to reconnect...');
+        // Force a refresh of the real-time connection by cleaning up the current ref
+        if (channelRef.current) {
+          supabase.removeChannel(channelRef.current);
+          channelRef.current = null;
+        }
+        
+        // The effect will attempt to reconnect on next render
+        setChannelEstablished(false);
       }
       
     } catch (error: any) {
@@ -260,6 +310,11 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
             Finalizar
           </Button>
         </div>
+        {!channelEstablished && (
+          <div className="text-yellow-600 text-sm mt-2">
+            Reconectando al servicio de mensajes en tiempo real...
+          </div>
+        )}
       </CardFooter>
     </Card>
   );
