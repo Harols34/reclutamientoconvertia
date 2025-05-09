@@ -31,26 +31,6 @@ const TrainingChat = () => {
     }
   }, [location]);
 
-  // Subscribe to real-time messages when session is established
-  useEffect(() => {
-    if (sessionId) {
-      const channel = supabase
-        .channel(`training-chat-${sessionId}`)
-        .on('postgres_changes', 
-          { event: 'INSERT', schema: 'public', table: 'training_messages', filter: `session_id=eq.${sessionId}` }, 
-          (payload) => {
-            if (payload.new) {
-              setMessages(prevMessages => [...prevMessages, payload.new]);
-            }
-          })
-        .subscribe();
-        
-      return () => {
-        supabase.removeChannel(channel);
-      };
-    }
-  }, [sessionId]);
-
   // Validate and verify the code
   const validateCode = async () => {
     if (!code.trim()) {

@@ -7,12 +7,18 @@ import { Send, Clock, RefreshCw } from 'lucide-react';
 import { MessageList } from './MessageList';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { useToast } from '@/hooks/use-toast';
-import { RealtimeConnection } from '@/utils/supabase-realtime';
+
+interface Message {
+  id: string;
+  sender_type: 'ai' | 'candidate';
+  content: string;
+  sent_at: string;
+}
 
 interface ChatScreenProps {
   sessionId: string | null;
-  messages: any[];
-  setMessages: React.Dispatch<React.SetStateAction<any[]>>;
+  messages: Message[];
+  setMessages: React.Dispatch<React.SetStateAction<Message[]>>;
   timeLeft: number;
   setTimeLeft: React.Dispatch<React.SetStateAction<number>>;
   chatEnded: boolean;
@@ -37,13 +43,10 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
   const [initialHint, setInitialHint] = useState(true);
   const [channelEstablished, setChannelEstablished] = useState(false);
   const [reconnecting, setReconnecting] = useState(false);
-  const [reconnectAttempts, setReconnectAttempts] = useState(0);
   const messageInputRef = useRef<HTMLInputElement>(null);
   const timerRef = useRef<number | null>(null);
-  const realtimeRef = useRef<RealtimeConnection | null>(null);
-  const { toast } = useToast();
   const receivedMessagesRef = useRef<Set<string>>(new Set());
-  const messageQueueRef = useRef<any[]>([]);
+  const { toast } = useToast();
 
   // Start timer when chat begins
   useEffect(() => {
@@ -76,97 +79,15 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
     }
   }, []);
 
-  // Initial fetch of messages in case we missed some
-  useEffect(() => {
-    const fetchExistingMessages = async () => {
-      if (!sessionId) return;
-      
-      try {
-        const { data, error } = await supabase
-          .from('training_messages')
-          .select('*')
-          .eq('session_id', sessionId)
-          .order('sent_at', { ascending: true });
-        
-        if (error) {
-          console.error('Error fetching messages:', error);
-          return;
-        }
-        
-        if (data && data.length > 0) {
-          console.log('Fetched existing messages:', data.length);
-          
-          // Add all messages to the cache to prevent duplicates
-          data.forEach(msg => {
-            receivedMessagesRef.current.add(msg.id);
-          });
-          
-          // Set messages, but only if we don't already have them
-          setMessages(prevMessages => {
-            if (prevMessages.length === 0) {
-              return data;
-            }
-            
-            // Merge messages without duplicates
-            const existingIds = new Set(prevMessages.map(msg => msg.id));
-            const newMessages = data.filter(msg => !existingIds.has(msg.id));
-            
-            if (newMessages.length > 0) {
-              return [...prevMessages, ...newMessages];
-            }
-            
-            return prevMessages;
-          });
-          
-          // Hide hint if we have messages
-          if (initialHint && data.length > 0) {
-            setInitialHint(false);
-          }
-        }
-      } catch (err) {
-        console.error('Error in fetchExistingMessages:', err);
-      }
-    };
-    
-    fetchExistingMessages();
-  }, [sessionId, setMessages, supabase, initialHint]);
-
   // Set up direct subscription to training_messages table
   useEffect(() => {
     if (!sessionId) return;
     
-    // Function to handle new messages
-    const handleNewMessage = (payload: any) => {
-      if (!payload.new || !payload.new.id) return;
-      
-      // Check if we've already processed this message to avoid duplicates
-      if (receivedMessagesRef.current.has(payload.new.id)) {
-        console.log('Skipping duplicate message:', payload.new.id);
-        return;
-      }
-      
-      receivedMessagesRef.current.add(payload.new.id);
-      console.log('New message received from realtime:', payload.new);
-      
-      // Add new message to state
-      setMessages(prevMessages => {
-        // Check if message already exists
-        const messageExists = prevMessages.some(msg => msg.id === payload.new.id);
-        if (!messageExists) {
-          console.log('Adding message to state:', payload.new.sender_type, payload.new.id);
-          
-          // Hide the initial hint once we start receiving messages
-          if (initialHint) setInitialHint(false);
-          
-          return [...prevMessages, payload.new];
-        }
-        return prevMessages;
-      });
-    };
-
+    console.log('Setting up direct subscription for session:', sessionId);
+    
     // Direct subscription to the training_messages table
     const channel = supabase
-      .channel('direct-messages-changes')
+      .channel('direct-messages')
       .on('postgres_changes', 
         { 
           event: 'INSERT', 
@@ -174,34 +95,116 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
           table: 'training_messages',
           filter: `session_id=eq.${sessionId}` 
         }, 
-        handleNewMessage)
+        (payload) => {
+          console.log('Received message from subscription:', payload);
+          
+          if (!payload.new || !payload.new.id) return;
+          
+          // Check if we've already processed this message
+          if (receivedMessagesRef.current.has(payload.new.id)) {
+            console.log('Skipping duplicate message:', payload.new.id);
+            return;
+          }
+          
+          receivedMessagesRef.current.add(payload.new.id);
+          
+          // Add new message to state
+          setMessages(prevMessages => {
+            const messageExists = prevMessages.some(msg => msg.id === payload.new.id);
+            
+            if (!messageExists) {
+              console.log('Adding new message to state:', payload.new);
+              return [...prevMessages, payload.new];
+            }
+            
+            return prevMessages;
+          });
+          
+          // Hide the initial hint once we start receiving messages
+          if (initialHint) setInitialHint(false);
+        })
       .subscribe((status) => {
-        console.log('Direct subscription status:', status);
-        if (status === 'SUBSCRIBED') {
-          setChannelEstablished(true);
-          setReconnecting(false);
-        } else {
-          setChannelEstablished(false);
-          setReconnecting(true);
-        }
+        console.log('Subscription status:', status);
+        setChannelEstablished(status === 'SUBSCRIBED');
+        setReconnecting(status !== 'SUBSCRIBED');
       });
     
-    // Clean up the subscription when the component unmounts
+    // Load initial messages
+    fetchInitialMessages();
+    
+    // Clean up subscription
     return () => {
+      console.log('Cleaning up subscription');
       supabase.removeChannel(channel);
     };
   }, [sessionId, setMessages, supabase, initialHint]);
+
+  // Function to fetch initial messages
+  const fetchInitialMessages = async () => {
+    if (!sessionId) return;
+    
+    try {
+      console.log('Fetching initial messages for session:', sessionId);
+      
+      const { data, error } = await supabase
+        .from('training_messages')
+        .select('*')
+        .eq('session_id', sessionId)
+        .order('sent_at', { ascending: true });
+      
+      if (error) {
+        console.error('Error fetching messages:', error);
+        return;
+      }
+      
+      if (data && data.length > 0) {
+        console.log('Fetched initial messages:', data.length);
+        
+        // Mark all messages as received
+        data.forEach(msg => receivedMessagesRef.current.add(msg.id));
+        
+        // Add messages to state if not already there
+        setMessages(prevMessages => {
+          if (prevMessages.length === 0) {
+            return data;
+          }
+          
+          // Only add messages that don't already exist
+          const existingIds = new Set(prevMessages.map(msg => msg.id));
+          const newMessages = data.filter(msg => !existingIds.has(msg.id));
+          
+          if (newMessages.length > 0) {
+            return [...prevMessages, ...newMessages];
+          }
+          
+          return prevMessages;
+        });
+        
+        // Hide hint if we have messages
+        if (data.length > 0) setInitialHint(false);
+      }
+    } catch (err) {
+      console.error('Error in fetchInitialMessages:', err);
+    }
+  };
 
   // Debug: monitor messages changes
   useEffect(() => {
     console.log('Messages updated in ChatScreen:', messages.length);
     
-    // Check for AI messages
+    // Log message counts by type
     const aiMessages = messages.filter(msg => msg.sender_type === 'ai');
-    console.log('AI messages:', aiMessages.length);
+    const candidateMessages = messages.filter(msg => msg.sender_type === 'candidate');
     
-    if (aiMessages.length > 0) {
-      console.log('Last AI message:', aiMessages[aiMessages.length - 1].content.substring(0, 50) + '...');
+    console.log('AI messages:', aiMessages.length);
+    console.log('Candidate messages:', candidateMessages.length);
+    
+    if (messages.length > 0) {
+      console.log('Last message:', {
+        id: messages[messages.length - 1].id,
+        type: messages[messages.length - 1].sender_type,
+        content: messages[messages.length - 1].content.substring(0, 50) + '...'
+      });
     }
   }, [messages]);
 
@@ -250,11 +253,6 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
         setInitialHint(false);
       }
       
-      // Manually check for the AI response if it's not received via real-time
-      setTimeout(() => {
-        refetchMessages();
-      }, 3000);
-      
     } catch (error: any) {
       console.error('Error sending message:', error);
       toast({
@@ -285,62 +283,18 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   };
 
-  // Force reconnect function
-  const forceReconnect = async () => {
+  // Manual refresh function
+  const refreshMessages = async () => {
+    console.log('Manually refreshing messages...');
     setReconnecting(true);
+    
     toast({
-      title: 'Reconectando',
-      description: 'Intentando reconectar al servicio de mensajes en tiempo real...',
+      title: 'Actualizando mensajes',
+      description: 'Obteniendo los mensajes más recientes...',
     });
     
-    // Refetch messages to ensure we haven't missed any
-    await refetchMessages();
-    
+    await fetchInitialMessages();
     setReconnecting(false);
-    setChannelEstablished(true);
-  };
-  
-  // Function to manually fetch messages
-  const refetchMessages = async () => {
-    if (!sessionId) return;
-    
-    try {
-      console.log('Manually refetching messages...');
-      const { data, error } = await supabase
-        .from('training_messages')
-        .select('*')
-        .eq('session_id', sessionId)
-        .order('sent_at', { ascending: true });
-      
-      if (error) {
-        console.error('Error refetching messages:', error);
-        return;
-      }
-      
-      if (data && data.length > 0) {
-        console.log('Refetched messages:', data.length);
-        
-        // Update messages state without duplicates
-        setMessages(prevMessages => {
-          const existingIds = new Set(prevMessages.map(msg => msg.id));
-          const newMessages = data.filter(msg => !existingIds.has(msg.id));
-          
-          data.forEach(msg => {
-            receivedMessagesRef.current.add(msg.id);
-          });
-          
-          if (newMessages.length > 0) {
-            console.log('Adding', newMessages.length, 'new messages from refetch');
-            return [...prevMessages, ...newMessages];
-          }
-          
-          console.log('No new messages found in refetch');
-          return prevMessages;
-        });
-      }
-    } catch (err) {
-      console.error('Error in refetchMessages:', err);
-    }
   };
 
   return (
@@ -368,6 +322,12 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
             </div>
           )}
           <MessageList messages={messages} />
+          
+          {reconnecting && (
+            <div className="flex justify-center my-2">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-900"></div>
+            </div>
+          )}
         </div>
       </CardContent>
       <CardFooter className="border-t p-4">
@@ -402,12 +362,17 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
             <Button 
               variant="outline" 
               size="sm" 
-              onClick={refetchMessages}
+              onClick={refreshMessages}
               className="text-xs"
             >
               Refrescar mensajes
               <RefreshCw className={`h-3 w-3 ml-1 ${submitting ? 'animate-spin' : ''}`} />
             </Button>
+          </div>
+          <div className="text-xs text-center text-gray-500 mt-1">
+            {channelEstablished ? 
+              '✓ Conectado en tiempo real' : 
+              'No conectado en tiempo real - usa el botón de refrescar si faltan mensajes'}
           </div>
         </div>
       </CardFooter>
