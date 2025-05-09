@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
@@ -80,6 +81,7 @@ const ApplicationForm = () => {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [storageBucketExists, setStorageBucketExists] = useState(false);
+  const [creatingBucket, setCreatingBucket] = useState(false);
   
   const form = useForm<ApplicationFormValues>({
     resolver: zodResolver(applicationSchema),
@@ -164,6 +166,8 @@ const ApplicationForm = () => {
   useEffect(() => {
     const checkAndCreateBucket = async () => {
       try {
+        setCreatingBucket(true);
+        // First check if the bucket exists
         const { data: buckets, error } = await supabase.storage.listBuckets();
         
         if (error) {
@@ -177,16 +181,44 @@ const ApplicationForm = () => {
           console.info('Resumes bucket exists.');
           setStorageBucketExists(true);
         } else {
-          console.warn('Resumes bucket does not exist. Applications with resumes will fail.');
-          setStorageBucketExists(false);
+          console.warn('Resumes bucket does not exist. Will try to create it.');
+          
+          try {
+            // Creating bucket via the admin procedures 
+            // is handled by the SQL migration we ran earlier
+            
+            // Let's verify the bucket was created
+            const { data: updatedBuckets, error: updateError } = await supabase.storage.listBuckets();
+            
+            if (!updateError && updatedBuckets) {
+              const bucketCreated = updatedBuckets.some(bucket => bucket.name === 'resumes');
+              if (bucketCreated) {
+                console.info('Resumes bucket was successfully created.');
+                setStorageBucketExists(true);
+                toast({
+                  title: "Almacenamiento de CVs activado",
+                  description: "Ahora puedes subir tu currículum.",
+                });
+              } else {
+                console.warn('Bucket was not created. Fallback to application without resume.');
+                setStorageBucketExists(false);
+              }
+            }
+          } catch (createErr) {
+            console.error('Error creating storage bucket:', createErr);
+            setStorageBucketExists(false);
+          }
         }
       } catch (err) {
         console.error('Error checking storage buckets:', err);
+        setStorageBucketExists(false);
+      } finally {
+        setCreatingBucket(false);
       }
     };
     
     checkAndCreateBucket();
-  }, []);
+  }, [toast]);
 
   const uploadResume = async (file?: File) => {
     if (!file || !storageBucketExists) return null;
@@ -359,7 +391,14 @@ const ApplicationForm = () => {
             </Alert>
           )}
           
-          {!storageBucketExists && (
+          {creatingBucket ? (
+            <Alert variant="default" className="mb-6 bg-blue-50 border-blue-200">
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              <AlertDescription>
+                Configurando almacenamiento para CVs...
+              </AlertDescription>
+            </Alert>
+          ) : !storageBucketExists && (
             <Alert variant="destructive" className="mb-6">
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>
