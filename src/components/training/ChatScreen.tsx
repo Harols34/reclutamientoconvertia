@@ -7,6 +7,7 @@ import { Send, Clock } from 'lucide-react';
 import { MessageList } from './MessageList';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { useToast } from '@/hooks/use-toast';
+import { RealtimeConnection } from '@/utils/supabase-realtime';
 
 interface ChatScreenProps {
   sessionId: string | null;
@@ -35,10 +36,12 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
   const [submitting, setSubmitting] = useState(false);
   const [initialHint, setInitialHint] = useState(true);
   const [channelEstablished, setChannelEstablished] = useState(false);
+  const [reconnecting, setReconnecting] = useState(false);
   const messageInputRef = useRef<HTMLInputElement>(null);
   const timerRef = useRef<number | null>(null);
-  const channelRef = useRef<any>(null);
+  const realtimeRef = useRef<RealtimeConnection | null>(null);
   const { toast } = useToast();
+  const receivedMessagesRef = useRef<Set<string>>(new Set());
 
   // Start timer when chat begins
   useEffect(() => {
@@ -74,94 +77,57 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
   // Set up real-time subscription for messages
   useEffect(() => {
     if (!sessionId) return;
-
-    console.log('Setting up real-time subscription for session:', sessionId);
     
-    // Clean up any existing subscriptions first
-    if (channelRef.current) {
-      console.log('Removing existing channel:', channelRef.current);
-      supabase.removeChannel(channelRef.current);
-      channelRef.current = null;
-    }
-    
-    // Create a unique channel name combining the session ID and a timestamp
-    // This helps prevent channel name collisions
-    const channelName = `training-chat-${sessionId}-${Date.now()}`;
-    console.log('Creating new channel:', channelName);
-    
-    try {
-      // Subscribe to message changes for this session
-      const channel = supabase
-        .channel(channelName)
-        .on('postgres_changes', 
-          { 
-            event: 'INSERT', 
-            schema: 'public', 
-            table: 'training_messages', 
-            filter: `session_id=eq.${sessionId}` 
-          }, 
-          (payload) => {
-            console.log('Received real-time message:', payload);
-            if (payload.new) {
-              // Only add the message if it's not already in the list
-              setMessages(prevMessages => {
-                const messageExists = prevMessages.some(msg => msg.id === payload.new.id);
-                if (!messageExists) {
-                  // Hide the initial hint once we start receiving messages
-                  if (initialHint) setInitialHint(false);
-                  
-                  console.log('Adding new message to state:', payload.new);
-                  return [...prevMessages, payload.new];
-                }
-                return prevMessages;
-              });
-            }
-          })
-        .subscribe((status) => {
-          console.log('Subscription status:', status);
-          if (status === 'SUBSCRIBED') {
-            setChannelEstablished(true);
-            console.log('Successfully subscribed to real-time updates');
-          } else {
-            console.error('Failed to subscribe to real-time updates, status:', status);
-            setChannelEstablished(false);
-            toast({
-              title: 'Error de conexión',
-              description: 'No se pudo conectar a tiempo real. Intentando reconectar...',
-              variant: 'destructive',
-            });
-            
-            // Attempt to reconnect after a delay
-            setTimeout(() => {
-              if (channelRef.current) {
-                supabase.removeChannel(channelRef.current);
-                channelRef.current = null;
-                // The next render will attempt to reconnect
-              }
-            }, 3000);
-          }
-        });
-
-      console.log('Subscription channel created:', channel);
-      channelRef.current = channel;
-        
-      return () => {
-        console.log('Cleaning up subscription');
-        if (channel) {
-          supabase.removeChannel(channel);
-          channelRef.current = null;
+    // Function to handle new messages
+    const handleNewMessage = (payload: any) => {
+      if (!payload.new || !payload.new.id) return;
+      
+      // Check if we've already processed this message to avoid duplicates
+      if (receivedMessagesRef.current.has(payload.new.id)) {
+        console.log('Skipping duplicate message:', payload.new.id);
+        return;
+      }
+      
+      receivedMessagesRef.current.add(payload.new.id);
+      
+      // Add new message to state
+      setMessages(prevMessages => {
+        const messageExists = prevMessages.some(msg => msg.id === payload.new.id);
+        if (!messageExists) {
+          console.log('Adding new message to state:', payload.new);
+          
+          // Hide the initial hint once we start receiving messages
+          if (initialHint) setInitialHint(false);
+          
+          return [...prevMessages, payload.new];
         }
-      };
-    } catch (error) {
-      console.error('Error setting up real-time subscription:', error);
-      toast({
-        title: 'Error',
-        description: 'Error al configurar actualizaciones en tiempo real. Por favor, recarga la página.',
-        variant: 'destructive',
+        return prevMessages;
       });
-      return () => {};
-    }
-  }, [sessionId, setMessages, supabase, initialHint, toast]);
+    };
+
+    // Create the realtime connection
+    const realtime = new RealtimeConnection(supabase, {
+      sessionId,
+      onMessage: handleNewMessage,
+      onConnectionChange: (connected) => {
+        setChannelEstablished(connected);
+        setReconnecting(!connected);
+      },
+      retryLimit: 30, // Increase retry limit
+      retryDelay: 2000 // Slightly shorter retry delay
+    });
+    
+    realtimeRef.current = realtime;
+    realtime.connect();
+
+    // Clean up the realtime connection when the component unmounts
+    return () => {
+      if (realtimeRef.current) {
+        realtimeRef.current.disconnect();
+        realtimeRef.current = null;
+      }
+    };
+  }, [sessionId, setMessages, supabase, initialHint]);
 
   // Debug: monitor messages changes
   useEffect(() => {
@@ -214,16 +180,12 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
       }
 
       // Check if we need to re-establish the real-time connection
-      if (!channelEstablished) {
+      if (!channelEstablished && realtimeRef.current) {
         console.log('Real-time connection not established. Attempting to reconnect...');
-        // Force a refresh of the real-time connection by cleaning up the current ref
-        if (channelRef.current) {
-          supabase.removeChannel(channelRef.current);
-          channelRef.current = null;
-        }
-        
-        // The effect will attempt to reconnect on next render
-        setChannelEstablished(false);
+        realtimeRef.current.disconnect();
+        setTimeout(() => {
+          if (realtimeRef.current) realtimeRef.current.connect();
+        }, 1000);
       }
       
     } catch (error: any) {
@@ -256,6 +218,22 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   };
 
+  // Force reconnect function
+  const forceReconnect = () => {
+    if (realtimeRef.current) {
+      setReconnecting(true);
+      toast({
+        title: 'Reconectando',
+        description: 'Intentando reconectar al servicio de mensajes en tiempo real...',
+      });
+      
+      realtimeRef.current.disconnect();
+      setTimeout(() => {
+        if (realtimeRef.current) realtimeRef.current.connect();
+      }, 1000);
+    }
+  };
+
   return (
     <Card className="w-full max-w-4xl mx-auto">
       <CardHeader className="border-b">
@@ -284,37 +262,48 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
         </div>
       </CardContent>
       <CardFooter className="border-t p-4">
-        <div className="flex w-full gap-2">
-          <Input
-            ref={messageInputRef}
-            placeholder="Escribe tu mensaje..."
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            onKeyPress={handleKeyPress}
-            disabled={submitting || chatEnded}
-            autoFocus
-            className="flex-1"
-          />
-          <Button
-            onClick={sendMessage}
-            disabled={submitting || chatEnded || !message.trim()}
-            className="bg-hrm-dark-cyan hover:bg-hrm-steel-blue"
-          >
-            <Send className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="destructive"
-            onClick={onEndChat}
-            disabled={chatEnded}
-          >
-            Finalizar
-          </Button>
-        </div>
-        {!channelEstablished && (
-          <div className="text-yellow-600 text-sm mt-2">
-            Reconectando al servicio de mensajes en tiempo real...
+        <div className="flex flex-col w-full gap-2">
+          <div className="flex w-full gap-2">
+            <Input
+              ref={messageInputRef}
+              placeholder="Escribe tu mensaje..."
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              onKeyPress={handleKeyPress}
+              disabled={submitting || chatEnded}
+              autoFocus
+              className="flex-1"
+            />
+            <Button
+              onClick={sendMessage}
+              disabled={submitting || chatEnded || !message.trim()}
+              className="bg-hrm-dark-cyan hover:bg-hrm-steel-blue"
+            >
+              <Send className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={onEndChat}
+              disabled={chatEnded}
+            >
+              Finalizar
+            </Button>
           </div>
-        )}
+          {!channelEstablished && (
+            <div className="flex items-center justify-between text-amber-600 text-sm mt-2 p-2 bg-amber-50 rounded">
+              <span>Reconectando al servicio de mensajes en tiempo real...</span>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={forceReconnect} 
+                className="text-xs"
+                disabled={reconnecting}
+              >
+                Forzar reconexión
+              </Button>
+            </div>
+          )}
+        </div>
       </CardFooter>
     </Card>
   );
