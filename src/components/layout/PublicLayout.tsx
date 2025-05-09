@@ -23,11 +23,6 @@ const PublicLayout = () => {
                 </a>
               </li>
               <li>
-                <Link to="/entrenamiento" className="text-gray-600 hover:text-hrm-dark-cyan">
-                  Chat Entrenamiento
-                </Link>
-              </li>
-              <li>
                 <Link to="/admin/login" className="text-gray-600 hover:text-hrm-dark-cyan">
                   Admin
                 </Link>

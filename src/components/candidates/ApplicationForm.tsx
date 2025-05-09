@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
@@ -25,12 +24,10 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { toast } from '@/components/ui/sonner';
-import { Loader2, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Loader2, AlertCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Progress } from '@/components/ui/progress';
-import { ensureBucketExists, uploadFile } from '@/services/file-storage';
 
 type JobType = {
   id: string;
@@ -74,7 +71,7 @@ type ApplicationFormValues = z.infer<typeof applicationSchema>;
 const ApplicationForm = () => {
   const { jobId } = useParams<{ jobId: string }>();
   const navigate = useNavigate();
-  const { toast: hookToast } = useToast();
+  const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [job, setJob] = useState<JobType | null>(null);
   const [loading, setLoading] = useState(true);
@@ -82,9 +79,6 @@ const ApplicationForm = () => {
   const [uploadingResume, setUploadingResume] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
-  const [storageBucketExists, setStorageBucketExists] = useState(false);
-  const [creatingBucket, setCreatingBucket] = useState(false);
-  const [bucketCreationAttempted, setBucketCreationAttempted] = useState(false);
   
   const form = useForm<ApplicationFormValues>({
     resolver: zodResolver(applicationSchema),
@@ -98,7 +92,6 @@ const ApplicationForm = () => {
     },
   });
 
-  // Fetch job details
   useEffect(() => {
     const fetchJob = async () => {
       if (!jobId) return;
@@ -164,77 +157,77 @@ const ApplicationForm = () => {
     };
     
     fetchJob();
-  }, [jobId]);
+  }, [jobId, toast]);
 
-  // Check and ensure storage bucket exists
+  // Check if the storage bucket exists
   useEffect(() => {
     const checkBucket = async () => {
       try {
-        setCreatingBucket(true);
-        console.log('Verificando bucket de almacenamiento de CVs...');
+        const { data: buckets, error } = await supabase.storage.listBuckets();
         
-        // Use our utility function to check/create bucket
-        const bucketExists = await ensureBucketExists('resumes');
+        if (error) {
+          console.error('Error checking storage buckets:', error);
+          return;
+        }
         
-        setStorageBucketExists(bucketExists);
-        setBucketCreationAttempted(true);
+        const resumesBucketExists = buckets?.some(bucket => bucket.name === 'resumes');
         
-        if (bucketExists) {
-          console.log('Bucket de CVs verificado correctamente');
-          toast.success('Sistema de almacenamiento de CVs activado');
+        if (resumesBucketExists) {
+          console.info('Resumes bucket exists.');
         } else {
-          console.error('No se pudo crear el bucket de CVs');
-          toast.error('No se pudo configurar el almacenamiento de CVs');
+          console.error('Resumes bucket does not exist. The application will not be able to upload resumes.');
         }
       } catch (err) {
-        console.error('Error general en comprobación de bucket:', err);
-        setStorageBucketExists(false);
-      } finally {
-        setCreatingBucket(false);
+        console.error('Error checking storage buckets:', err);
       }
     };
     
     checkBucket();
   }, []);
 
-  // Resume upload function using our utility
   const uploadResume = async (file?: File) => {
     if (!file) return null;
     
     try {
       setUploadingResume(true);
       setUploadProgress(10);
+      console.info('Starting file upload to resumes bucket');
       
-      // If bucket doesn't exist yet but we haven't tried to create it during initial check
-      if (!storageBucketExists && !bucketCreationAttempted) {
-        console.log('Intentando crear bucket antes de subir...');
-        const bucketCreated = await ensureBucketExists('resumes');
-        setStorageBucketExists(bucketCreated);
-        
-        if (!bucketCreated) {
-          throw new Error('No se pudo crear el sistema de almacenamiento de CVs');
-        }
-      }
+      const fileExt = file.name.split('.').pop() || '';
+      const sanitizedFileName = file.name.replace(/[^a-zA-Z0-9._]/g, '_');
+      const fileName = `${Date.now()}_${sanitizedFileName}`;
       
       setUploadProgress(30);
+
+      // Upload the file to the resumes bucket
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('resumes')
+        .upload(fileName, file, {
+          cacheControl: '3600',
+          upsert: false
+        });
       
-      // Use our utility function to upload the file
-      const progressCallback = (progress: number) => {
-        setUploadProgress(30 + Math.round(progress * 60)); // Scale to our 30-90% range
-      };
+      setUploadProgress(70);
       
-      const resumeUrl = await uploadFile(file, 'resumes');
-      
-      setUploadProgress(100);
-      
-      if (!resumeUrl) {
-        throw new Error('Error al subir el archivo');
+      if (uploadError) {
+        console.error('Resume upload error:', uploadError);
+        throw new Error('Error al subir el currículum: ' + uploadError.message);
       }
       
-      console.info('CV subido exitosamente:', resumeUrl);
+      setUploadProgress(90);
+      
+      // Get the public URL for the file
+      const { data: publicUrlData } = supabase.storage
+        .from('resumes')
+        .getPublicUrl(fileName);
+        
+      const resumeUrl = publicUrlData?.publicUrl;
+      console.info('Resume uploaded successfully:', resumeUrl);
+      setUploadProgress(100);
+      
       return resumeUrl;
-    } catch (err: any) {
-      console.error('Error al subir CV:', err);
+    } catch (err) {
+      console.error('Error uploading resume:', err);
       throw err;
     } finally {
       setUploadingResume(false);
@@ -254,23 +247,24 @@ const ApplicationForm = () => {
       if (values.resume) {
         try {
           resumeUrl = await uploadResume(values.resume);
-          if (!resumeUrl && storageBucketExists) {
-            toast.warning("Problema al subir el currículum. Tu aplicación será enviada sin CV.");
-          }
         } catch (uploadErr: any) {
           console.error('Error uploading resume:', uploadErr);
-          toast.warning(`Problema al subir el currículum. Tu aplicación será enviada sin CV.`);
+          toast({
+            variant: "destructive",
+            title: "Error",
+            description: `Problema al subir el currículum: ${uploadErr.message}`,
+          });
           // Continúe con la aplicación incluso si no se pudo cargar el CV
         }
       }
       
       console.info('Submitting application with resumeUrl:', resumeUrl);
       
-      // Call our edge function to create the application - using the full URL including project ID
+      // Call our edge function to create the application - using the full URL
       const response = await fetch('https://kugocdtesaczbfrwblsi.supabase.co/functions/v1/create-application', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({
           firstName: values.firstName,
@@ -293,20 +287,17 @@ const ApplicationForm = () => {
       const responseData = await response.json();
       console.info('Application submitted successfully:', responseData);
       
-      hookToast({
+      toast({
         title: "Aplicación enviada",
         description: "Tu aplicación ha sido enviada correctamente.",
       });
-      
-      // Also show a toast notification
-      toast.success("Tu aplicación ha sido enviada correctamente");
       
       // Redirect to a thank you page
       navigate('/gracias');
     } catch (err: any) {
       console.error('Error submitting application:', err);
       setSubmitError(err.message || 'Error al enviar la aplicación');
-      hookToast({
+      toast({
         variant: "destructive",
         title: "Error",
         description: `Hubo un problema al enviar tu aplicación: ${err.message || 'Error al enviar la aplicación'}`,
@@ -344,8 +335,8 @@ const ApplicationForm = () => {
     <div className="hrm-container max-w-2xl mx-auto">
       <Card className="shadow-md">
         <CardHeader>
-          <CardTitle className="text-hrm-dark-cyan">Aplicando para: {job?.title}</CardTitle>
-          <CardDescription>Departamento: {job?.department}</CardDescription>
+          <CardTitle className="text-hrm-dark-cyan">Aplicando para: {job.title}</CardTitle>
+          <CardDescription>Departamento: {job.department}</CardDescription>
         </CardHeader>
         <CardContent>
           {submitError && (
@@ -357,36 +348,8 @@ const ApplicationForm = () => {
             </Alert>
           )}
           
-          {creatingBucket ? (
-            <Alert variant="default" className="mb-6 bg-blue-50 border-blue-200">
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              <AlertDescription>
-                Configurando almacenamiento para CVs...
-              </AlertDescription>
-            </Alert>
-          ) : (
-            <>
-              {storageBucketExists ? (
-                <Alert variant="default" className="mb-6 bg-green-50 border-green-200">
-                  <CheckCircle2 className="h-4 w-4 mr-2 text-green-500" />
-                  <AlertDescription>
-                    Sistema de almacenamiento de CVs activo
-                  </AlertDescription>
-                </Alert>
-              ) : (
-                <Alert variant="destructive" className="mb-6">
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertDescription>
-                    El sistema de almacenamiento de CVs no está disponible. Tu aplicación será enviada sin CV.
-                  </AlertDescription>
-                </Alert>
-              )}
-            </>
-          )}
-          
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-              
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <FormField
                   control={form.control}
@@ -489,7 +452,6 @@ const ApplicationForm = () => {
                             onChange(file);
                           }
                         }}
-                        disabled={!storageBucketExists}
                         {...rest}
                       />
                     </FormControl>
