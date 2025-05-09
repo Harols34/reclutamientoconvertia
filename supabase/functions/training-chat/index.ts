@@ -1,4 +1,3 @@
-
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
@@ -17,11 +16,16 @@ serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL') || '';
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
-    const openaiApiKey = Deno.env.get('OPENAI_API_KEY') || '';
+    const openaiApiKey = Deno.env.get('OPENAI_API_KEY') || Deno.env.get('OPENAI') || '';
 
     // Verificar que las variables de entorno estén configuradas
     if (!supabaseUrl || !supabaseServiceKey) {
       throw new Error('Faltan variables de entorno requeridas para Supabase');
+    }
+
+    if (!openaiApiKey) {
+      console.error('Falta la clave API de OpenAI');
+      throw new Error('Falta la clave API de OpenAI. Configura OPENAI_API_KEY o OPENAI en los secretos de funciones.');
     }
 
     // Inicializar el cliente de Supabase con la clave de servicio
@@ -50,15 +54,8 @@ serve(async (req) => {
     } else if (action === 'start-session') {
       return await handleStartSession(supabase, trainingCode, candidateName, corsHeaders);
     } else if (action === 'send-message') {
-      // Verificar si necesitamos la clave de OpenAI
-      if (!openaiApiKey) {
-        throw new Error('Falta la clave API de OpenAI para esta acción');
-      }
       return await handleChatMessage(supabase, openaiApiKey, sessionId, message, corsHeaders);
     } else if (action === 'end-session') {
-      if (!openaiApiKey) {
-        throw new Error('Falta la clave API de OpenAI para esta acción');
-      }
       return await handleEndSession(supabase, openaiApiKey, sessionId, corsHeaders);
     } else {
       throw new Error('Acción no válida');

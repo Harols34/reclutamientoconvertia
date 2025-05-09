@@ -34,7 +34,6 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
   const [message, setMessage] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const messageInputRef = useRef<HTMLInputElement>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
   const timerRef = useRef<number | null>(null);
   const { toast } = useToast();
 
@@ -69,13 +68,6 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
     }
   }, []);
 
-  // Scroll to bottom when new messages arrive
-  useEffect(() => {
-    if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
-    }
-  }, [messages]);
-
   // Set up real-time subscription for messages
   useEffect(() => {
     if (!sessionId) return;
@@ -105,7 +97,9 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
             });
           }
         })
-      .subscribe();
+      .subscribe((status) => {
+        console.log('Subscription status:', status);
+      });
 
     console.log('Subscription channel created:', channel);
         
@@ -159,7 +153,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
       console.error('Error sending message:', error);
       toast({
         title: 'Error',
-        description: 'No se pudo enviar el mensaje',
+        description: 'No se pudo enviar el mensaje. Por favor, intente de nuevo.',
         variant: 'destructive',
       });
     } finally {
@@ -204,7 +198,6 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
       <CardContent className="p-0">
         <div className="h-[400px] overflow-y-auto p-4">
           <MessageList messages={messages} />
-          <div ref={messagesEndRef} />
         </div>
       </CardContent>
       <CardFooter className="border-t p-4">
@@ -217,6 +210,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
             onKeyPress={handleKeyPress}
             disabled={submitting || chatEnded}
             autoFocus
+            className="flex-1"
           />
           <Button
             onClick={sendMessage}
