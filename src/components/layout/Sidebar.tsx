@@ -1,11 +1,13 @@
+
 import React from 'react';
 import { NavLink, Link, useNavigate } from 'react-router-dom';
-import { Calendar, Database, File, Home, LogOut, MessageCircle, Search, Settings, Users } from 'lucide-react';
+import { Calendar, Database, File, Home, LogOut, MessageCircle, Search, Settings, Users, Code } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader } from '@/components/ui/sidebar';
 import ConvertIALogo from '@/assets/convert-ia-logo';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+
 const mainNavItems = [{
   icon: Home,
   label: 'Dashboard',
@@ -27,6 +29,10 @@ const mainNavItems = [{
   label: 'Chatbot',
   href: '/admin/chatbot'
 }, {
+  icon: Code,
+  label: 'Códigos Entrenamiento',
+  href: '/admin/training-codes'
+}, {
   icon: Database,
   label: 'Reportes',
   href: '/admin/reports'
@@ -35,6 +41,7 @@ const mainNavItems = [{
   label: 'Configuración',
   href: '/admin/settings'
 }];
+
 const AdminSidebar = () => {
   const navigate = useNavigate();
   const {
@@ -92,4 +99,5 @@ const AdminSidebar = () => {
       </SidebarFooter>
     </Sidebar>;
 };
+
 export default AdminSidebar;

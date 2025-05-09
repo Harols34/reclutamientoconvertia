@@ -1,39 +1,197 @@
 
-project_id = "kugocdtesaczbfrwblsi"
+# A string used to distinguish different Supabase projects on the same host. Defaults to the
+# working directory name when running `supabase init`.
+project_id = "convert-ia"
 
 [api]
 enabled = true
+# Port to use for the API URL.
 port = 54321
+# Schemas to expose in your API. Tables, views and stored procedures in this schema will get API
+# endpoints. public and storage are always included.
 schemas = ["public", "storage", "graphql_public"]
+# Extra schemas to add to the search_path of every request. public is always included.
+extra_search_path = ["public", "extensions"]
+# The maximum number of rows returns from a view, table, or stored procedure. Limits payload size
+# for accidental or malicious requests.
+max_rows = 1000
 
 [db]
+# Port to use for the local database URL.
 port = 54322
+# Port used by db diff command to initialize the shadow database.
 shadow_port = 54320
+# The database major version to use. This has to be the same as your remote database's. Run `SHOW
+# server_version;` on the remote database to check.
 major_version = 15
 
-[studio]
-enabled = true
-port = 54323
-
-[inbucket]
-enabled = true
-port = 54324
-
-[auth]
-enabled = true
-port = 54325
+[db.pooler]
+enabled = false
+# Port to use for the local connection pooler.
+port = 54329
+# The maximum number of connections the pooler will keep in the pool. This is the hard limit on
+# the maximum number of database sessions that can be active at any given time.
+pool_size = 10
+# The maximum expression in seconds a client is allowed to be idle before it will get kicked out
+# of the pool.
+idle_timeout = 3600
+# Max connections in the pool. Scales up from default until this limit is reached (max_db_connections = pool_size * max_client_conn)
+max_client_conn = 10
 
 [realtime]
 enabled = true
+# Bind realtime via either IPv4 or IPv6. (default: IPv6)
+# ip_version = "IPv6"
+# The maximum number of concurrent Realtime connections allowed on this server. (default: 1000, 100 if server has less than 1GB memory)
+# max_connections = 1000
+# Allows "logical" connections to reuse network connections. Enabled by default
+# reuse_port = true
+# Duration in seconds to wait for user to respond to a connection challenge request
+# connection_challenge_timeout = 30
+# Duration in seconds to wait for a client to reply to a control message
+# client_message_timeout = 30
+# Timeout for channel join hooks in seconds.
+# hook_message_timeout = 3
+# Duration in seconds after which to destroy the context of an idle Realtime service
+# timeout = 15
+# Duration in seconds between keep-alives (garbage collection) for Realtime service
+# vacuum_timer = 5
+# Maximum number of database columns which a user can select for a Realtime channel
+# max_columns_length = 32
+# Duration in seconds for how long Realtime disconnected clients are stored in memory
+# max_disconnection_seconds = 30
+# Duration in seconds to wait for user to send a message for opened stream
+# user_message_timeout = 20
+# The number of seconds the server has to acknowledge a client message
+# message_acknowledgment_timeout = 3
+
+[studio]
+enabled = true
+# Port to use for Supabase Studio.
+port = 54323
+# External URL of the API server that frontend connects to.
+api_url = "http://localhost"
+
+# Email testing server. Emails sent with the local dev setup are not actually sent - rather, they
+# are monitored, and you can view the emails that would have been sent from the web interface.
+[inbucket]
+enabled = true
+# Port to use for the email testing server web interface.
+port = 54324
+# Uncomment to expose additional ports for testing user applications that send emails.
+# smtp_port = 54325
+# pop3_port = 54326
 
 [storage]
 enabled = true
+# The maximum file size allowed (e.g. "5MB", "500KB").
+file_size_limit = "50MiB"
 
-[edge-functions]
+[auth]
 enabled = true
+# The base URL of your website. Used as an allow-list for redirects and for constructing URLs used
+# in emails.
+site_url = "http://localhost:3000"
+# A list of *exact* URLs that auth providers are permitted to redirect to post authentication.
+additional_redirect_urls = ["https://localhost:3000"]
+# How long tokens are valid for, in seconds. Defaults to 3600 (1 hour), maximum 604,800 (1 week).
+jwt_expiry = 3600
+# If disabled, the refresh token will never expire.
+enable_refresh_token_rotation = true
+# Allows refresh tokens to be reused after expiry, up to the specified interval in seconds.
+# Requires enable_refresh_token_rotation = true.
+refresh_token_reuse_interval = 10
+# Allow/disallow new user signups to your project.
+enable_signup = true
 
-[functions.save-candidate-data]
-verify_jwt = true
+[auth.email]
+# Allow/disallow new user signups via email to your project.
+enable_signup = true
+# If enabled, a user will be required to confirm any email change on both the old, and new email
+# addresses. If disabled, only the new email is required to confirm.
+double_confirm_changes = true
+# If enabled, users need to confirm their email address before signing in.
+enable_confirmations = false
 
-[functions.extract-pdf-text]
-verify_jwt = true
+# Uncomment to customize email template
+# [auth.email.template.invite]
+# subject = "You have been invited"
+# content_path = "./supabase/templates/invite.html"
+
+[auth.sms]
+# Allow/disallow new user signups via SMS to your project.
+enable_signup = true
+# If enabled, users need to confirm their phone number before signing in.
+enable_confirmations = false
+
+# Configure one of the supported SMS providers: twilio, messagebird, textlocal, vonage
+[auth.sms.twilio]
+enabled = false
+account_sid = ""
+message_service_sid = ""
+# DO NOT commit your Twilio auth token to git. Use environment variable substitution instead:
+auth_token = "env(SUPABASE_AUTH_SMS_TWILIO_AUTH_TOKEN)"
+
+# Use an external OAuth provider. The full list of providers are: apple, azure, bitbucket,
+# discord, facebook, github, gitlab, google, keycloak, linkedin, notion, twitch, twitter,
+# slack, spotify, workos, zoom.
+[auth.external.apple]
+enabled = false
+client_id = ""
+# DO NOT commit your OAuth provider secret to git. Use environment variable substitution instead:
+secret = "env(SUPABASE_AUTH_EXTERNAL_APPLE_SECRET)"
+# Overrides the default auth redirectUrl.
+redirect_uri = ""
+# For apple oauth, the team id to be used.
+team_id = ""
+# For apple oauth, the iOS key id which can be found in the Apple Developer Portal.
+key_id = ""
+# For apple oauth, the OAuth provider scopes to be used. Defaults to "name email". Special scope "email" is automatically granted if needed.
+# Multiple scopes can be specified as a comma-separated list.
+scopes = "email"
+
+[analytics]
+enabled = false
+port = 54327
+vector_port = 54328
+# Configure one of the supported backends: postgres, bigquery
+backend = "postgres"
+
+# Experimental features may be deprecated any time
+[experimental]
+# Configures Postgres storage engine to use OrioleDB (S3)
+orioledb_version = ""
+
+# Configure rate limiting for the Studio, API, and Authentication services.
+# Abuse protection works by counting requests from a specific IP address over the specified
+# "interval_seconds". If more than "max_requests" is observed, subsequent requests are
+# rejected for "block_seconds".
+[rate_limiting]
+enabled = false
+# Points of contact for reporting abuse or requesting an increased rate limit.
+contact = ""
+# A list of free-form descriptions of exempted IPs (e.g. a list of VPN IPs).
+exempt_ips = []
+# A list of paths that are not rate limited.
+exempt_routes = []
+
+[rate_limiting.api]
+# For documentation see: https://supabase.com/docs/guides/platform/going-into-prod#rate-limiting
+interval_seconds = 10
+max_requests = 1000
+block_seconds = 60
+
+[rate_limiting.studio]
+# For documentation see: https://supabase.com/docs/guides/platform/going-into-prod#rate-limiting
+interval_seconds = 10
+max_requests = 1000
+block_seconds = 60
+
+[rate_limiting.auth]
+# For documentation see: https://supabase.com/docs/guides/platform/going-into-prod#rate-limiting
+interval_seconds = 10
+max_requests = 1000
+block_seconds = 60
+
+[functions.training-chat]
+verify_jwt = false
