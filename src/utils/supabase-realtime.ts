@@ -74,11 +74,8 @@ export class RealtimeConnection {
               this.log('Duplicate message detected, ignoring', payload.new?.id);
             }
           })
-        .on('system', { type: '*' }, (payload) => {
+        .on('broadcast', { event: 'system' }, (payload) => {
           this.log('System event:', payload);
-        })
-        .on('presence', { event: '*' }, (payload) => {
-          this.log('Presence event:', payload);
         })
         .subscribe((status: string) => this.handleSubscriptionStatus(status));
 
