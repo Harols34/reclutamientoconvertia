@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -95,6 +96,15 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
         
         console.log('Received message from real-time connection:', payload.new);
         
+        // Validate the message format before adding it to state
+        if (!payload.new.sender_type || !payload.new.content) {
+          console.error('Invalid message format received:', payload.new);
+          return;
+        }
+        
+        // Convert sender_type to the correct format
+        const senderType = payload.new.sender_type === 'ai' ? 'ai' : 'candidate';
+        
         // Add new message to state, ensuring it matches the Message type
         setMessages(prevMessages => {
           const messageExists = prevMessages.some(msg => msg.id === payload.new.id);
@@ -102,9 +112,10 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
           if (!messageExists) {
             const newMessage: Message = {
               id: payload.new.id,
-              sender_type: payload.new.sender_type as 'ai' | 'candidate',
+              sender_type: senderType,
               content: payload.new.content,
               sent_at: payload.new.sent_at,
+              session_id: payload.new.session_id
             };
             
             console.log('Adding new message to messages state:', newMessage);
@@ -127,7 +138,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
     // Connect to the real-time channel
     realtimeConnection.current.connect();
     
-    // Load initial messages
+    // Load initial messages only for this specific session
     fetchInitialMessages();
     
     return () => {
@@ -138,27 +149,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
     };
   }, [sessionId, setMessages, supabase, initialHint]);
 
-  // Debug: monitor messages changes
-  useEffect(() => {
-    console.log('Messages updated in ChatScreen:', messages.length);
-    
-    // Log message counts by type
-    const aiMessages = messages.filter(msg => msg.sender_type === 'ai');
-    const candidateMessages = messages.filter(msg => msg.sender_type === 'candidate');
-    
-    console.log('AI messages:', aiMessages.length);
-    console.log('Candidate messages:', candidateMessages.length);
-    
-    if (messages.length > 0) {
-      console.log('Last message:', {
-        id: messages[messages.length - 1].id,
-        type: messages[messages.length - 1].sender_type,
-        content: messages[messages.length - 1].content.substring(0, 50) + '...'
-      });
-    }
-  }, [messages]);
-
-  // Function to fetch initial messages
+  // Function to fetch initial messages for the current session only
   const fetchInitialMessages = async () => {
     if (!sessionId) return;
     
@@ -185,38 +176,16 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
       if (data && data.length > 0) {
         console.log('Fetched initial messages:', data.length);
         
-        // Add messages to state
-        setMessages(prevMessages => {
-          // If we have no messages, just set the fetched data
-          if (prevMessages.length === 0) {
-            // Ensure data matches the Message interface
-            const typedMessages: Message[] = data.map(msg => ({
-              id: msg.id,
-              sender_type: msg.sender_type as 'ai' | 'candidate',
-              content: msg.content,
-              sent_at: msg.sent_at
-            }));
-            return typedMessages;
-          }
-          
-          // Otherwise, add only new messages
-          const existingIds = new Set(prevMessages.map(msg => msg.id));
-          const newMessages = data
-            .filter(msg => !existingIds.has(msg.id))
-            .map(msg => ({
-              id: msg.id,
-              sender_type: msg.sender_type as 'ai' | 'candidate',
-              content: msg.content,
-              sent_at: msg.sent_at
-            }));
-          
-          if (newMessages.length > 0) {
-            console.log(`Adding ${newMessages.length} new messages from fetch`);
-            return [...prevMessages, ...newMessages];
-          }
-          
-          return prevMessages;
-        });
+        // Reset messages state and add only messages for this session
+        const typedMessages: Message[] = data.map(msg => ({
+          id: msg.id,
+          sender_type: msg.sender_type === 'ai' ? 'ai' : 'candidate',
+          content: msg.content,
+          sent_at: msg.sent_at,
+          session_id: msg.session_id
+        }));
+        
+        setMessages(typedMessages);
         
         // Hide hint if we have messages
         if (data.length > 0) setInitialHint(false);

@@ -64,12 +64,16 @@ export class RealtimeConnection {
             filter: `session_id=eq.${this.options.sessionId}`
           },
           (payload) => {
-            this.log('Received message:', payload);
+            this.log('Received real-time message:', payload);
             
             // Check if we've already processed this message
             if (payload.new && payload.new.id && !this.messageIds.has(payload.new.id)) {
               this.messageIds.add(payload.new.id);
-              this.options.onMessage && this.options.onMessage(payload);
+              
+              // Add a small delay to ensure consistent message processing
+              setTimeout(() => {
+                this.options.onMessage && this.options.onMessage(payload);
+              }, 100);
             } else {
               this.log('Duplicate message detected, ignoring', payload.new?.id);
             }

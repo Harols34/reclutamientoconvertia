@@ -60,10 +60,18 @@ export const MessageList: React.FC<MessageListProps> = ({ messages }) => {
     console.log('Messages in MessageList:', messages.length);
     console.log('AI messages count:', messages.filter(m => m.sender_type === 'ai').length);
     console.log('Candidate messages count:', messages.filter(m => m.sender_type === 'candidate').length);
+    
+    if (messages.length > 0) {
+      console.log('Last message:', {
+        id: messages[messages.length - 1].id,
+        type: messages[messages.length - 1].sender_type,
+        content: messages[messages.length - 1].content.substring(0, 50) + (messages[messages.length - 1].content.length > 50 ? '...' : '')
+      });
+    }
   }, [messages]);
 
   return (
-    <div className="flex flex-col space-y-4 w-full">
+    <div className="flex flex-col space-y-2 w-full">
       {messages.length === 0 ? (
         <div className="text-center py-8 text-gray-500 italic">
           Inicia la conversación enviando un mensaje...

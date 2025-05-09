@@ -8,14 +8,22 @@ import { NameEntryScreen } from '@/components/training/NameEntryScreen';
 import { ChatScreen } from '@/components/training/ChatScreen';
 import { ResultScreen } from '@/components/training/ResultScreen';
 
+interface Message {
+  id: string;
+  sender_type: 'ai' | 'candidate';
+  content: string;
+  sent_at: string;
+  session_id?: string;
+}
+
 const TrainingChat = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [step, setStep] = useState('code'); // 'code', 'name', 'chat', 'result'
   const [code, setCode] = useState('');
   const [name, setName] = useState('');
-  const [sessionId, setSessionId] = useState(null);
-  const [messages, setMessages] = useState([]);
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
   const [timeLeft, setTimeLeft] = useState(300); // 5 minutes (300 seconds)
   const [chatEnded, setChatEnded] = useState(false);
@@ -30,6 +38,14 @@ const TrainingChat = () => {
       setCode(codeParam.toUpperCase());
     }
   }, [location]);
+
+  // Reset messages when starting a new session
+  useEffect(() => {
+    if (sessionId) {
+      console.log("New session started, clearing previous messages");
+      setMessages([]);
+    }
+  }, [sessionId]);
 
   // Validate and verify the code
   const validateCode = async () => {
@@ -95,6 +111,9 @@ const TrainingChat = () => {
     try {
       console.log('Iniciando sesión con código:', code.trim(), 'y nombre:', name.trim());
       
+      // Clear previous messages
+      setMessages([]);
+      
       // Use Supabase functions directly
       const { data, error } = await supabase.functions.invoke('training-chat', {
         body: {
@@ -117,15 +136,8 @@ const TrainingChat = () => {
       console.log('Sesión iniciada correctamente:', data.session);
       setSessionId(data.session.id);
       
-      // Initialize message list with welcome message
-      if (data.welcomeMessage) {
-        setMessages([{
-          id: 'welcome',
-          sender_type: 'ai',
-          content: data.welcomeMessage,
-          sent_at: new Date().toISOString(),
-        }]);
-      }
+      // Initialize message list with empty array (no welcome message)
+      setMessages([]);
       
       setStep('chat');
     } catch (error) {
