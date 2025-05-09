@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,6 +6,7 @@ import { Send, Clock, RefreshCw } from 'lucide-react';
 import { MessageList } from './MessageList';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { useToast } from '@/hooks/use-toast';
+import { RealtimeConnection } from '@/utils/supabase-realtime';
 
 interface Message {
   id: string;
@@ -42,11 +42,11 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
   const [message, setMessage] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [initialHint, setInitialHint] = useState(true);
-  const [channelEstablished, setChannelEstablished] = useState(false);
+  const [isConnected, setIsConnected] = useState(false);
   const [reconnecting, setReconnecting] = useState(false);
   const messageInputRef = useRef<HTMLInputElement>(null);
   const timerRef = useRef<number | null>(null);
-  const receivedMessagesRef = useRef<Set<string>>(new Set());
+  const realtimeConnection = useRef<RealtimeConnection | null>(null);
   const { toast } = useToast();
 
   // Start timer when chat begins
@@ -80,135 +80,63 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
     }
   }, []);
 
-  // Set up direct subscription to training_messages table
+  // Set up real-time connection
   useEffect(() => {
     if (!sessionId) return;
     
-    console.log('Setting up direct subscription for session:', sessionId);
-    
-    // Direct subscription to the training_messages table
-    const channel = supabase
-      .channel('direct-messages')
-      .on('postgres_changes', 
-        { 
-          event: 'INSERT', 
-          schema: 'public', 
-          table: 'training_messages',
-          filter: `session_id=eq.${sessionId}` 
-        }, 
-        (payload) => {
-          console.log('Received message from subscription:', payload);
-          
-          if (!payload.new || !payload.new.id) return;
-          
-          // Check if we've already processed this message
-          if (receivedMessagesRef.current.has(payload.new.id)) {
-            console.log('Skipping duplicate message:', payload.new.id);
-            return;
-          }
-          
-          receivedMessagesRef.current.add(payload.new.id);
-          
-          // Add new message to state, ensuring it matches the Message type
-          setMessages(prevMessages => {
-            const messageExists = prevMessages.some(msg => msg.id === payload.new.id);
-            
-            if (!messageExists) {
-              console.log('Adding new message to state:', payload.new);
-              // Cast the payload.new to ensure it matches the Message interface
-              const newMessage: Message = {
-                id: payload.new.id,
-                sender_type: payload.new.sender_type as 'ai' | 'candidate',
-                content: payload.new.content,
-                sent_at: payload.new.sent_at,
-              };
-              return [...prevMessages, newMessage];
-            }
-            
-            return prevMessages;
-          });
-          
-          // Hide the initial hint once we start receiving messages
-          if (initialHint) setInitialHint(false);
-        })
-      .subscribe((status) => {
-        console.log('Subscription status:', status);
-        setChannelEstablished(status === 'SUBSCRIBED');
-        setReconnecting(status !== 'SUBSCRIBED');
-      });
-    
-    // Load initial messages
-    fetchInitialMessages();
-    
-    // Clean up subscription
-    return () => {
-      console.log('Cleaning up subscription');
-      supabase.removeChannel(channel);
-    };
-  }, [sessionId, setMessages, supabase, initialHint]);
+    console.log('Setting up real-time connection for session:', sessionId);
 
-  // Function to fetch initial messages
-  const fetchInitialMessages = async () => {
-    if (!sessionId) return;
-    
-    try {
-      console.log('Fetching initial messages for session:', sessionId);
-      
-      const { data, error } = await supabase
-        .from('training_messages')
-        .select('*')
-        .eq('session_id', sessionId)
-        .order('sent_at', { ascending: true });
-      
-      if (error) {
-        console.error('Error fetching messages:', error);
-        return;
-      }
-      
-      if (data && data.length > 0) {
-        console.log('Fetched initial messages:', data.length);
+    // Initialize the real-time connection
+    realtimeConnection.current = new RealtimeConnection(supabase, {
+      sessionId,
+      debugMode: true,
+      onMessage: (payload) => {
+        if (!payload.new || !payload.new.id) return;
         
-        // Mark all messages as received
-        data.forEach(msg => receivedMessagesRef.current.add(msg.id));
+        console.log('Received message from real-time connection:', payload.new);
         
-        // Add messages to state if not already there
+        // Add new message to state, ensuring it matches the Message type
         setMessages(prevMessages => {
-          if (prevMessages.length === 0) {
-            // Ensure data matches the Message interface
-            const typedMessages: Message[] = data.map(msg => ({
-              id: msg.id,
-              sender_type: msg.sender_type as 'ai' | 'candidate',
-              content: msg.content,
-              sent_at: msg.sent_at
-            }));
-            return typedMessages;
-          }
+          const messageExists = prevMessages.some(msg => msg.id === payload.new.id);
           
-          // Only add messages that don't already exist
-          const existingIds = new Set(prevMessages.map(msg => msg.id));
-          const newMessages = data
-            .filter(msg => !existingIds.has(msg.id))
-            .map(msg => ({
-              id: msg.id,
-              sender_type: msg.sender_type as 'ai' | 'candidate',
-              content: msg.content,
-              sent_at: msg.sent_at
-            }));
-          
-          if (newMessages.length > 0) {
-            return [...prevMessages, ...newMessages];
+          if (!messageExists) {
+            const newMessage: Message = {
+              id: payload.new.id,
+              sender_type: payload.new.sender_type as 'ai' | 'candidate',
+              content: payload.new.content,
+              sent_at: payload.new.sent_at,
+            };
+            
+            console.log('Adding new message to messages state:', newMessage);
+            return [...prevMessages, newMessage];
           }
           
           return prevMessages;
         });
         
-        // Hide hint if we have messages
-        if (data.length > 0) setInitialHint(false);
+        // Hide initial hint once we have messages
+        if (initialHint) setInitialHint(false);
+      },
+      onConnectionChange: (status) => {
+        console.log('Connection status changed:', status);
+        setIsConnected(status);
+        setReconnecting(!status);
       }
-    } catch (err) {
-      console.error('Error in fetchInitialMessages:', err);
-    }
-  };
+    });
+    
+    // Connect to the real-time channel
+    realtimeConnection.current.connect();
+    
+    // Load initial messages
+    fetchInitialMessages();
+    
+    return () => {
+      console.log('Cleaning up real-time connection');
+      if (realtimeConnection.current) {
+        realtimeConnection.current.disconnect();
+      }
+    };
+  }, [sessionId, setMessages, supabase, initialHint]);
 
   // Debug: monitor messages changes
   useEffect(() => {
@@ -229,6 +157,76 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
       });
     }
   }, [messages]);
+
+  // Function to fetch initial messages
+  const fetchInitialMessages = async () => {
+    if (!sessionId) return;
+    
+    try {
+      console.log('Fetching initial messages for session:', sessionId);
+      setReconnecting(true);
+      
+      const { data, error } = await supabase
+        .from('training_messages')
+        .select('*')
+        .eq('session_id', sessionId)
+        .order('sent_at', { ascending: true });
+      
+      if (error) {
+        console.error('Error fetching messages:', error);
+        toast({
+          title: 'Error',
+          description: 'No se pudieron cargar los mensajes',
+          variant: 'destructive',
+        });
+        return;
+      }
+      
+      if (data && data.length > 0) {
+        console.log('Fetched initial messages:', data.length);
+        
+        // Add messages to state
+        setMessages(prevMessages => {
+          // If we have no messages, just set the fetched data
+          if (prevMessages.length === 0) {
+            // Ensure data matches the Message interface
+            const typedMessages: Message[] = data.map(msg => ({
+              id: msg.id,
+              sender_type: msg.sender_type as 'ai' | 'candidate',
+              content: msg.content,
+              sent_at: msg.sent_at
+            }));
+            return typedMessages;
+          }
+          
+          // Otherwise, add only new messages
+          const existingIds = new Set(prevMessages.map(msg => msg.id));
+          const newMessages = data
+            .filter(msg => !existingIds.has(msg.id))
+            .map(msg => ({
+              id: msg.id,
+              sender_type: msg.sender_type as 'ai' | 'candidate',
+              content: msg.content,
+              sent_at: msg.sent_at
+            }));
+          
+          if (newMessages.length > 0) {
+            console.log(`Adding ${newMessages.length} new messages from fetch`);
+            return [...prevMessages, ...newMessages];
+          }
+          
+          return prevMessages;
+        });
+        
+        // Hide hint if we have messages
+        if (data.length > 0) setInitialHint(false);
+      }
+    } catch (err) {
+      console.error('Error in fetchInitialMessages:', err);
+    } finally {
+      setReconnecting(false);
+    }
+  };
 
   // Send message
   const sendMessage = async () => {
@@ -315,8 +313,14 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
       description: 'Obteniendo los mensajes más recientes...',
     });
     
+    // Reconnect the real-time connection
+    if (realtimeConnection.current) {
+      realtimeConnection.current.forceTriggerReconnect();
+      realtimeConnection.current.clearMessageCache();
+    }
+    
+    // Fetch messages again
     await fetchInitialMessages();
-    setReconnecting(false);
   };
 
   return (
@@ -392,7 +396,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
             </Button>
           </div>
           <div className="text-xs text-center text-gray-500 mt-1">
-            {channelEstablished ? 
+            {isConnected ? 
               '✓ Conectado en tiempo real' : 
               'No conectado en tiempo real - usa el botón de refrescar si faltan mensajes'}
           </div>
