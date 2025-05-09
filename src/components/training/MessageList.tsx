@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 
 interface Message {
   id: string;
@@ -13,8 +13,17 @@ interface MessageListProps {
 }
 
 export const MessageList: React.FC<MessageListProps> = ({ messages }) => {
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll to bottom when new messages arrive
+  useEffect(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [messages]);
+
   return (
-    <>
+    <div className="flex flex-col space-y-4">
       {messages.map((msg, index) => (
         <div
           key={msg.id || index}
@@ -34,6 +43,7 @@ export const MessageList: React.FC<MessageListProps> = ({ messages }) => {
           </div>
         </div>
       ))}
-    </>
+      <div ref={messagesEndRef} />
+    </div>
   );
 };

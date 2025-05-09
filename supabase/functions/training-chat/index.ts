@@ -1,3 +1,4 @@
+
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
@@ -323,6 +324,8 @@ async function handleChatMessage(supabase, openaiApiKey, sessionId, message, cor
   }
 
   try {
+    console.log(`Procesando mensaje para sesión: ${sessionId}`);
+    
     // Verify that the session exists
     const { data: sessionData, error: sessionError } = await supabase
       .from('training_sessions')
@@ -352,24 +355,28 @@ async function handleChatMessage(supabase, openaiApiKey, sessionId, message, cor
     }
 
     // Save candidate's message
-    const { error: messageError } = await supabase
+    const { data: userMessageData, error: messageError } = await supabase
       .from('training_messages')
       .insert({
         session_id: sessionId,
         sender_type: 'candidate',
         content: message,
-      });
+      })
+      .select()
+      .single();
 
     if (messageError) {
       console.error('Error saving message:', messageError);
       return new Response(
-        JSON.stringify({ error: 'Error al guardar el mensaje' }),
+        JSON.stringify({ error: 'Error al guardar el mensaje: ' + messageError.message }),
         { 
           status: 500, 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         }
       );
     }
+
+    console.log('Mensaje de candidato guardado:', userMessageData);
 
     // Get message history for context
     const { data: historyData, error: historyError } = await supabase
@@ -381,7 +388,7 @@ async function handleChatMessage(supabase, openaiApiKey, sessionId, message, cor
     if (historyError) {
       console.error('Error getting message history:', historyError);
       return new Response(
-        JSON.stringify({ error: 'Error al obtener historial de mensajes' }),
+        JSON.stringify({ error: 'Error al obtener historial de mensajes: ' + historyError.message }),
         { 
           status: 500, 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -431,7 +438,7 @@ async function handleChatMessage(supabase, openaiApiKey, sessionId, message, cor
       });
     });
 
-    console.log('Sending message to OpenAI:', JSON.stringify(messages));
+    console.log('Enviando mensajes a OpenAI:', JSON.stringify(messages, null, 2));
 
     try {
       // Call OpenAI to generate response
@@ -456,7 +463,7 @@ async function handleChatMessage(supabase, openaiApiKey, sessionId, message, cor
       }
 
       const data = await response.json();
-      console.log('OpenAI response:', JSON.stringify(data));
+      console.log('OpenAI response:', JSON.stringify(data, null, 2));
       
       if (!data.choices || !data.choices[0]) {
         console.error('Invalid OpenAI response:', data);
@@ -467,22 +474,34 @@ async function handleChatMessage(supabase, openaiApiKey, sessionId, message, cor
       console.log('AI response content:', aiResponse);
 
       // Save AI response
-      const { error: aiMessageError } = await supabase
+      const { data: aiMessageData, error: aiMessageError } = await supabase
         .from('training_messages')
         .insert({
           session_id: sessionId,
           sender_type: 'ai',
           content: aiResponse,
-        });
+        })
+        .select()
+        .single();
 
       if (aiMessageError) {
         console.error('Error saving AI response:', aiMessageError);
+        return new Response(
+          JSON.stringify({ error: 'Error al guardar respuesta de AI: ' + aiMessageError.message }),
+          { 
+            status: 500, 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          }
+        );
       }
+
+      console.log('Respuesta de AI guardada:', aiMessageData);
 
       return new Response(
         JSON.stringify({ 
           success: true, 
-          response: aiResponse 
+          response: aiResponse,
+          message: aiMessageData
         }),
         { 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }

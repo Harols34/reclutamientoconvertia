@@ -76,12 +76,53 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
     }
   }, [messages]);
 
+  // Set up real-time subscription for messages
+  useEffect(() => {
+    if (!sessionId) return;
+
+    console.log('Setting up real-time subscription for session:', sessionId);
+    
+    // Subscribe to message changes for this session
+    const channel = supabase
+      .channel(`training-chat-${sessionId}`)
+      .on('postgres_changes', 
+        { 
+          event: 'INSERT', 
+          schema: 'public', 
+          table: 'training_messages', 
+          filter: `session_id=eq.${sessionId}` 
+        }, 
+        (payload) => {
+          console.log('Received real-time message:', payload);
+          if (payload.new) {
+            // Only add the message if it's not already in the list
+            setMessages(prevMessages => {
+              const messageExists = prevMessages.some(msg => msg.id === payload.new.id);
+              if (!messageExists) {
+                return [...prevMessages, payload.new];
+              }
+              return prevMessages;
+            });
+          }
+        })
+      .subscribe();
+
+    console.log('Subscription channel created:', channel);
+        
+    return () => {
+      console.log('Cleaning up subscription');
+      supabase.removeChannel(channel);
+    };
+  }, [sessionId, setMessages, supabase]);
+
   // Send message
   const sendMessage = async () => {
     if (!message.trim() || submitting || chatEnded) return;
     
     setSubmitting(true);
     try {
+      console.log('Sending message to session:', sessionId);
+      
       // Add user message immediately for better UX
       const userMessage = {
         id: `temp-${Date.now()}`,
@@ -112,10 +153,9 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
         throw new Error(error.message || 'Error al enviar mensaje');
       }
       
-      // Response will be added via real-time subscription
       console.log('Message sent successfully:', data);
       
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error sending message:', error);
       toast({
         title: 'Error',
