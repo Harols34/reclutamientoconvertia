@@ -75,6 +75,10 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
 
     console.log('Setting up real-time subscription for session:', sessionId);
     
+    // Enable realtime on the channel
+    // Clear any existing subscriptions first
+    supabase.removeAllChannels();
+    
     // Subscribe to message changes for this session
     const channel = supabase
       .channel(`training-chat-${sessionId}`)
@@ -94,6 +98,8 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
               if (!messageExists) {
                 // Hide the initial hint once we start receiving messages
                 if (initialHint) setInitialHint(false);
+                
+                console.log('Adding new message to state:', payload.new);
                 return [...prevMessages, payload.new];
               }
               return prevMessages;
@@ -102,6 +108,14 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
         })
       .subscribe((status) => {
         console.log('Subscription status:', status);
+        if (status !== 'SUBSCRIBED') {
+          console.error('Failed to subscribe to real-time updates');
+          toast({
+            title: 'Error',
+            description: 'No se pudo conectar a tiempo real. Por favor, recarga la página.',
+            variant: 'destructive',
+          });
+        }
       });
 
     console.log('Subscription channel created:', channel);
@@ -110,7 +124,12 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
       console.log('Cleaning up subscription');
       supabase.removeChannel(channel);
     };
-  }, [sessionId, setMessages, supabase, initialHint]);
+  }, [sessionId, setMessages, supabase, initialHint, toast]);
+
+  // Debug: monitor messages changes
+  useEffect(() => {
+    console.log('Messages updated in ChatScreen:', messages);
+  }, [messages]);
 
   // Send message
   const sendMessage = async () => {

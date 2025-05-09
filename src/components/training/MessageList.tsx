@@ -21,6 +21,11 @@ export const MessageList: React.FC<MessageListProps> = ({ messages }) => {
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
   }, [messages]);
+  
+  // Debug: Log messages when they change
+  useEffect(() => {
+    console.log('Messages in MessageList:', messages);
+  }, [messages]);
 
   return (
     <div className="flex flex-col space-y-4 w-full">
@@ -31,7 +36,7 @@ export const MessageList: React.FC<MessageListProps> = ({ messages }) => {
       ) : (
         messages.map((msg, index) => (
           <div
-            key={msg.id || index}
+            key={msg.id || `message-${index}-${Date.now()}`}
             className={`mb-4 flex ${msg.sender_type === 'candidate' ? 'justify-end' : 'justify-start'}`}
             data-testid={`message-${msg.sender_type}-${index}`}
           >
