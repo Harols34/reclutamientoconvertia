@@ -13,6 +13,7 @@ interface Message {
   sender_type: 'ai' | 'candidate';
   content: string;
   sent_at: string;
+  session_id?: string;
 }
 
 interface ChatScreenProps {
@@ -108,13 +109,20 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
           
           receivedMessagesRef.current.add(payload.new.id);
           
-          // Add new message to state
+          // Add new message to state, ensuring it matches the Message type
           setMessages(prevMessages => {
             const messageExists = prevMessages.some(msg => msg.id === payload.new.id);
             
             if (!messageExists) {
               console.log('Adding new message to state:', payload.new);
-              return [...prevMessages, payload.new];
+              // Cast the payload.new to ensure it matches the Message interface
+              const newMessage: Message = {
+                id: payload.new.id,
+                sender_type: payload.new.sender_type as 'ai' | 'candidate',
+                content: payload.new.content,
+                sent_at: payload.new.sent_at,
+              };
+              return [...prevMessages, newMessage];
             }
             
             return prevMessages;
@@ -166,12 +174,26 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
         // Add messages to state if not already there
         setMessages(prevMessages => {
           if (prevMessages.length === 0) {
-            return data;
+            // Ensure data matches the Message interface
+            const typedMessages: Message[] = data.map(msg => ({
+              id: msg.id,
+              sender_type: msg.sender_type as 'ai' | 'candidate',
+              content: msg.content,
+              sent_at: msg.sent_at
+            }));
+            return typedMessages;
           }
           
           // Only add messages that don't already exist
           const existingIds = new Set(prevMessages.map(msg => msg.id));
-          const newMessages = data.filter(msg => !existingIds.has(msg.id));
+          const newMessages = data
+            .filter(msg => !existingIds.has(msg.id))
+            .map(msg => ({
+              id: msg.id,
+              sender_type: msg.sender_type as 'ai' | 'candidate',
+              content: msg.content,
+              sent_at: msg.sent_at
+            }));
           
           if (newMessages.length > 0) {
             return [...prevMessages, ...newMessages];
@@ -217,7 +239,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
       console.log('Sending message to session:', sessionId);
       
       // Add user message immediately for better UX
-      const userMessage = {
+      const userMessage: Message = {
         id: `temp-${Date.now()}`,
         sender_type: 'candidate',
         content: message.trim(),
