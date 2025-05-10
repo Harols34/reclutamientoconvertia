@@ -24,6 +24,13 @@ serve(async (req) => {
       throw new Error('Error de configuración del servidor')
     }
     
+    // Verify the authorization header is present
+    const authHeader = req.headers.get('authorization')
+    if (!authHeader) {
+      console.error('Missing authorization header')
+      throw new Error('Se requiere autenticación para esta operación')
+    }
+    
     // Initialize Supabase client with service role key
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)
     

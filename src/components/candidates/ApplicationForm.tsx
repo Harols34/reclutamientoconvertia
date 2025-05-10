@@ -266,11 +266,15 @@ const ApplicationForm = () => {
         try {
           console.log(`Attempt ${attempt} to submit application...`);
           
-          // Call our edge function to create the application
+          // Get the anon key from the Supabase client
+          const anonKey = supabase.supabaseKey;
+          
+          // Call our edge function to create the application with Authorization header
           const response = await fetch('https://kugocdtesaczbfrwblsi.supabase.co/functions/v1/create-application', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
+              'Authorization': `Bearer ${anonKey}`,
             },
             body: JSON.stringify({
               firstName: values.firstName,
