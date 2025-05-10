@@ -31,6 +31,9 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Progress } from '@/components/ui/progress';
 import { uploadFile, ensureBucketExists } from '@/services/file-storage';
 
+// Import the SUPABASE_PUBLISHABLE_KEY from the client file
+import { SUPABASE_PUBLISHABLE_KEY } from '@/integrations/supabase/client';
+
 type JobType = {
   id: string;
   title: string;
@@ -266,8 +269,8 @@ const ApplicationForm = () => {
         try {
           console.log(`Attempt ${attempt} to submit application...`);
           
-          // Get the anon key from the Supabase client
-          const anonKey = supabase.supabaseKey;
+          // Use the imported SUPABASE_PUBLISHABLE_KEY instead of trying to access the protected property
+          const anonKey = SUPABASE_PUBLISHABLE_KEY;
           
           // Call our edge function to create the application with Authorization header
           const response = await fetch('https://kugocdtesaczbfrwblsi.supabase.co/functions/v1/create-application', {
