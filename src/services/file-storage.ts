@@ -1,9 +1,9 @@
 
-import { supabase, checkBucketExists, verifyBucketAccess } from '@/integrations/supabase/client';
+import { supabase, checkBucketExists, verifyBucketAccess, ensureBucketExists } from '@/integrations/supabase/client';
 import { toast } from '@/components/ui/sonner';
 
 /**
- * Uploads a file to the specified storage bucket
+ * Uploads a file to the specified storage bucket with improved error handling and retry mechanism
  * @param {File} file - The file to upload
  * @param {string} bucketName - The name of the bucket to upload to
  * @returns {Promise<string|null>} - The public URL of the uploaded file or null on failure
@@ -37,15 +37,24 @@ export const uploadFile = async (file: File, bucketName: string = 'resumes'): Pr
     
     console.log(`Uploading file ${fileName} to ${bucketName} bucket`);
     
-    // Check if bucket exists and is accessible
+    // Ensure bucket exists and is accessible
+    console.log('Checking bucket availability...');
     const bucketExists = await checkBucketExists(bucketName);
-    const canAccessBucket = bucketExists ? await verifyBucketAccess(bucketName) : false;
     
-    if (!bucketExists || !canAccessBucket) {
-      console.warn(`Bucket '${bucketName}' does not exist or is not accessible.`);
+    if (!bucketExists) {
+      console.warn(`Bucket '${bucketName}' does not exist. Attempting to verify access anyway...`);
+    }
+    
+    // Even if bucket doesn't appear in listing, try to access it directly
+    const canAccessBucket = await verifyBucketAccess(bucketName);
+    
+    if (!canAccessBucket) {
+      console.error(`Cannot access bucket '${bucketName}'. File upload will fail.`);
       toast.error('El sistema de almacenamiento no está disponible en este momento.');
       return null;
     }
+    
+    console.log(`Bucket '${bucketName}' is accessible, proceeding with upload...`);
     
     // Attempt to upload the file
     const { data, error } = await supabase.storage
@@ -60,7 +69,7 @@ export const uploadFile = async (file: File, bucketName: string = 'resumes'): Pr
     if (error) {
       console.error('Error uploading file:', error);
       
-      // Show error message based on the error type
+      // Show specific error message based on the error type
       if (error.message.includes('Authentication')) {
         toast.error('Error de autenticación al subir el archivo');
       } else if (error.message.includes('Permission denied')) {
@@ -93,49 +102,43 @@ export const uploadFile = async (file: File, bucketName: string = 'resumes'): Pr
 };
 
 /**
- * Advanced function to ensure bucket exists with retry mechanism
- * @param {string} bucketName - The name of the bucket to check/create
- * @param {number} maxRetries - Maximum number of retry attempts
- * @returns {Promise<boolean>} - Whether the bucket exists/was created successfully
+ * Checks if the resumes bucket exists and is properly configured
+ * @returns {Promise<boolean>} - Whether the resumes bucket is properly configured
  */
-export const ensureBucketExists = async (bucketName: string = 'resumes', maxRetries: number = 3): Promise<boolean> => {
+export const checkResumesBucketStatus = async (): Promise<boolean> => {
   try {
-    console.log(`Checking if ${bucketName} bucket exists...`);
+    console.log('Checking resume bucket status...');
     
     // Check if bucket exists
-    const { data: buckets, error: listError } = await supabase.storage.listBuckets();
+    const bucketExists = await checkBucketExists('resumes');
     
-    if (listError) {
-      console.error('Error listing buckets:', listError);
+    if (!bucketExists) {
+      console.log('Resumes bucket does not exist in listing.');
+      
+      // Even if it's not listed, try to access it directly
+      const canAccess = await verifyBucketAccess('resumes');
+      
+      if (canAccess) {
+        console.log('Bucket appears to be accessible even though not listed.');
+        return true;
+      }
+      
+      console.log('Cannot access resumes bucket. It needs to be created.');
       return false;
     }
     
-    const bucketExists = buckets?.some(bucket => bucket.id === bucketName);
+    // Verify access permissions
+    const hasAccess = await verifyBucketAccess('resumes');
     
-    if (bucketExists) {
-      console.log(`${bucketName} bucket already exists`);
-      return true;
+    if (!hasAccess) {
+      console.error('Bucket exists but cannot be accessed.');
+      return false;
     }
     
-    // No need to try creating a bucket from client side as it will fail due to RLS
-    // Instead, we verify if the bucket exists and is accessible
-    console.log(`Bucket '${bucketName}' does not exist or client does not have permission to see it`);
-    
-    // Verify bucket access by trying to list files in it
-    const { error: accessError } = await supabase.storage.from(bucketName).list();
-    
-    if (!accessError) {
-      console.log(`${bucketName} bucket is accessible even though it wasn't listed`);
-      return true;
-    }
-    
-    // If we can't see or access the bucket, inform the user
-    console.error(`Cannot access ${bucketName} bucket:`, accessError);
-    
-    // The bucket either doesn't exist or we don't have permission to see it
-    return false;
+    console.log('Resumes bucket is properly configured and accessible.');
+    return true;
   } catch (err) {
-    console.error('Error ensuring bucket exists:', err);
+    console.error('Error checking resume bucket status:', err);
     return false;
   }
 };

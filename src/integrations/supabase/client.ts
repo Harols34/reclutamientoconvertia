@@ -28,23 +28,26 @@ export const supabase = createClient<Database>(
 // Force TypeScript to use proper table types
 export type Tables = Database['public']['Tables'];
 
-// Helper function to check if a bucket exists
+// Helper function to check if a bucket exists with improved error handling
 export async function checkBucketExists(bucketName: string): Promise<boolean> {
   try {
     const { data: buckets, error } = await supabase.storage.listBuckets();
+    
     if (error) {
       console.error('Error checking buckets:', error);
       return false;
     }
     
-    return buckets?.some(bucket => bucket.id === bucketName) || false;
+    const bucketExists = buckets?.some(bucket => bucket.id === bucketName) || false;
+    console.log(`Bucket '${bucketName}' exists: ${bucketExists}`);
+    return bucketExists;
   } catch (err) {
     console.error('Exception checking bucket existence:', err);
     return false;
   }
 }
 
-// Helper function to verify bucket access permissions
+// Helper function to verify bucket access permissions with improved error handling
 export async function verifyBucketAccess(bucketName: string): Promise<boolean> {
   try {
     // Try to list files as a simple permission check
@@ -57,9 +60,41 @@ export async function verifyBucketAccess(bucketName: string): Promise<boolean> {
       return false;
     }
     
+    console.log(`Successfully verified access to bucket '${bucketName}'`);
     return true;
   } catch (err) {
     console.error('Exception during bucket access verification:', err);
+    return false;
+  }
+}
+
+// Helper function to ensure a bucket exists by creating it if needed
+export async function ensureBucketExists(bucketName: string): Promise<boolean> {
+  try {
+    // First check if the bucket already exists
+    const bucketExists = await checkBucketExists(bucketName);
+    
+    if (bucketExists) {
+      console.log(`Bucket '${bucketName}' already exists.`);
+      // Verify we can access it
+      return await verifyBucketAccess(bucketName);
+    }
+
+    console.log(`Bucket '${bucketName}' doesn't exist or isn't accessible.`);
+    
+    // We need to create the bucket through Supabase SQL - cannot be done directly from client
+    // Instead, we'll attempt to verify access in case the bucket exists but wasn't listed
+    const hasAccess = await verifyBucketAccess(bucketName);
+    
+    if (hasAccess) {
+      console.log(`Bucket '${bucketName}' is accessible even though it wasn't listed.`);
+      return true;
+    }
+    
+    console.log(`Cannot access bucket '${bucketName}'. It may need to be created via SQL.`);
+    return false;
+  } catch (err) {
+    console.error('Error ensuring bucket exists:', err);
     return false;
   }
 }

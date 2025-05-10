@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Loader2, Key } from 'lucide-react';
+import { toast } from '@/components/ui/sonner';
 
 interface CodeEntryScreenProps {
   code?: string;
@@ -39,7 +40,17 @@ export const CodeEntryScreen: React.FC<CodeEntryScreenProps> = ({
       return;
     }
     
-    onValidate();
+    // Clear previous errors
+    setError(null);
+    
+    // Notify the parent component to validate the code
+    try {
+      onValidate();
+    } catch (err: any) {
+      console.error('Error during validation:', err);
+      setError(`Error de validación: ${err.message || 'Error desconocido'}`);
+      toast.error(`Error de validación: ${err.message || 'Error desconocido'}`);
+    }
   };
 
   return (

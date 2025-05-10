@@ -19,6 +19,13 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
     const openaiApiKey = Deno.env.get('OPENAI_API_KEY') || Deno.env.get('OPENAI') || '';
 
+    // Log environment status
+    console.log('Environment check:', {
+      supabaseUrlSet: !!supabaseUrl,
+      serviceKeySet: !!supabaseServiceKey,
+      openaiKeySet: !!openaiApiKey
+    });
+
     // Verificar que las variables de entorno estén configuradas
     if (!supabaseUrl || !supabaseServiceKey) {
       throw new Error('Faltan variables de entorno requeridas para Supabase');
@@ -64,7 +71,7 @@ serve(async (req) => {
   } catch (error) {
     console.error('Error:', error);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ success: false, error: error.message }),
       { 
         status: 400, 
         headers: { 
