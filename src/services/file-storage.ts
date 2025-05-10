@@ -1,5 +1,5 @@
 
-import { supabase, checkBucketExists, verifyBucketAccess, ensureBucketExists } from '@/integrations/supabase/client';
+import { supabase, checkBucketExists, verifyBucketAccess, ensureBucketExists as ensureBucketExistsFromClient } from '@/integrations/supabase/client';
 import { toast } from '@/components/ui/sonner';
 
 /**
@@ -39,10 +39,18 @@ export const uploadFile = async (file: File, bucketName: string = 'resumes'): Pr
     
     // Ensure bucket exists and is accessible
     console.log('Checking bucket availability...');
-    const bucketExists = await checkBucketExists(bucketName);
+    let bucketExists = await checkBucketExists(bucketName);
     
     if (!bucketExists) {
-      console.warn(`Bucket '${bucketName}' does not exist. Attempting to verify access anyway...`);
+      console.warn(`Bucket '${bucketName}' does not exist. Attempting to create it...`);
+      // Try to create the bucket if it doesn't exist
+      const created = await ensureBucketExists(bucketName);
+      if (created) {
+        console.log(`Successfully created and configured bucket '${bucketName}'`);
+        bucketExists = true;
+      } else {
+        console.error(`Cannot create bucket '${bucketName}'.`);
+      }
     }
     
     // Even if bucket doesn't appear in listing, try to access it directly
@@ -56,44 +64,80 @@ export const uploadFile = async (file: File, bucketName: string = 'resumes'): Pr
     
     console.log(`Bucket '${bucketName}' is accessible, proceeding with upload...`);
     
-    // Attempt to upload the file
-    const { data, error } = await supabase.storage
-      .from(bucketName)
-      .upload(fileName, file, {
-        cacheControl: '3600',
-        upsert: false,
-        contentType: file.type
-      });
+    // Implement retry mechanism
+    const maxRetries = 3;
+    let attempt = 0;
+    let uploadError = null;
     
-    // Handle upload errors
-    if (error) {
-      console.error('Error uploading file:', error);
+    while (attempt < maxRetries) {
+      attempt++;
+      try {
+        console.log(`Upload attempt ${attempt} of ${maxRetries}...`);
+        // Attempt to upload the file
+        const { data, error } = await supabase.storage
+          .from(bucketName)
+          .upload(fileName, file, {
+            cacheControl: '3600',
+            upsert: false,
+            contentType: file.type
+          });
+        
+        // If successful, break out of retry loop
+        if (!error) {
+          // Get the public URL
+          const { data: urlData } = supabase.storage
+            .from(bucketName)
+            .getPublicUrl(fileName);
+            
+          if (urlData?.publicUrl) {
+            console.log('File uploaded successfully:', urlData.publicUrl);
+            toast.success('CV subido correctamente');
+            return urlData.publicUrl;
+          }
+          
+          return null;
+        }
+        
+        // Store error for potential reporting
+        uploadError = error;
+        console.error(`Upload attempt ${attempt} failed:`, error);
+        
+        // Wait before retrying
+        if (attempt < maxRetries) {
+          const delay = Math.pow(2, attempt) * 500; // Exponential backoff
+          console.log(`Retrying in ${delay}ms...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+      } catch (err) {
+        console.error(`Unexpected error during upload attempt ${attempt}:`, err);
+        uploadError = err;
+        
+        // Wait before retrying
+        if (attempt < maxRetries) {
+          const delay = Math.pow(2, attempt) * 500; // Exponential backoff
+          console.log(`Retrying in ${delay}ms...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+      }
+    }
+    
+    // If we reach this point, all attempts have failed
+    if (uploadError) {
+      console.error('All upload attempts failed:', uploadError);
       
       // Show specific error message based on the error type
-      if (error.message.includes('Authentication')) {
+      if (uploadError.message?.includes('Authentication')) {
         toast.error('Error de autenticación al subir el archivo');
-      } else if (error.message.includes('Permission denied')) {
+      } else if (uploadError.message?.includes('Permission denied')) {
         toast.error('Permiso denegado para subir el archivo');
-      } else if (error.message.includes('storage quota')) {
+      } else if (uploadError.message?.includes('storage quota')) {
         toast.error('Cuota de almacenamiento excedida');
       } else {
-        toast.error(`Error al subir: ${error.message}`);
+        toast.error(`Error al subir: ${uploadError.message || 'Error desconocido'}`);
       }
-      
-      return null;
     }
     
-    // Get the public URL
-    const { data: urlData } = supabase.storage
-      .from(bucketName)
-      .getPublicUrl(fileName);
-      
-    if (urlData?.publicUrl) {
-      console.log('File uploaded successfully:', urlData.publicUrl);
-      toast.success('CV subido correctamente');
-    }
-      
-    return urlData?.publicUrl || null;
+    return null;
   } catch (err: any) {
     console.error('Unexpected error during file upload:', err);
     toast.error(`No se pudo subir el archivo: ${err.message || 'Error desconocido'}`);
@@ -143,5 +187,19 @@ export const checkResumesBucketStatus = async (): Promise<boolean> => {
   }
 };
 
-// Export the ensureBucketExists function
-export { ensureBucketExists };
+/**
+ * Ensures that a bucket exists by creating it if needed
+ * @param {string} bucketName - The name of the bucket to ensure exists
+ * @returns {Promise<boolean>} - Whether the bucket exists or was created successfully
+ */
+export const ensureBucketExists = async (bucketName: string): Promise<boolean> => {
+  try {
+    return await ensureBucketExistsFromClient(bucketName);
+  } catch (err) {
+    console.error(`Error ensuring bucket ${bucketName} exists:`, err);
+    return false;
+  }
+};
+
+// Export the ensureBucketExists function from the client
+export { ensureBucketExists as ensureBucketExistsFromClient };
