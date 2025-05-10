@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
@@ -26,11 +25,11 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { toast } from '@/components/ui/sonner';
-import { Loader2, AlertCircle, CheckCircle2 } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+import { Loader2, AlertCircle, CheckCircle2, Upload } from 'lucide-react';
+import { supabase, checkBucketExists, verifyBucketAccess } from '@/integrations/supabase/client';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Progress } from '@/components/ui/progress';
-import { ensureBucketExists, uploadFile } from '@/services/file-storage';
+import { uploadFile, ensureBucketExists } from '@/services/file-storage';
 
 type JobType = {
   id: string;
@@ -83,8 +82,9 @@ const ApplicationForm = () => {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [storageBucketExists, setStorageBucketExists] = useState(false);
-  const [creatingBucket, setCreatingBucket] = useState(false);
-  const [bucketCreationAttempted, setBucketCreationAttempted] = useState(false);
+  const [checkingBucket, setCheckingBucket] = useState(true);
+  const [bucketCheckComplete, setBucketCheckComplete] = useState(false);
+  const [resumeFile, setResumeFile] = useState<File | null>(null);
   
   const form = useForm<ApplicationFormValues>({
     resolver: zodResolver(applicationSchema),
@@ -166,76 +166,107 @@ const ApplicationForm = () => {
     fetchJob();
   }, [jobId]);
 
-  // Check and ensure storage bucket exists
+  // Check if storage bucket exists
   useEffect(() => {
     const checkBucket = async () => {
       try {
-        setCreatingBucket(true);
-        console.log('Verificando bucket de almacenamiento de CVs...');
+        setCheckingBucket(true);
+        console.log('Verificando acceso al bucket de CVs...');
         
-        // Use our utility function to check/create bucket
-        const bucketExists = await ensureBucketExists('resumes');
+        // First check if bucket exists
+        const exists = await checkBucketExists('resumes');
+        console.log('Bucket exists check result:', exists);
         
-        setStorageBucketExists(bucketExists);
-        setBucketCreationAttempted(true);
-        
-        if (bucketExists) {
-          console.log('Bucket de CVs verificado correctamente');
-          toast.success('Sistema de almacenamiento de CVs activado');
+        if (exists) {
+          // Verify we have access to it
+          const hasAccess = await verifyBucketAccess('resumes');
+          console.log('Bucket access check result:', hasAccess);
+          
+          setStorageBucketExists(hasAccess);
+          
+          if (hasAccess) {
+            toast.success('Sistema de almacenamiento de CVs disponible');
+          } else {
+            console.error('El bucket existe pero no es accesible');
+            toast.warning('El sistema de almacenamiento de CVs tiene acceso limitado');
+          }
         } else {
-          console.error('No se pudo crear el bucket de CVs');
-          toast.error('No se pudo configurar el almacenamiento de CVs');
+          setStorageBucketExists(false);
+          console.info('El bucket de CVs no está disponible o no existe');
         }
       } catch (err) {
-        console.error('Error general en comprobación de bucket:', err);
+        console.error('Error al verificar el bucket:', err);
         setStorageBucketExists(false);
       } finally {
-        setCreatingBucket(false);
+        setCheckingBucket(false);
+        setBucketCheckComplete(true);
       }
     };
     
     checkBucket();
   }, []);
 
-  // Resume upload function using our utility
-  const uploadResume = async (file?: File) => {
+  // Resume upload function with improved error handling and validation
+  const uploadResume = async (file?: File): Promise<string | null> => {
     if (!file) return null;
     
     try {
       setUploadingResume(true);
       setUploadProgress(10);
       
-      // If bucket doesn't exist yet but we haven't tried to create it during initial check
-      if (!storageBucketExists && !bucketCreationAttempted) {
-        console.log('Intentando crear bucket antes de subir...');
-        const bucketCreated = await ensureBucketExists('resumes');
-        setStorageBucketExists(bucketCreated);
-        
-        if (!bucketCreated) {
-          throw new Error('No se pudo crear el sistema de almacenamiento de CVs');
-        }
+      // Validate file type
+      const validTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+      if (!validTypes.includes(file.type)) {
+        toast.error('Formato de archivo no válido. Por favor sube un PDF, DOC o DOCX.');
+        return null;
+      }
+      
+      // Validate file size
+      const maxSize = 10 * 1024 * 1024; // 10 MB
+      if (file.size > maxSize) {
+        toast.error('El archivo es demasiado grande. El tamaño máximo es 10 MB.');
+        return null;
+      }
+      
+      // If bucket check was skipped, do a quick check here
+      if (!bucketCheckComplete) {
+        setUploadProgress(20);
+        const bucketExists = await checkBucketExists('resumes');
+        const hasAccess = bucketExists ? await verifyBucketAccess('resumes') : false;
+        setStorageBucketExists(hasAccess);
       }
       
       setUploadProgress(30);
       
-      // Use our utility function to upload the file
-      const progressCallback = (progress: number) => {
-        setUploadProgress(30 + Math.round(progress * 60)); // Scale to our 30-90% range
-      };
+      // If bucket doesn't exist or isn't accessible, try one more time
+      if (!storageBucketExists) {
+        console.log('El bucket no está disponible, intentando nuevamente verificar su acceso...');
+        const hasAccess = await verifyBucketAccess('resumes');
+        setStorageBucketExists(hasAccess);
+        
+        if (!hasAccess) {
+          toast.error('El sistema de almacenamiento de CVs no está disponible en este momento.');
+          setUploadProgress(0);
+          return null;
+        }
+      }
       
+      // Call the uploadFile function from our service
+      setUploadProgress(40);
       const resumeUrl = await uploadFile(file, 'resumes');
-      
-      setUploadProgress(100);
       
       if (!resumeUrl) {
         throw new Error('Error al subir el archivo');
       }
       
+      setUploadProgress(100);
       console.info('CV subido exitosamente:', resumeUrl);
+      toast.success('CV subido correctamente');
       return resumeUrl;
     } catch (err: any) {
       console.error('Error al subir CV:', err);
-      throw err;
+      toast.error(err.message || 'Error al subir el CV');
+      return null;
     } finally {
       setUploadingResume(false);
     }
@@ -248,25 +279,21 @@ const ApplicationForm = () => {
     setSubmitError(null);
     
     try {
-      // Upload resume file to Supabase Storage if provided
+      // Handle resume upload if provided
       let resumeUrl = null;
       
-      if (values.resume) {
+      if (resumeFile) {
         try {
-          resumeUrl = await uploadResume(values.resume);
-          if (!resumeUrl && storageBucketExists) {
-            toast.warning("Problema al subir el currículum. Tu aplicación será enviada sin CV.");
-          }
+          resumeUrl = await uploadResume(resumeFile);
         } catch (uploadErr: any) {
           console.error('Error uploading resume:', uploadErr);
-          toast.warning(`Problema al subir el currículum. Tu aplicación será enviada sin CV.`);
-          // Continúe con la aplicación incluso si no se pudo cargar el CV
+          toast.warning(`No se pudo subir el CV. Tu aplicación será enviada sin CV.`);
         }
       }
       
       console.info('Submitting application with resumeUrl:', resumeUrl);
       
-      // Call our edge function to create the application - using the full URL including project ID
+      // Call our edge function to create the application
       const response = await fetch('https://kugocdtesaczbfrwblsi.supabase.co/functions/v1/create-application', {
         method: 'POST',
         headers: {
@@ -298,7 +325,6 @@ const ApplicationForm = () => {
         description: "Tu aplicación ha sido enviada correctamente.",
       });
       
-      // Also show a toast notification
       toast.success("Tu aplicación ha sido enviada correctamente");
       
       // Redirect to a thank you page
@@ -357,11 +383,11 @@ const ApplicationForm = () => {
             </Alert>
           )}
           
-          {creatingBucket ? (
+          {checkingBucket ? (
             <Alert variant="default" className="mb-6 bg-blue-50 border-blue-200">
               <Loader2 className="h-4 w-4 mr-2 animate-spin" />
               <AlertDescription>
-                Configurando almacenamiento para CVs...
+                Verificando sistema de almacenamiento...
               </AlertDescription>
             </Alert>
           ) : (
@@ -479,19 +505,28 @@ const ApplicationForm = () => {
                   <FormItem>
                     <FormLabel>CV (PDF, DOC o DOCX)</FormLabel>
                     <FormControl>
-                      <Input 
-                        type="file" 
-                        accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" 
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) {
-                            console.info('File selected:', file.name, file.type);
-                            onChange(file);
-                          }
-                        }}
-                        disabled={!storageBucketExists}
-                        {...rest}
-                      />
+                      <div className="flex flex-col gap-2">
+                        <Input 
+                          type="file" 
+                          accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" 
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              console.info('File selected:', file.name, file.type);
+                              onChange(file); // For form validation
+                              setResumeFile(file); // Store for later upload
+                            }
+                          }}
+                          disabled={!storageBucketExists || checkingBucket}
+                          className={storageBucketExists ? "" : "cursor-not-allowed bg-gray-100"}
+                          {...rest}
+                        />
+                        {!storageBucketExists && !checkingBucket && (
+                          <p className="text-sm text-red-500">
+                            El sistema de almacenamiento no está disponible en este momento.
+                          </p>
+                        )}
+                      </div>
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -500,7 +535,10 @@ const ApplicationForm = () => {
               
               {uploadingResume && (
                 <div className="space-y-2">
-                  <div className="text-sm text-muted-foreground">Subiendo CV: {uploadProgress}%</div>
+                  <div className="text-sm text-muted-foreground flex items-center">
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Subiendo CV: {uploadProgress}%
+                  </div>
                   <Progress value={uploadProgress} className="h-2" />
                 </div>
               )}
@@ -530,7 +568,11 @@ const ApplicationForm = () => {
               >
                 {isSubmitting || uploadingResume ? 
                   <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> {uploadingResume ? 'Subiendo CV...' : 'Enviando aplicación...'}</> : 
-                  'Enviar aplicación'}
+                  <>
+                    <Upload className="mr-2 h-4 w-4" />
+                    Enviar aplicación
+                  </>
+                }
               </Button>
             </form>
           </Form>

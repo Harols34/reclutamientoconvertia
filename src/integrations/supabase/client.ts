@@ -27,3 +27,39 @@ export const supabase = createClient<Database>(
 
 // Force TypeScript to use proper table types
 export type Tables = Database['public']['Tables'];
+
+// Helper function to check if a bucket exists
+export async function checkBucketExists(bucketName: string): Promise<boolean> {
+  try {
+    const { data: buckets, error } = await supabase.storage.listBuckets();
+    if (error) {
+      console.error('Error checking buckets:', error);
+      return false;
+    }
+    
+    return buckets?.some(bucket => bucket.id === bucketName) || false;
+  } catch (err) {
+    console.error('Exception checking bucket existence:', err);
+    return false;
+  }
+}
+
+// Helper function to verify bucket access permissions
+export async function verifyBucketAccess(bucketName: string): Promise<boolean> {
+  try {
+    // Try to list files as a simple permission check
+    const { data, error } = await supabase.storage
+      .from(bucketName)
+      .list('', { limit: 1 });
+      
+    if (error) {
+      console.error(`Access check for bucket '${bucketName}' failed:`, error);
+      return false;
+    }
+    
+    return true;
+  } catch (err) {
+    console.error('Exception during bucket access verification:', err);
+    return false;
+  }
+}
