@@ -9,12 +9,12 @@ import { ChatScreen } from '@/components/training/ChatScreen';
 import { ResultScreen } from '@/components/training/ResultScreen';
 import { toast } from '@/components/ui/sonner';
 
-interface Message {
+interface ChatMessage {
   id: string;
   sender_type: 'ai' | 'candidate';
   content: string;
   sent_at: string;
-  session_id?: string;
+  session_id: string;
 }
 
 const TrainingChat = () => {
@@ -24,7 +24,7 @@ const TrainingChat = () => {
   const [code, setCode] = useState('');
   const [name, setName] = useState('');
   const [sessionId, setSessionId] = useState<string | null>(null);
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(false);
   const [timeLeft, setTimeLeft] = useState(300); // 5 minutes (300 seconds)
   const [chatEnded, setChatEnded] = useState(false);
@@ -63,7 +63,7 @@ const TrainingChat = () => {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${supabase.auth.getSession()?.data?.session?.access_token || ''}`,
+            'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token || ''}`,
             'apikey': "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt1Z29jZHRlc2FjemJmcndibHNpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDY1NzA0MjUsImV4cCI6MjA2MjE0NjQyNX0.nHNWlTMfxuwAKYaiw145IFTAx3R3sbfWygviPVSH-Zc"
           },
           body: JSON.stringify(payload)
@@ -96,11 +96,7 @@ const TrainingChat = () => {
   // Validate and verify the code
   const validateCode = async () => {
     if (!code.trim()) {
-      toast({
-        title: 'Error',
-        description: 'Por favor, ingresa un código de entrenamiento',
-        variant: 'destructive',
-      });
+      toast.error('Por favor, ingresa un código de entrenamiento');
       return;
     }
 
@@ -131,17 +127,9 @@ const TrainingChat = () => {
       
       // Show appropriate error message based on retry count
       if (retryCount >= maxRetries - 1) {
-        toast({
-          title: 'Error de conexión',
-          description: 'No se pudo conectar con el servidor después de varios intentos. Por favor, inténtalo más tarde.',
-          variant: 'destructive',
-        });
+        toast.error('No se pudo conectar con el servidor después de varios intentos. Por favor, inténtalo más tarde.');
       } else {
-        toast({
-          title: 'Error',
-          description: error.message || 'Código no válido',
-          variant: 'destructive',
-        });
+        toast.error(error.message || 'Código no válido');
       }
     } finally {
       setLoading(false);
@@ -151,11 +139,7 @@ const TrainingChat = () => {
   // Start training session
   const startTraining = async () => {
     if (!name.trim()) {
-      toast({
-        title: 'Error',
-        description: 'Por favor, ingresa tu nombre',
-        variant: 'destructive',
-      });
+      toast.error('Por favor, ingresa tu nombre');
       return;
     }
 
@@ -192,17 +176,9 @@ const TrainingChat = () => {
       
       // Show appropriate error message based on retry count
       if (retryCount >= maxRetries - 1) {
-        toast({
-          title: 'Error de conexión',
-          description: 'No se pudo conectar con el servidor después de varios intentos. Por favor, inténtalo más tarde.',
-          variant: 'destructive',
-        });
+        toast.error('No se pudo conectar con el servidor después de varios intentos. Por favor, inténtalo más tarde.');
       } else {
-        toast({
-          title: 'Error',
-          description: error.message || 'No se pudo iniciar la sesión de entrenamiento',
-          variant: 'destructive',
-        });
+        toast.error(error.message || 'No se pudo iniciar la sesión de entrenamiento');
       }
     } finally {
       setLoading(false);
@@ -234,27 +210,19 @@ const TrainingChat = () => {
       
       // Show appropriate error message based on retry count
       if (retryCount >= maxRetries - 1) {
-        toast({
-          title: 'Error de conexión',
-          description: 'No se pudo conectar con el servidor después de varios intentos.',
-          variant: 'destructive',
-        });
+        toast.error('No se pudo conectar con el servidor después de varios intentos.');
       } else {
-        toast({
-          title: 'Error',
-          description: 'No se pudo finalizar la sesión correctamente',
-          variant: 'destructive',
-        });
+        toast.error('No se pudo finalizar la sesión correctamente');
       }
     }
   };
 
   // Handle input changes
-  const handleCodeChange = (newCode) => {
+  const handleCodeChange = (newCode: string) => {
     setCode(newCode.toUpperCase());
   };
 
-  const handleNameChange = (newName) => {
+  const handleNameChange = (newName: string) => {
     setName(newName);
   };
 

@@ -1,9 +1,11 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Send, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { toast } from '@/components/ui/sonner';
 
 interface ChatMessage {
   id: string;
@@ -40,7 +42,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
 }) => {
   const [inputValue, setInputValue] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const { toast } = useToast();
+  const { toast: hookToast } = useToast();
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -97,11 +99,11 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
         });
       } else {
         // Fallback to the original method if the helper isn't available
-        const { data: responseData, error } = await supabase.functions.invoke('training-chat', {
+        const { data: responseData, error: responseError } = await supabase.functions.invoke('training-chat', {
           body: { action: 'send-message', sessionId, message: content }
         });
         
-        if (error) throw error;
+        if (responseError) throw responseError;
         data = responseData;
       }
 
@@ -119,7 +121,7 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
       };
 
       setMessages(prevMessages => [...prevMessages, aiResponse]);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error al enviar mensaje:', error);
       toast.error('Error al enviar el mensaje. Por favor intenta nuevamente.');
     } finally {

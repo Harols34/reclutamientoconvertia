@@ -142,3 +142,6 @@ export const checkResumesBucketStatus = async (): Promise<boolean> => {
     return false;
   }
 };
+
+// Export the ensureBucketExists function
+export { ensureBucketExists };
