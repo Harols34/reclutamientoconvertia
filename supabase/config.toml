@@ -195,3 +195,9 @@ block_seconds = 60
 
 [functions.training-chat]
 verify_jwt = false
+
+[functions.extract-pdf-text]
+verify_jwt = true
+
+[functions.save-candidate-data]
+verify_jwt = true
