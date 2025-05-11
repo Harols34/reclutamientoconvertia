@@ -82,6 +82,9 @@ serve(async (req) => {
     const formattedPhone = phoneCountry && phone ? `+${phoneCountry}${phone}` : null
     console.log('Formatted phone:', formattedPhone)
     
+    // Explicitly log phone_country parameter to verify it's being passed correctly
+    console.log('Phone country parameter:', phoneCountry || '')
+    
     // Usar la función create_or_update_application
     const { data, error } = await supabaseAdmin.rpc(
       'create_or_update_application',

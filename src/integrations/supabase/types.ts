@@ -108,6 +108,7 @@ export type Database = {
           linkedin_url: string | null
           location: string | null
           phone: string | null
+          phone_country: string | null
           portfolio_url: string | null
           resume_text: string | null
           resume_url: string | null
@@ -125,6 +126,7 @@ export type Database = {
           linkedin_url?: string | null
           location?: string | null
           phone?: string | null
+          phone_country?: string | null
           portfolio_url?: string | null
           resume_text?: string | null
           resume_url?: string | null
@@ -142,6 +144,7 @@ export type Database = {
           linkedin_url?: string | null
           location?: string | null
           phone?: string | null
+          phone_country?: string | null
           portfolio_url?: string | null
           resume_text?: string | null
           resume_url?: string | null
