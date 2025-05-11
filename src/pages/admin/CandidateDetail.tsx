@@ -9,7 +9,13 @@ import PDFViewer from '@/components/ui/pdf-viewer';
 import CandidateSidebar from '@/components/candidates/CandidateSidebar';
 import AnalysisContent from '@/components/candidates/AnalysisContent';
 import ResumeContent from '@/components/candidates/ResumeContent';
-import { fetchCandidateDetails, saveAnalysisData, analyzeResume, getResumeUrl } from '@/services/candidate-service';
+import { 
+  fetchCandidateDetails, 
+  saveAnalysisData, 
+  analyzeResume, 
+  getResumeUrl, 
+  saveResumeText 
+} from '@/services/candidate-service';
 import { getStatusText, getJobTypeText } from '@/utils/formatters';
 import { Candidate } from '@/types/candidate';
 
@@ -19,6 +25,7 @@ const CandidateDetail: React.FC = () => {
   const [candidate, setCandidate] = useState<Candidate | null>(null);
   const [loading, setLoading] = useState(true);
   const [analyzing, setAnalyzing] = useState(false);
+  const [savingResumeText, setSavingResumeText] = useState(false);
   const [jobDetails, setJobDetails] = useState<any>(null);
   const [pdfViewerOpen, setPdfViewerOpen] = useState(false);
   const [resumeContent, setResumeContent] = useState<string | null>(null);
@@ -35,10 +42,14 @@ const CandidateDetail: React.FC = () => {
         console.log('Buscando candidato con ID:', id);
         
         const candidateData = await fetchCandidateDetails(id);
+        console.log('Candidato cargado:', candidateData);
         
         // Set resume content if it exists
         if (candidateData.resume_text) {
+          console.log('Texto del CV encontrado, longitud:', candidateData.resume_text.length);
           setResumeContent(candidateData.resume_text);
+        } else {
+          console.log('No se encontró texto del CV');
         }
         
         setCandidate(candidateData);
@@ -56,6 +67,35 @@ const CandidateDetail: React.FC = () => {
     
     if (id) loadCandidate();
   }, [id, toast]);
+
+  const handleSaveResumeText = async (text: string) => {
+    try {
+      if (!id) return;
+      
+      setSavingResumeText(true);
+      console.log('Guardando texto extraído para el candidato:', id);
+      console.log('Longitud del texto:', text.length);
+      
+      await saveResumeText(id, text);
+      
+      setResumeContent(text);
+      
+      toast({
+        title: "Texto guardado",
+        description: "El texto extraído del CV ha sido guardado correctamente"
+      });
+      
+    } catch (error: any) {
+      console.error('Error al guardar texto del CV:', error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message || "No se pudo guardar el texto extraído"
+      });
+    } finally {
+      setSavingResumeText(false);
+    }
+  };
 
   const handleSaveAnalysisData = async (analysisResult: any, extractedText: string) => {
     try {
@@ -119,6 +159,9 @@ const CandidateDetail: React.FC = () => {
 
       toast({ title: "Analizando", description: "Evaluando ajuste del candidato..." });
 
+      // Asegurar que el texto del CV esté guardado antes de analizar
+      await handleSaveResumeText(resumeContent);
+
       const analysisResult = await analyzeResume(resumeContent, jobContext);
       
       // Parse the result to ensure it's JSON
@@ -167,11 +210,6 @@ const CandidateDetail: React.FC = () => {
   const handleTextExtracted = (text: string) => {
     console.log("Texto extraído en el componente principal:", text.substring(0, 100) + "...");
     setResumeContent(text);
-    
-    // Save the extracted text to the database
-    if (candidate) {
-      handleSaveAnalysisData(candidate.analysis_summary, text);
-    }
     
     toast({ 
       title: "Texto extraído", 
@@ -245,7 +283,11 @@ const CandidateDetail: React.FC = () => {
             applicationId={candidate.applications?.[0]?.id}
           />
           
-          <ResumeContent resumeContent={resumeContent} />
+          <ResumeContent 
+            resumeContent={resumeContent} 
+            onSaveContent={handleSaveResumeText}
+            isSaving={savingResumeText}
+          />
         </div>
       </div>
       

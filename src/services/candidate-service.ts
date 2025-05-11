@@ -75,39 +75,98 @@ export async function fetchCandidateDetails(candidateId: string): Promise<Candid
 
 export async function saveAnalysisData(candidateId: string, analysisResult: any, extractedText: string) {
   try {
-    // Call our edge function to save the data
-    const response = await supabase.functions.invoke('save-candidate-data', {
-      body: {
-        candidateId,
-        resumeText: extractedText,
-        analysisData: analysisResult
-      }
-    });
+    console.log('Guardando datos de análisis...');
+    console.log('ID del candidato:', candidateId);
+    console.log('Texto extraído (longitud):', extractedText ? extractedText.length : 0);
+    console.log('Tiene datos de análisis:', !!analysisResult);
     
-    if (!response.data?.success) {
-      throw new Error(response.error?.message || 'Error al guardar datos del análisis');
+    // Primero guardamos el texto extraído del CV directamente en la base de datos
+    // para asegurarnos de que esté disponible incluso si la función Edge falla
+    const { error: updateError } = await supabase
+      .from('candidates')
+      .update({
+        resume_text: extractedText,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', candidateId);
+      
+    if (updateError) {
+      console.error('Error al guardar texto extraído:', updateError);
+      throw new Error(`Error al actualizar texto del CV: ${updateError.message}`);
     }
     
-    return response.data;
+    // Solo si tenemos datos de análisis, llamamos a la función Edge
+    if (analysisResult) {
+      // Call our edge function to save the data
+      const response = await supabase.functions.invoke('save-candidate-data', {
+        body: {
+          candidateId,
+          resumeText: extractedText,
+          analysisData: analysisResult
+        }
+      });
+      
+      if (!response.data?.success) {
+        throw new Error(response.error?.message || 'Error al guardar datos del análisis');
+      }
+      
+      return response.data;
+    }
+    
+    return { success: true, message: 'Texto del CV guardado correctamente' };
   } catch (error: any) {
     console.error('Error al guardar datos del candidato:', error);
     throw error;
   }
 }
 
-export async function analyzeResume(extractedText: string, jobDetails: any = null) {
-  const response = await supabase.functions.invoke('extract-pdf-text', {
-    body: { 
-      extractedText,
-      jobDetails
+export async function saveResumeText(candidateId: string, extractedText: string) {
+  try {
+    console.log('Guardando texto extraído del CV...');
+    
+    const { error } = await supabase
+      .from('candidates')
+      .update({
+        resume_text: extractedText,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', candidateId);
+      
+    if (error) {
+      console.error('Error al guardar texto extraído:', error);
+      throw new Error(`Error al actualizar texto del CV: ${error.message}`);
     }
-  });
-  
-  if (!response.data?.success) {
-    throw new Error(response.error?.message || response.data?.error || "Error durante el análisis del CV");
+    
+    return { success: true, message: 'Texto del CV guardado correctamente' };
+  } catch (error: any) {
+    console.error('Error al guardar texto del CV:', error);
+    throw error;
   }
+}
 
-  return response.data.analysis;
+export async function analyzeResume(extractedText: string, jobDetails: any = null) {
+  try {
+    console.log('Analizando CV...');
+    console.log('Texto extraído (longitud):', extractedText ? extractedText.length : 0);
+    console.log('Tiene detalles del trabajo:', !!jobDetails);
+    
+    const response = await supabase.functions.invoke('extract-pdf-text', {
+      body: { 
+        extractedText,
+        jobDetails
+      }
+    });
+    
+    if (!response.data?.success) {
+      console.error('Error en la respuesta de extract-pdf-text:', response.error || response.data?.error);
+      throw new Error(response.error?.message || response.data?.error || "Error durante el análisis del CV");
+    }
+
+    return response.data.analysis;
+  } catch (error: any) {
+    console.error('Error al analizar el CV:', error);
+    throw error;
+  }
 }
 
 export function getResumeUrl(path: string) {

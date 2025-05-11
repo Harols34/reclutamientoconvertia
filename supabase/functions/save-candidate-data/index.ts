@@ -113,6 +113,8 @@ serve(async (req) => {
     if (Object.keys(updateData).length > 0) {
       updateData.updated_at = new Date().toISOString()
       
+      console.log('Updating candidate with data:', JSON.stringify(updateData, null, 2))
+      
       const { data, error } = await supabaseAdmin
         .from('candidates')
         .update(updateData)

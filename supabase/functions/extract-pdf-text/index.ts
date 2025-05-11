@@ -18,6 +18,7 @@ serve(async (req) => {
     const { extractedText, jobDetails } = await req.json();
     
     if (!extractedText) {
+      console.error('No text provided for analysis');
       throw new Error('No text provided for analysis');
     }
     
@@ -27,6 +28,7 @@ serve(async (req) => {
     // OpenAI API key
     const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
     if (!openaiApiKey) {
+      console.error('OpenAI API key not configured');
       throw new Error('OpenAI API key not configured');
     }
     
@@ -127,8 +129,9 @@ serve(async (req) => {
     
     // Validate that the result is valid JSON
     try {
-      JSON.parse(analysisResult);
+      const parsed = JSON.parse(analysisResult);
       console.log('Análisis estructurado completado');
+      console.log('Resultado: ', JSON.stringify(parsed).substring(0, 200) + '...');
     } catch (e) {
       console.error('Error: El resultado no es un JSON válido:', e);
       console.error('Resultado que causó error:', analysisResult);
