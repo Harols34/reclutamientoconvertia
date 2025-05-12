@@ -84,5 +84,8 @@ gcp_jwt_path = "supabase/gcloud.json"
 
 [functions]
 [functions.extract-pdf-text]
+verify_jwt = false
 [functions.save-candidate-data]
+verify_jwt = false
 [functions.openai-assistant]
+verify_jwt = false

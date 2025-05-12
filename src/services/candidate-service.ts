@@ -80,23 +80,6 @@ export async function saveAnalysisData(candidateId: string, analysisResult: any,
     console.log('Texto extraído (longitud):', extractedText ? extractedText.length : 0);
     console.log('Tiene datos de análisis:', !!analysisResult);
     
-    // Primero guardamos el texto extraído del CV directamente en la base de datos
-    // para asegurarnos de que esté disponible incluso si la función Edge falla
-    const { error: updateError } = await supabase
-      .from('candidates')
-      .update({
-        resume_text: extractedText,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', candidateId);
-      
-    if (updateError) {
-      console.error('Error al guardar texto extraído:', updateError);
-      throw new Error(`Error al actualizar texto del CV: ${updateError.message}`);
-    }
-    
-    console.log('Texto del CV guardado correctamente en la base de datos');
-    
     // Solo si tenemos datos de análisis, llamamos a la función Edge
     if (analysisResult) {
       console.log('Invocando función Edge save-candidate-data...');
@@ -120,13 +103,15 @@ export async function saveAnalysisData(candidateId: string, analysisResult: any,
         
         console.log('Datos de análisis guardados correctamente');
         return response.data;
-      } catch (edgeFunctionError) {
+      } catch (edgeFunctionError: any) {
         console.error('Error al invocar la función Edge save-candidate-data:', edgeFunctionError);
-        throw new Error(`Error al invocar la función Edge: ${edgeFunctionError.message}`);
+        throw new Error(`Error al invocar la función Edge: ${edgeFunctionError.message || JSON.stringify(edgeFunctionError)}`);
       }
+    } else {
+      // Si no hay datos de análisis, solo guardamos el texto del CV
+      return await saveResumeText(candidateId, extractedText);
     }
     
-    return { success: true, message: 'Texto del CV guardado correctamente' };
   } catch (error: any) {
     console.error('Error al guardar datos del candidato:', error);
     throw error;
@@ -180,6 +165,12 @@ export async function analyzeResume(extractedText: string, jobDetails: any = nul
     console.log('Invocando función Edge extract-pdf-text...');
     
     try {
+      // Use more detailed debugging
+      console.log('Enviando payload a extract-pdf-text:', {
+        extractedText: extractedText.substring(0, 100) + '...',
+        jobDetailsProvided: !!jobDetails
+      });
+      
       const response = await supabase.functions.invoke('extract-pdf-text', {
         body: { 
           extractedText,
@@ -187,19 +178,30 @@ export async function analyzeResume(extractedText: string, jobDetails: any = nul
         }
       });
       
-      console.log('Respuesta obtenida de extract-pdf-text:', 
+      console.log('Respuesta recibida de extract-pdf-text:', 
         response.data ? 'Exitosa' : 'Error', 
-        response.error ? `Error: ${response.error.message}` : '');
+        response.error ? `Error: ${JSON.stringify(response.error)}` : '');
       
       if (!response.data?.success) {
-        console.error('Error en la respuesta de extract-pdf-text:', response.error || response.data?.error);
-        throw new Error(response.error?.message || response.data?.error || "Error durante el análisis del CV");
+        console.error('Error en la respuesta de extract-pdf-text:', 
+          response.error || response.data?.error || 'Sin detalles del error');
+        throw new Error(
+          response.error?.message || 
+          response.data?.error || 
+          "Error durante el análisis del CV. Verifica los logs para más detalles."
+        );
       }
       
       return response.data.analysis;
-    } catch (edgeFunctionError) {
-      console.error('Error al invocar la función Edge extract-pdf-text:', edgeFunctionError);
-      throw new Error(`Error al invocar la función Edge: ${edgeFunctionError.message}`);
+    } catch (edgeFunctionError: any) {
+      console.error('Error al invocar la función Edge extract-pdf-text:', 
+        typeof edgeFunctionError === 'object' ? JSON.stringify(edgeFunctionError) : edgeFunctionError);
+      
+      throw new Error(`Error al invocar la función Edge: ${
+        edgeFunctionError.message || 
+        JSON.stringify(edgeFunctionError) || 
+        'Error desconocido'
+      }`);
     }
   } catch (error: any) {
     console.error('Error al analizar el CV:', error);
