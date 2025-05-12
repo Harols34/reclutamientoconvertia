@@ -128,6 +128,12 @@ serve(async (req) => {
       }
       
       const data = await response.json();
+      
+      if (!data || !data.choices || !data.choices[0] || !data.choices[0].message) {
+        console.error('Invalid response format from OpenAI:', data);
+        throw new Error('Respuesta inválida de OpenAI');
+      }
+      
       const analysisResult = data.choices[0].message.content;
       
       // Validate that the result is valid JSON

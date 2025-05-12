@@ -171,10 +171,14 @@ export async function analyzeResume(extractedText: string, jobDetails: any = nul
         jobDetailsProvided: !!jobDetails
       });
       
+      // Mejorar la llamada a la función Edge con un timeout más largo
       const response = await supabase.functions.invoke('extract-pdf-text', {
         body: { 
           extractedText,
           jobDetails
+        },
+        headers: {
+          'Content-Type': 'application/json'
         }
       });
       
