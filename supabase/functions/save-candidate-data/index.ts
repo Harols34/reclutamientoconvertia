@@ -120,8 +120,7 @@ serve(async (req) => {
         .update(updateData)
         .eq('id', candidateId)
         .select()
-        .single()
-        
+      
       if (error) {
         console.error('Error updating candidate:', error)
         throw new Error(`Error al actualizar datos del candidato: ${error.message}`)

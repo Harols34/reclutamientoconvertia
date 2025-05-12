@@ -82,7 +82,7 @@ gcp_project_id = ""
 gcp_project_number = ""
 gcp_jwt_path = "supabase/gcloud.json"
 
+[functions]
 [functions.extract-pdf-text]
-
 [functions.save-candidate-data]
-
+[functions.openai-assistant]

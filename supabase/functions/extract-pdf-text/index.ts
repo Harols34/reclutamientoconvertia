@@ -102,56 +102,61 @@ serve(async (req) => {
     
     console.log('Iniciando análisis del texto extraído con OpenAI');
     
-    // Analyze CV with OpenAI
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${openaiApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: `Aquí está el texto extraído del CV para analizar: ${extractedText}` }
-        ],
-        temperature: 0.5,
-        max_tokens: 2000
-      }),
-    });
-    
-    if (!response.ok) {
-      const errorData = await response.json();
-      console.error('Error response from OpenAI:', errorData);
-      throw new Error(`Error en la API de OpenAI: ${errorData.error?.message || response.statusText}`);
-    }
-    
-    const data = await response.json();
-    const analysisResult = data.choices[0].message.content;
-    
-    // Validate that the result is valid JSON
     try {
-      const parsed = JSON.parse(analysisResult);
-      console.log('Análisis estructurado completado correctamente');
-      console.log('Resultado: ', JSON.stringify(parsed).substring(0, 200) + '...');
-    } catch (e) {
-      console.error('Error: El resultado no es un JSON válido:', e);
-      console.error('Resultado que causó error:', analysisResult);
-      throw new Error('El análisis no devolvió un formato JSON válido');
-    }
-    
-    return new Response(
-      JSON.stringify({ 
-        success: true, 
-        analysis: analysisResult 
-      }),
-      { 
-        headers: { 
-          ...corsHeaders,
-          'Content-Type': 'application/json' 
-        } 
+      // Analyze CV with OpenAI
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${openaiApiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o-mini',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: `Aquí está el texto extraído del CV para analizar: ${extractedText}` }
+          ],
+          temperature: 0.5,
+          max_tokens: 2000
+        }),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('Error response from OpenAI:', errorData);
+        throw new Error(`Error en la API de OpenAI: ${errorData.error?.message || response.statusText}`);
       }
-    );
+      
+      const data = await response.json();
+      const analysisResult = data.choices[0].message.content;
+      
+      // Validate that the result is valid JSON
+      try {
+        const parsed = JSON.parse(analysisResult);
+        console.log('Análisis estructurado completado correctamente');
+        console.log('Resultado: ', JSON.stringify(parsed).substring(0, 200) + '...');
+        
+        return new Response(
+          JSON.stringify({ 
+            success: true, 
+            analysis: analysisResult 
+          }),
+          { 
+            headers: { 
+              ...corsHeaders,
+              'Content-Type': 'application/json' 
+            } 
+          }
+        );
+      } catch (e) {
+        console.error('Error: El resultado no es un JSON válido:', e);
+        console.error('Resultado que causó error:', analysisResult);
+        throw new Error('El análisis no devolvió un formato JSON válido');
+      }
+    } catch (openAiError) {
+      console.error('Error al comunicarse con OpenAI:', openAiError);
+      throw new Error(`Error al comunicarse con OpenAI: ${openAiError.message}`);
+    }
     
   } catch (error) {
     console.error('Error en extract-pdf-text function:', error);

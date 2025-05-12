@@ -48,7 +48,7 @@ export async function fetchCandidateDetails(candidateId: string): Promise<Candid
     const jobPromises = candidateData.applications.map(async (app: any) => {
       const { data: jobData } = await supabase
         .from('jobs')
-        .select('id, title, department, type, description, requirements, responsibilities')
+        .select('id, title, department, location, type, description, requirements, responsibilities')
         .eq('id', app.job_id)
         .single();
       
@@ -101,24 +101,29 @@ export async function saveAnalysisData(candidateId: string, analysisResult: any,
     if (analysisResult) {
       console.log('Invocando función Edge save-candidate-data...');
       
-      // Call our edge function to save the data
-      const response = await supabase.functions.invoke('save-candidate-data', {
-        body: {
-          candidateId,
-          resumeText: extractedText,
-          analysisData: analysisResult
+      try {
+        // Call our edge function to save the data
+        const response = await supabase.functions.invoke('save-candidate-data', {
+          body: {
+            candidateId,
+            resumeText: extractedText,
+            analysisData: analysisResult
+          }
+        });
+        
+        console.log('Respuesta de la función Edge:', response);
+        
+        if (!response.data?.success) {
+          console.error('Error en la función Edge:', response.error || response.data?.error);
+          throw new Error(response.error?.message || response.data?.error || 'Error al guardar datos del análisis');
         }
-      });
-      
-      console.log('Respuesta de la función Edge:', response);
-      
-      if (!response.data?.success) {
-        console.error('Error en la función Edge:', response.error || response.data?.error);
-        throw new Error(response.error?.message || response.data?.error || 'Error al guardar datos del análisis');
+        
+        console.log('Datos de análisis guardados correctamente');
+        return response.data;
+      } catch (edgeFunctionError) {
+        console.error('Error al invocar la función Edge save-candidate-data:', edgeFunctionError);
+        throw new Error(`Error al invocar la función Edge: ${edgeFunctionError.message}`);
       }
-      
-      console.log('Datos de análisis guardados correctamente');
-      return response.data;
     }
     
     return { success: true, message: 'Texto del CV guardado correctamente' };
@@ -174,23 +179,28 @@ export async function analyzeResume(extractedText: string, jobDetails: any = nul
     
     console.log('Invocando función Edge extract-pdf-text...');
     
-    const response = await supabase.functions.invoke('extract-pdf-text', {
-      body: { 
-        extractedText,
-        jobDetails
+    try {
+      const response = await supabase.functions.invoke('extract-pdf-text', {
+        body: { 
+          extractedText,
+          jobDetails
+        }
+      });
+      
+      console.log('Respuesta obtenida de extract-pdf-text:', 
+        response.data ? 'Exitosa' : 'Error', 
+        response.error ? `Error: ${response.error.message}` : '');
+      
+      if (!response.data?.success) {
+        console.error('Error en la respuesta de extract-pdf-text:', response.error || response.data?.error);
+        throw new Error(response.error?.message || response.data?.error || "Error durante el análisis del CV");
       }
-    });
-    
-    console.log('Respuesta obtenida de extract-pdf-text:', 
-      response.data ? 'Exitosa' : 'Error', 
-      response.error ? `Error: ${response.error.message}` : '');
-    
-    if (!response.data?.success) {
-      console.error('Error en la respuesta de extract-pdf-text:', response.error || response.data?.error);
-      throw new Error(response.error?.message || response.data?.error || "Error durante el análisis del CV");
+      
+      return response.data.analysis;
+    } catch (edgeFunctionError) {
+      console.error('Error al invocar la función Edge extract-pdf-text:', edgeFunctionError);
+      throw new Error(`Error al invocar la función Edge: ${edgeFunctionError.message}`);
     }
-
-    return response.data.analysis;
   } catch (error: any) {
     console.error('Error al analizar el CV:', error);
     throw error;
