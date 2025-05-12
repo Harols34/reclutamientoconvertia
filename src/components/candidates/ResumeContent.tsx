@@ -2,8 +2,9 @@
 import React, { useState } from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Copy, CheckCircle2, Save } from 'lucide-react';
+import { Copy, CheckCircle2, Save, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 interface ResumeContentProps {
   resumeContent: string | null;
@@ -17,6 +18,7 @@ const ResumeContent: React.FC<ResumeContentProps> = ({
   isSaving = false 
 }) => {
   const [copied, setCopied] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const { toast } = useToast();
 
   if (!resumeContent) {
@@ -49,6 +51,7 @@ const ResumeContent: React.FC<ResumeContentProps> = ({
 
   const handleSaveContent = async () => {
     if (onSaveContent && resumeContent) {
+      setSaveError(null);
       try {
         console.log("Guardando contenido del CV, longitud:", resumeContent.length);
         await onSaveContent(resumeContent);
@@ -59,6 +62,9 @@ const ResumeContent: React.FC<ResumeContentProps> = ({
         });
       } catch (error) {
         console.error("Error al guardar contenido:", error);
+        
+        const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+        setSaveError(errorMessage);
         
         toast({
           variant: "destructive",
@@ -93,6 +99,14 @@ const ResumeContent: React.FC<ResumeContentProps> = ({
             <p className="text-muted-foreground text-center py-2">El contenido extraído está vacío</p>
           )}
         </div>
+        
+        {saveError && (
+          <Alert variant="destructive" className="mt-4">
+            <AlertDescription>
+              {saveError}
+            </AlertDescription>
+          </Alert>
+        )}
       </CardContent>
       {onSaveContent && (
         <CardFooter>
@@ -103,7 +117,10 @@ const ResumeContent: React.FC<ResumeContentProps> = ({
             className="w-full flex items-center gap-2"
           >
             {isSaving ? (
-              <>Guardando...</>
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Guardando...
+              </>
             ) : (
               <>
                 <Save className="h-4 w-4" />

@@ -6,6 +6,8 @@ import "https://deno.land/x/xhr@0.1.0/mod.ts";
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Content-Type': 'application/json'
 };
 
 serve(async (req) => {
@@ -18,7 +20,15 @@ serve(async (req) => {
     console.log('Iniciando función extract-pdf-text');
     
     // Parse the request body
-    const requestBody = await req.json();
+    const requestData = await req.text();
+    let requestBody;
+    try {
+      requestBody = JSON.parse(requestData);
+    } catch (parseError) {
+      console.error('Error parsing request body:', parseError, 'Raw data:', requestData);
+      throw new Error('Error al parsear la solicitud: formato JSON inválido');
+    }
+    
     const { extractedText, jobDetails } = requestBody;
     
     if (!extractedText) {
@@ -103,7 +113,8 @@ serve(async (req) => {
     console.log('Iniciando análisis del texto extraído con OpenAI');
     
     try {
-      // Analyze CV with OpenAI
+      // Analyze CV with OpenAI - Add timeout options and better error handling
+      const openaiStartTime = Date.now();
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -121,8 +132,16 @@ serve(async (req) => {
         }),
       });
       
+      console.log(`OpenAI response time: ${Date.now() - openaiStartTime}ms, Status: ${response.status}`);
+      
       if (!response.ok) {
-        const errorData = await response.json();
+        const errorText = await response.text();
+        let errorData;
+        try {
+          errorData = JSON.parse(errorText);
+        } catch (e) {
+          errorData = { error: { message: errorText }};
+        }
         console.error('Error response from OpenAI:', errorData);
         throw new Error(`Error en la API de OpenAI: ${errorData.error?.message || response.statusText}`);
       }
@@ -148,10 +167,7 @@ serve(async (req) => {
             analysis: analysisResult 
           }),
           { 
-            headers: { 
-              ...corsHeaders,
-              'Content-Type': 'application/json' 
-            } 
+            headers: corsHeaders
           }
         );
       } catch (e) {
@@ -174,10 +190,7 @@ serve(async (req) => {
       }),
       { 
         status: 400, 
-        headers: { 
-          ...corsHeaders,
-          'Content-Type': 'application/json' 
-        } 
+        headers: corsHeaders
       }
     );
   }

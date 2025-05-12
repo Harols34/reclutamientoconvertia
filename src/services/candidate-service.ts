@@ -171,43 +171,71 @@ export async function analyzeResume(extractedText: string, jobDetails: any = nul
         jobDetailsProvided: !!jobDetails
       });
       
-      // Mejorar la llamada a la función Edge con un timeout más largo
-      const response = await supabase.functions.invoke('extract-pdf-text', {
-        body: { 
-          extractedText,
-          jobDetails
-        },
-        headers: {
-          'Content-Type': 'application/json'
+      // Retry mechanism
+      let retryCount = 0;
+      const maxRetries = 3;
+      let lastError = null;
+      
+      while (retryCount < maxRetries) {
+        try {
+          const response = await supabase.functions.invoke('extract-pdf-text', {
+            body: { 
+              extractedText,
+              jobDetails
+            },
+            headers: {
+              'Content-Type': 'application/json'
+            }
+          });
+          
+          console.log('Respuesta recibida de extract-pdf-text:', 
+            response.data ? 'Exitosa' : 'Error', 
+            response.error ? `Error: ${JSON.stringify(response.error)}` : '');
+          
+          if (!response.data?.success) {
+            console.error('Error en la respuesta de extract-pdf-text:', 
+              response.error || response.data?.error || 'Sin detalles del error');
+            throw new Error(
+              response.error?.message || 
+              response.data?.error || 
+              "Error durante el análisis del CV. Verifica los logs para más detalles."
+            );
+          }
+          
+          return response.data.analysis;
+        } catch (retryableError) {
+          lastError = retryableError;
+          retryCount++;
+          
+          if (retryCount < maxRetries) {
+            console.log(`Intento ${retryCount}/${maxRetries} falló, reintentando...`);
+            // Exponential backoff
+            await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, retryCount)));
+          }
         }
-      });
-      
-      console.log('Respuesta recibida de extract-pdf-text:', 
-        response.data ? 'Exitosa' : 'Error', 
-        response.error ? `Error: ${JSON.stringify(response.error)}` : '');
-      
-      if (!response.data?.success) {
-        console.error('Error en la respuesta de extract-pdf-text:', 
-          response.error || response.data?.error || 'Sin detalles del error');
-        throw new Error(
-          response.error?.message || 
-          response.data?.error || 
-          "Error durante el análisis del CV. Verifica los logs para más detalles."
-        );
       }
       
-      return response.data.analysis;
-    } catch (edgeFunctionError: any) {
+      // If we've exhausted retries
+      console.error('Se agotaron los reintentos para invocar la función Edge:', lastError);
+      throw lastError || new Error('Error al invocar la función Edge después de múltiples intentos');
+      
+    } catch (edgeFunctionError) {
       console.error('Error al invocar la función Edge extract-pdf-text:', 
         typeof edgeFunctionError === 'object' ? JSON.stringify(edgeFunctionError) : edgeFunctionError);
       
-      throw new Error(`Error al invocar la función Edge: ${
-        edgeFunctionError.message || 
-        JSON.stringify(edgeFunctionError) || 
-        'Error desconocido'
-      }`);
+      // Improve error message with more context
+      let errorMessage = 'Error al invocar la función Edge';
+      if (edgeFunctionError instanceof Error) {
+        errorMessage = `${errorMessage}: ${edgeFunctionError.message}`;
+      } else if (typeof edgeFunctionError === 'object') {
+        errorMessage = `${errorMessage}: ${JSON.stringify(edgeFunctionError)}`;
+      } else if (edgeFunctionError) {
+        errorMessage = `${errorMessage}: ${edgeFunctionError}`;
+      }
+      
+      throw new Error(errorMessage);
     }
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error al analizar el CV:', error);
     throw error;
   }
