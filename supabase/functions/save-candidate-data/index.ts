@@ -35,8 +35,8 @@ serve(async (req) => {
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)
     
     // Parse request body
-    const body = await req.json()
-    const { candidateId, resumeText, analysisData } = body
+    const requestBody = await req.json()
+    const { candidateId, resumeText, analysisData } = requestBody
     
     console.log(`Processing data for candidate ${candidateId}`)
     console.log(`Resume text length: ${resumeText ? resumeText.length : 0} characters`)

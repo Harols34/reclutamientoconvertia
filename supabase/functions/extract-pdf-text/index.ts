@@ -15,11 +15,15 @@ serve(async (req) => {
   }
   
   try {
-    const { extractedText, jobDetails } = await req.json();
+    console.log('Iniciando función extract-pdf-text');
+    
+    // Parse the request body
+    const requestBody = await req.json();
+    const { extractedText, jobDetails } = requestBody;
     
     if (!extractedText) {
       console.error('No text provided for analysis');
-      throw new Error('No text provided for analysis');
+      throw new Error('No se proporcionó texto para análisis');
     }
     
     console.log('Recibido texto para análisis:', extractedText.substring(0, 100) + '...');
@@ -29,7 +33,7 @@ serve(async (req) => {
     const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
     if (!openaiApiKey) {
       console.error('OpenAI API key not configured');
-      throw new Error('OpenAI API key not configured');
+      throw new Error('Clave de API de OpenAI no configurada');
     }
     
     // Prepare system prompt based on whether job details are provided
@@ -65,8 +69,7 @@ serve(async (req) => {
       "certificaciones": [""],
       "idiomas": [""],
       "fortalezas": [""],
-      "areasAMejorar": [""]
-    }`;
+      "areasAMejorar": [""]`;
     
     // If job details provided, add compatibility analysis
     if (jobDetails) {
@@ -89,16 +92,15 @@ serve(async (req) => {
       Descripción: ${jobDetails?.description || 'No proporcionada'}
       Requisitos: ${jobDetails?.requirements || 'No proporcionados'}
       Responsabilidades: ${jobDetails?.responsibilities || 'No proporcionadas'}`;
-    } else {
-      // Close JSON structure properly if no job details
-      systemPrompt += `}`;
     }
     
+    // Close JSON structure 
     systemPrompt += `
+    }
     
     IMPORTANTE: Asegúrate de que tu respuesta sea un objeto JSON válido y bien formateado. No incluyas markdown, comentarios ni información adicional fuera del objeto JSON.`;
     
-    console.log('Iniciando análisis del texto extraído');
+    console.log('Iniciando análisis del texto extraído con OpenAI');
     
     // Analyze CV with OpenAI
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -130,7 +132,7 @@ serve(async (req) => {
     // Validate that the result is valid JSON
     try {
       const parsed = JSON.parse(analysisResult);
-      console.log('Análisis estructurado completado');
+      console.log('Análisis estructurado completado correctamente');
       console.log('Resultado: ', JSON.stringify(parsed).substring(0, 200) + '...');
     } catch (e) {
       console.error('Error: El resultado no es un JSON válido:', e);

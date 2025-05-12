@@ -95,8 +95,12 @@ export async function saveAnalysisData(candidateId: string, analysisResult: any,
       throw new Error(`Error al actualizar texto del CV: ${updateError.message}`);
     }
     
+    console.log('Texto del CV guardado correctamente en la base de datos');
+    
     // Solo si tenemos datos de análisis, llamamos a la función Edge
     if (analysisResult) {
+      console.log('Invocando función Edge save-candidate-data...');
+      
       // Call our edge function to save the data
       const response = await supabase.functions.invoke('save-candidate-data', {
         body: {
@@ -106,10 +110,14 @@ export async function saveAnalysisData(candidateId: string, analysisResult: any,
         }
       });
       
+      console.log('Respuesta de la función Edge:', response);
+      
       if (!response.data?.success) {
-        throw new Error(response.error?.message || 'Error al guardar datos del análisis');
+        console.error('Error en la función Edge:', response.error || response.data?.error);
+        throw new Error(response.error?.message || response.data?.error || 'Error al guardar datos del análisis');
       }
       
+      console.log('Datos de análisis guardados correctamente');
       return response.data;
     }
     
@@ -123,21 +131,30 @@ export async function saveAnalysisData(candidateId: string, analysisResult: any,
 export async function saveResumeText(candidateId: string, extractedText: string) {
   try {
     console.log('Guardando texto extraído del CV...');
+    console.log('ID del candidato:', candidateId);
+    console.log('Longitud del texto:', extractedText.length);
     
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('candidates')
       .update({
         resume_text: extractedText,
         updated_at: new Date().toISOString()
       })
-      .eq('id', candidateId);
+      .eq('id', candidateId)
+      .select('resume_text');
       
     if (error) {
       console.error('Error al guardar texto extraído:', error);
       throw new Error(`Error al actualizar texto del CV: ${error.message}`);
     }
     
-    return { success: true, message: 'Texto del CV guardado correctamente' };
+    console.log('Texto del CV guardado correctamente, respuesta:', data);
+    
+    return { 
+      success: true, 
+      message: 'Texto del CV guardado correctamente',
+      data
+    };
   } catch (error: any) {
     console.error('Error al guardar texto del CV:', error);
     throw error;
@@ -150,12 +167,23 @@ export async function analyzeResume(extractedText: string, jobDetails: any = nul
     console.log('Texto extraído (longitud):', extractedText ? extractedText.length : 0);
     console.log('Tiene detalles del trabajo:', !!jobDetails);
     
+    // Asegurarnos de que tenemos texto para analizar
+    if (!extractedText || extractedText.trim().length === 0) {
+      throw new Error('No hay texto para analizar');
+    }
+    
+    console.log('Invocando función Edge extract-pdf-text...');
+    
     const response = await supabase.functions.invoke('extract-pdf-text', {
       body: { 
         extractedText,
         jobDetails
       }
     });
+    
+    console.log('Respuesta obtenida de extract-pdf-text:', 
+      response.data ? 'Exitosa' : 'Error', 
+      response.error ? `Error: ${response.error.message}` : '');
     
     if (!response.data?.success) {
       console.error('Error en la respuesta de extract-pdf-text:', response.error || response.data?.error);
@@ -172,6 +200,13 @@ export async function analyzeResume(extractedText: string, jobDetails: any = nul
 export function getResumeUrl(path: string) {
   if (!path) return null;
   if (path.startsWith('http')) return path;
-  const { data } = supabase.storage.from('resumes').getPublicUrl(path);
-  return data.publicUrl;
+  
+  try {
+    const { data } = supabase.storage.from('resumes').getPublicUrl(path);
+    console.log('URL generada para el CV:', data.publicUrl);
+    return data.publicUrl;
+  } catch (error) {
+    console.error('Error al obtener URL del CV:', error);
+    return null;
+  }
 }

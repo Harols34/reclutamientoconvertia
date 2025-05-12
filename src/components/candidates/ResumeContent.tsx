@@ -2,7 +2,8 @@
 import React, { useState } from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Copy, CheckCircle2 } from 'lucide-react';
+import { Copy, CheckCircle2, Save } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 
 interface ResumeContentProps {
   resumeContent: string | null;
@@ -16,18 +17,55 @@ const ResumeContent: React.FC<ResumeContentProps> = ({
   isSaving = false 
 }) => {
   const [copied, setCopied] = useState(false);
+  const { toast } = useToast();
 
-  if (!resumeContent) return null;
+  if (!resumeContent) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Contenido del CV</CardTitle>
+          <CardDescription>No hay texto extraído del CV disponible</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="bg-muted p-4 rounded-md text-center py-8">
+            <p className="text-muted-foreground">Abra el CV para extraer el texto</p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
   
   const handleCopyText = () => {
     navigator.clipboard.writeText(resumeContent);
     setCopied(true);
+    
+    toast({
+      title: "Texto copiado",
+      description: "El contenido ha sido copiado al portapapeles"
+    });
+    
     setTimeout(() => setCopied(false), 2000);
   };
 
   const handleSaveContent = async () => {
     if (onSaveContent && resumeContent) {
-      await onSaveContent(resumeContent);
+      try {
+        console.log("Guardando contenido del CV, longitud:", resumeContent.length);
+        await onSaveContent(resumeContent);
+        
+        toast({
+          title: "Guardado correctamente",
+          description: "El contenido del CV ha sido guardado"
+        });
+      } catch (error) {
+        console.error("Error al guardar contenido:", error);
+        
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "No se pudo guardar el contenido del CV"
+        });
+      }
     }
   };
   
@@ -49,7 +87,11 @@ const ResumeContent: React.FC<ResumeContentProps> = ({
       </CardHeader>
       <CardContent>
         <div className="bg-muted p-4 rounded-md max-h-96 overflow-y-auto">
-          <pre className="text-sm whitespace-pre-wrap">{resumeContent}</pre>
+          {resumeContent.length > 0 ? (
+            <pre className="text-sm whitespace-pre-wrap">{resumeContent}</pre>
+          ) : (
+            <p className="text-muted-foreground text-center py-2">El contenido extraído está vacío</p>
+          )}
         </div>
       </CardContent>
       {onSaveContent && (
@@ -58,9 +100,16 @@ const ResumeContent: React.FC<ResumeContentProps> = ({
             variant="outline" 
             onClick={handleSaveContent}
             disabled={isSaving}
-            className="w-full"
+            className="w-full flex items-center gap-2"
           >
-            {isSaving ? 'Guardando...' : 'Guardar contenido extraído'}
+            {isSaving ? (
+              <>Guardando...</>
+            ) : (
+              <>
+                <Save className="h-4 w-4" />
+                Guardar contenido extraído
+              </>
+            )}
           </Button>
         </CardFooter>
       )}
