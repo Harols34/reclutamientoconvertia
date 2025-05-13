@@ -85,24 +85,57 @@ export async function saveAnalysisData(candidateId: string, analysisResult: any,
       console.log('Invocando función Edge save-candidate-data...');
       
       try {
-        // Call our edge function to save the data
-        const response = await supabase.functions.invoke('save-candidate-data', {
-          body: {
-            candidateId,
-            resumeText: extractedText,
-            analysisData: analysisResult
+        // Call our edge function to save the data with multiple retries
+        let retryCount = 0;
+        const maxRetries = 3;
+        let lastError = null;
+        
+        while (retryCount < maxRetries) {
+          try {
+            // Direct fetch approach without authorization since verify_jwt is false
+            const response = await fetch('https://kugocdtesaczbfrwblsi.supabase.co/functions/v1/save-candidate-data', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'apikey': "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt1Z29jZHRlc2FjemJmcndibHNpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDY1NzA0MjUsImV4cCI6MjA2MjE0NjQyNX0.nHNWlTMfxuwAKYaiw145IFTAx3R3sbfWygviPVSH-Zc"
+              },
+              body: JSON.stringify({
+                candidateId,
+                resumeText: extractedText,
+                analysisData: analysisResult
+              })
+            });
+
+            if (!response.ok) {
+              const errorText = await response.text();
+              throw new Error(`Edge function returned error: ${response.status}, ${errorText}`);
+            }
+            
+            const data = await response.json();
+            
+            console.log('Respuesta de la función Edge:', data);
+            
+            if (!data?.success) {
+              throw new Error(data?.error || 'Error al guardar datos del análisis');
+            }
+            
+            return data;
+          } catch (error) {
+            console.error(`Intento ${retryCount + 1} fallido:`, error);
+            lastError = error;
+            retryCount++;
+            
+            if (retryCount < maxRetries) {
+              // Exponential backoff
+              const delay = Math.pow(2, retryCount) * 1000;
+              console.log(`Reintentando en ${delay}ms...`);
+              await new Promise(resolve => setTimeout(resolve, delay));
+            }
           }
-        });
-        
-        console.log('Respuesta de la función Edge:', response);
-        
-        if (!response.data?.success) {
-          console.error('Error en la función Edge:', response.error || response.data?.error);
-          throw new Error(response.error?.message || response.data?.error || 'Error al guardar datos del análisis');
         }
         
-        console.log('Datos de análisis guardados correctamente');
-        return response.data;
+        // If we've exhausted retries
+        throw lastError || new Error('Error al invocar la función Edge después de múltiples intentos');
       } catch (edgeFunctionError: any) {
         console.error('Error al invocar la función Edge save-candidate-data:', edgeFunctionError);
         throw new Error(`Error al invocar la función Edge: ${edgeFunctionError.message || JSON.stringify(edgeFunctionError)}`);
@@ -164,77 +197,62 @@ export async function analyzeResume(extractedText: string, jobDetails: any = nul
     
     console.log('Invocando función Edge extract-pdf-text...');
     
-    try {
-      // Use more detailed debugging
-      console.log('Enviando payload a extract-pdf-text:', {
-        extractedText: extractedText.substring(0, 100) + '...',
-        jobDetailsProvided: !!jobDetails
-      });
-      
-      // Retry mechanism
-      let retryCount = 0;
-      const maxRetries = 3;
-      let lastError = null;
-      
-      while (retryCount < maxRetries) {
-        try {
-          const response = await supabase.functions.invoke('extract-pdf-text', {
-            body: { 
-              extractedText,
-              jobDetails
-            },
-            headers: {
-              'Content-Type': 'application/json'
-            }
-          });
-          
-          console.log('Respuesta recibida de extract-pdf-text:', 
-            response.data ? 'Exitosa' : 'Error', 
-            response.error ? `Error: ${JSON.stringify(response.error)}` : '');
-          
-          if (!response.data?.success) {
-            console.error('Error en la respuesta de extract-pdf-text:', 
-              response.error || response.data?.error || 'Sin detalles del error');
-            throw new Error(
-              response.error?.message || 
-              response.data?.error || 
-              "Error durante el análisis del CV. Verifica los logs para más detalles."
-            );
-          }
-          
-          return response.data.analysis;
-        } catch (retryableError) {
-          lastError = retryableError;
-          retryCount++;
-          
-          if (retryCount < maxRetries) {
-            console.log(`Intento ${retryCount}/${maxRetries} falló, reintentando...`);
-            // Exponential backoff
-            await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, retryCount)));
-          }
+    // Retry mechanism
+    let retryCount = 0;
+    const maxRetries = 3;
+    let lastError = null;
+    
+    while (retryCount < maxRetries) {
+      try {
+        // Direct fetch approach without authorization since verify_jwt is false
+        const response = await fetch('https://kugocdtesaczbfrwblsi.supabase.co/functions/v1/extract-pdf-text', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt1Z29jZHRlc2FjemJmcndibHNpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDY1NzA0MjUsImV4cCI6MjA2MjE0NjQyNX0.nHNWlTMfxuwAKYaiw145IFTAx3R3sbfWygviPVSH-Zc"
+          },
+          body: JSON.stringify({ 
+            extractedText,
+            jobDetails
+          })
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`Edge function returned error: ${response.status}, ${errorText}`);
+        }
+        
+        const data = await response.json();
+        
+        console.log('Respuesta recibida de extract-pdf-text:', 
+          data ? 'Exitosa' : 'Error', 
+          data.error ? `Error: ${JSON.stringify(data.error)}` : '');
+        
+        if (!data?.success) {
+          throw new Error(
+            data?.error || 
+            "Error durante el análisis del CV. Verifica los logs para más detalles."
+          );
+        }
+        
+        return data.analysis;
+      } catch (error) {
+        console.error(`Intento ${retryCount + 1} fallido:`, error);
+        lastError = error;
+        retryCount++;
+        
+        if (retryCount < maxRetries) {
+          // Exponential backoff
+          const delay = Math.pow(2, retryCount) * 1000;
+          console.log(`Reintentando en ${delay}ms...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
         }
       }
-      
-      // If we've exhausted retries
-      console.error('Se agotaron los reintentos para invocar la función Edge:', lastError);
-      throw lastError || new Error('Error al invocar la función Edge después de múltiples intentos');
-      
-    } catch (edgeFunctionError) {
-      console.error('Error al invocar la función Edge extract-pdf-text:', 
-        typeof edgeFunctionError === 'object' ? JSON.stringify(edgeFunctionError) : edgeFunctionError);
-      
-      // Improve error message with more context
-      let errorMessage = 'Error al invocar la función Edge';
-      if (edgeFunctionError instanceof Error) {
-        errorMessage = `${errorMessage}: ${edgeFunctionError.message}`;
-      } else if (typeof edgeFunctionError === 'object') {
-        errorMessage = `${errorMessage}: ${JSON.stringify(edgeFunctionError)}`;
-      } else if (edgeFunctionError) {
-        errorMessage = `${errorMessage}: ${edgeFunctionError}`;
-      }
-      
-      throw new Error(errorMessage);
     }
+    
+    // If we've exhausted retries
+    throw lastError || new Error('Error al invocar la función Edge después de múltiples intentos');
+    
   } catch (error) {
     console.error('Error al analizar el CV:', error);
     throw error;

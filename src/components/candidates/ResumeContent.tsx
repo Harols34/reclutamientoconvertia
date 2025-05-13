@@ -60,7 +60,7 @@ const ResumeContent: React.FC<ResumeContentProps> = ({
           title: "Guardado correctamente",
           description: "El contenido del CV ha sido guardado"
         });
-      } catch (error) {
+      } catch (error: any) {
         console.error("Error al guardar contenido:", error);
         
         const errorMessage = error instanceof Error ? error.message : 'Error desconocido';

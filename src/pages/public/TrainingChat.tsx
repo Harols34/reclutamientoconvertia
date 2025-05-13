@@ -58,12 +58,11 @@ const TrainingChat = () => {
       try {
         console.log(`Attempt ${attempt + 1} calling edge function ${functionName}...`);
         
-        // Direct URL approach
+        // Direct URL approach with no authorization header since verify_jwt is false
         const response = await fetch(`https://kugocdtesaczbfrwblsi.supabase.co/functions/v1/${functionName}`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token || ''}`,
             'apikey': "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt1Z29jZHRlc2FjemJmcndibHNpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDY1NzA0MjUsImV4cCI6MjA2MjE0NjQyNX0.nHNWlTMfxuwAKYaiw145IFTAx3R3sbfWygviPVSH-Zc"
           },
           body: JSON.stringify(payload)

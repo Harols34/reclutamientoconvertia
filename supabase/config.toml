@@ -89,3 +89,5 @@ verify_jwt = false
 verify_jwt = false
 [functions.openai-assistant]
 verify_jwt = false
+[functions.training-chat]
+verify_jwt = false

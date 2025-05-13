@@ -98,13 +98,26 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({
           message: content
         });
       } else {
-        // Fallback to the original method if the helper isn't available
-        const { data: responseData, error: responseError } = await supabase.functions.invoke('training-chat', {
-          body: { action: 'send-message', sessionId, message: content }
+        // Fallback to a direct fetch call with no authorization header
+        const response = await fetch(`https://kugocdtesaczbfrwblsi.supabase.co/functions/v1/training-chat`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt1Z29jZHRlc2FjemJmcndibHNpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDY1NzA0MjUsImV4cCI6MjA2MjE0NjQyNX0.nHNWlTMfxuwAKYaiw145IFTAx3R3sbfWygviPVSH-Zc"
+          },
+          body: JSON.stringify({
+            action: 'send-message',
+            sessionId: sessionId,
+            message: content
+          })
         });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`Edge function returned error: ${response.status}, ${errorText}`);
+        }
         
-        if (responseError) throw responseError;
-        data = responseData;
+        data = await response.json();
       }
 
       if (!data || data.error) {

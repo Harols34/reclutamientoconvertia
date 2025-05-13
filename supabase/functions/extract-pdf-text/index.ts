@@ -37,10 +37,11 @@ serve(async (req) => {
     }
     
     console.log('Recibido texto para análisis:', extractedText.substring(0, 100) + '...');
+    console.log('Texto completo longitud:', extractedText.length);
     console.log('Enviando texto extraído para análisis estructurado...');
     
     // OpenAI API key
-    const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
+    const openaiApiKey = Deno.env.get('OPENAI_API_KEY') || Deno.env.get('OPENAI');
     if (!openaiApiKey) {
       console.error('OpenAI API key not configured');
       throw new Error('Clave de API de OpenAI no configurada');
@@ -115,6 +116,12 @@ serve(async (req) => {
     try {
       // Analyze CV with OpenAI - Add timeout options and better error handling
       const openaiStartTime = Date.now();
+      
+      // Check openAI API key validity
+      if (!openaiApiKey || openaiApiKey.length < 20) {
+        throw new Error('API key de OpenAI no es válida');
+      }
+      
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
