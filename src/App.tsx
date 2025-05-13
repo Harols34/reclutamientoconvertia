@@ -1,10 +1,9 @@
-
 import { StrictMode, useEffect, useState } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import NotFound from "./pages/NotFound";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -34,10 +33,11 @@ import Reports from "./pages/admin/Reports";
 import Settings from "./pages/admin/Settings";
 import TrainingCodes from "./pages/admin/TrainingCodes"; // Nueva página de códigos
 import TrainingSessions from "./pages/admin/TrainingSessions"; // Nueva página de sesiones
+import SessionDetail from './pages/admin/SessionDetail';
 
 const queryClient = new QueryClient();
 
-const App = () => {
+function App() {
   const [session, setSession] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
@@ -78,7 +78,7 @@ const App = () => {
         <TooltipProvider>
           <Toaster />
           <Sonner />
-          <BrowserRouter>
+          <Router>
             <Routes>
               {/* Public Routes */}
               <Route path="/" element={<PublicLayout />}>
@@ -111,12 +111,13 @@ const App = () => {
                 <Route path="settings" element={<Settings />} />
                 <Route path="training-codes" element={<TrainingCodes />} />
                 <Route path="training-sessions" element={<TrainingSessions />} />
+                <Route path="training-sessions/:sessionId" element={<SessionDetail />} />
               </Route>
 
               {/* Catch all */}
               <Route path="*" element={<NotFound />} />
             </Routes>
-          </BrowserRouter>
+          </Router>
         </TooltipProvider>
       </QueryClientProvider>
     </StrictMode>

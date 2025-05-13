@@ -1,11 +1,10 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { RefreshCcw, MessageSquare, Star } from 'lucide-react';
+import { RefreshCcw, MessageSquare, Star, Eye } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { 
   Dialog, 
@@ -15,6 +14,7 @@ import {
   DialogDescription
 } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useNavigate } from 'react-router-dom';
 
 interface TrainingSession {
   id: string;
@@ -42,6 +42,7 @@ const TrainingSessions = () => {
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [showDialog, setShowDialog] = useState(false);
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   // Cargar sesiones de entrenamiento
   const loadSessions = async () => {
@@ -145,6 +146,10 @@ const TrainingSessions = () => {
     setShowDialog(true);
   };
 
+  const viewDetailedSession = (sessionId: string) => {
+    navigate(`/admin/training-sessions/${sessionId}`);
+  };
+
   // Formatear fecha
   const formatDate = (dateString: string | null) => {
     if (!dateString) return '---';
@@ -225,13 +230,24 @@ const TrainingSessions = () => {
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <Button 
-                        variant="ghost" 
-                        size="sm"
-                        onClick={() => viewSessionDetails(session)}
-                      >
-                        <MessageSquare className="h-4 w-4 text-hrm-dark-cyan" />
-                      </Button>
+                      <div className="flex space-x-2">
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          onClick={() => viewSessionDetails(session)}
+                          title="Vista rápida"
+                        >
+                          <MessageSquare className="h-4 w-4 text-hrm-dark-cyan" />
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          onClick={() => viewDetailedSession(session.id)}
+                          title="Vista detallada"
+                        >
+                          <Eye className="h-4 w-4 text-hrm-dark-cyan" />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -306,6 +322,15 @@ const TrainingSessions = () => {
               )}
             </TabsContent>
           </Tabs>
+
+          <div className="mt-4 flex justify-end">
+            <Button 
+              onClick={() => selectedSession && viewDetailedSession(selectedSession.id)}
+              variant="outline"
+            >
+              <Eye className="h-4 w-4 mr-2" /> Ver Detalles Completos
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
