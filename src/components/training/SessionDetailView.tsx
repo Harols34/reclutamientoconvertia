@@ -44,13 +44,52 @@ export const SessionDetailView: React.FC = () => {
     
     setLoading(true);
     try {
+      // Make a direct query instead of using rpc since TypeScript doesn't know about our new function
       const { data, error } = await supabase
-        .rpc('get_complete_training_session', { p_session_id: sessionId });
+        .from('training_sessions')
+        .select(`
+          id,
+          candidate_name,
+          started_at,
+          ended_at,
+          score,
+          feedback,
+          public_visible,
+          training_codes!inner (code),
+          training_evaluations (strengths, areas_to_improve, recommendations)
+        `)
+        .eq('id', sessionId)
+        .single();
 
       if (error) throw error;
       
-      if (data && data.length > 0) {
-        setSession(data[0]);
+      if (data) {
+        // Get messages for the session
+        const { data: messagesData, error: messagesError } = await supabase
+          .from('training_messages')
+          .select('id, sender_type, content, sent_at')
+          .eq('session_id', sessionId)
+          .order('sent_at', { ascending: true });
+          
+        if (messagesError) throw messagesError;
+        
+        // Format data to match our SessionData interface
+        const sessionData: SessionData = {
+          id: data.id,
+          candidate_name: data.candidate_name,
+          started_at: data.started_at,
+          ended_at: data.ended_at,
+          score: data.score,
+          feedback: data.feedback,
+          public_visible: data.public_visible,
+          training_code: data.training_codes.code,
+          messages: messagesData || [],
+          strengths: data.training_evaluations?.[0]?.strengths || null,
+          areas_to_improve: data.training_evaluations?.[0]?.areas_to_improve || null,
+          recommendations: data.training_evaluations?.[0]?.recommendations || null
+        };
+        
+        setSession(sessionData);
       } else {
         toast({
           title: 'Error',
