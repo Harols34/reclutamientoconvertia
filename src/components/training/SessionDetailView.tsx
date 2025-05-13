@@ -51,7 +51,36 @@ export const SessionDetailView: React.FC = () => {
       if (error) throw error;
       
       if (data && data.length > 0) {
-        setSession(data[0] as SessionData);
+        // Process the data to ensure proper type conversion
+        const sessionData = data[0];
+        
+        // Parse the JSON messages array and ensure it conforms to SessionMessage[]
+        const processedMessages: SessionMessage[] = Array.isArray(sessionData.messages) 
+          ? sessionData.messages.map((msg: any) => ({
+              id: msg.id,
+              sender_type: msg.sender_type,
+              content: msg.content,
+              sent_at: msg.sent_at
+            }))
+          : [];
+
+        // Create a properly typed SessionData object
+        const typedSession: SessionData = {
+          id: sessionData.id,
+          candidate_name: sessionData.candidate_name,
+          started_at: sessionData.started_at,
+          ended_at: sessionData.ended_at,
+          score: sessionData.score,
+          feedback: sessionData.feedback,
+          public_visible: sessionData.public_visible,
+          training_code: sessionData.training_code,
+          messages: processedMessages,
+          strengths: sessionData.strengths,
+          areas_to_improve: sessionData.areas_to_improve,
+          recommendations: sessionData.recommendations
+        };
+        
+        setSession(typedSession);
       } else {
         toast({
           title: 'Error',
