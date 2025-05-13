@@ -1,3 +1,4 @@
+
 import { StrictMode, useEffect, useState } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -33,6 +34,7 @@ import Reports from "./pages/admin/Reports";
 import Settings from "./pages/admin/Settings";
 import TrainingCodes from "./pages/admin/TrainingCodes"; // Nueva página de códigos
 import TrainingSessions from "./pages/admin/TrainingSessions"; // Nueva página de sesiones
+import TrainingHistory from "./pages/admin/TrainingHistory"; // Nueva página de historial
 import SessionDetail from './pages/admin/SessionDetail';
 
 const queryClient = new QueryClient();
@@ -111,6 +113,7 @@ function App() {
                 <Route path="settings" element={<Settings />} />
                 <Route path="training-codes" element={<TrainingCodes />} />
                 <Route path="training-sessions" element={<TrainingSessions />} />
+                <Route path="training-history" element={<TrainingHistory />} /> {/* New Training History Page */}
                 <Route path="training-sessions/:sessionId" element={<SessionDetail />} />
               </Route>
 

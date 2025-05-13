@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { NavLink, Link, useNavigate } from 'react-router-dom';
-import { Calendar, Database, File, Home, LogOut, MessageCircle, Search, Settings, Users, Code } from 'lucide-react';
+import { Calendar, Database, File, Home, LogOut, MessageCircle, Search, Settings, Users, Code, History } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader } from '@/components/ui/sidebar';
 import ConvertIALogo from '@/assets/convert-ia-logo';
@@ -36,6 +36,10 @@ const mainNavItems = [{
   icon: Database,
   label: 'Reportes',
   href: '/admin/reports'
+}, {
+  icon: History,
+  label: 'Historial Entrenamientos',
+  href: '/admin/training-history'
 }, {
   icon: Settings,
   label: 'Configuración',
