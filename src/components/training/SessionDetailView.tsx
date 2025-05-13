@@ -7,7 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ArrowLeft, RefreshCcw, MessageSquare, Star } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from '@/components/ui/use-toast';
 import { SessionEvaluation } from './SessionEvaluation';
 
 interface SessionMessage {
@@ -36,7 +36,6 @@ export const SessionDetailView: React.FC = () => {
   const { sessionId } = useParams<{ sessionId: string }>();
   const [session, setSession] = useState<SessionData | null>(null);
   const [loading, setLoading] = useState(true);
-  const { toast } = useToast();
   const navigate = useNavigate();
 
   const loadSessionData = async () => {
@@ -44,7 +43,7 @@ export const SessionDetailView: React.FC = () => {
     
     setLoading(true);
     try {
-      // Use the new get_complete_training_session function
+      // Use the get_complete_training_session function
       const { data, error } = await supabase
         .rpc('get_complete_training_session', { p_session_id: sessionId });
 
@@ -54,15 +53,29 @@ export const SessionDetailView: React.FC = () => {
         // Process the data to ensure proper type conversion
         const sessionData = data[0];
         
-        // Parse the JSON messages array and ensure it conforms to SessionMessage[]
-        const processedMessages: SessionMessage[] = Array.isArray(sessionData.messages) 
-          ? sessionData.messages.map((msg: any) => ({
-              id: msg.id,
-              sender_type: msg.sender_type,
-              content: msg.content,
-              sent_at: msg.sent_at
-            }))
-          : [];
+        // Parse the JSON messages and ensure they conform to SessionMessage[]
+        let processedMessages: SessionMessage[] = [];
+        if (sessionData.messages) {
+          try {
+            // If messages is a string, parse it; otherwise, assume it's already an array
+            const messagesArray = typeof sessionData.messages === 'string' 
+              ? JSON.parse(sessionData.messages) 
+              : sessionData.messages;
+            
+            // Map to ensure all fields are present and correctly typed
+            processedMessages = Array.isArray(messagesArray) 
+              ? messagesArray.map((msg: any) => ({
+                  id: msg.id || '',
+                  sender_type: msg.sender_type || '',
+                  content: msg.content || '',
+                  sent_at: msg.sent_at || ''
+                }))
+              : [];
+          } catch (e) {
+            console.error('Error parsing messages:', e);
+            processedMessages = [];
+          }
+        }
 
         // Create a properly typed SessionData object
         const typedSession: SessionData = {

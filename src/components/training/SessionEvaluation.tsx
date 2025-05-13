@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { toast } from '@/components/ui/sonner';
+import { toast } from '@/components/ui/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 
 interface SessionEvaluationProps {
@@ -32,7 +32,7 @@ export const SessionEvaluation: React.FC<SessionEvaluationProps> = ({
     
     setIsSaving(true);
     try {
-      // Check if evaluation already exists using direct query instead of training_evaluations table
+      // Check if evaluation already exists
       const { data: existingData, error: queryError } = await supabase
         .from('training_evaluations')
         .select('id')
@@ -70,11 +70,19 @@ export const SessionEvaluation: React.FC<SessionEvaluationProps> = ({
         throw result.error;
       }
       
-      toast.success('Evaluación guardada correctamente');
+      toast({
+        title: "Éxito",
+        description: "Evaluación guardada correctamente",
+      });
+      
       if (onSaved) onSaved();
     } catch (error) {
       console.error('Error al guardar evaluación:', error);
-      toast.error('Error al guardar la evaluación');
+      toast({
+        title: "Error",
+        description: "Error al guardar la evaluación",
+        variant: "destructive"
+      });
     } finally {
       setIsSaving(false);
     }

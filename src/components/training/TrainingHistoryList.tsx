@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Eye, RefreshCcw, MessageSquare, Star } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from '@/components/ui/use-toast';
 
 interface TrainingSession {
   id: string;
@@ -22,18 +22,20 @@ interface TrainingSession {
 export const TrainingHistoryList: React.FC = () => {
   const [sessions, setSessions] = useState<TrainingSession[]>([]);
   const [loading, setLoading] = useState(true);
-  const { toast } = useToast();
   const navigate = useNavigate();
 
   const loadSessions = async () => {
     try {
       setLoading(true);
       
-      // Use the RPC function to get complete session data
+      // Call the updated RPC function without parameters to get all sessions
       const { data, error } = await supabase
         .rpc('get_complete_training_session');
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error al cargar sesiones:', error);
+        throw error;
+      }
       
       // Process sessions for display
       const processedSessions = data ? data.map((session: any) => ({
