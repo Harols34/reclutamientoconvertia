@@ -32,7 +32,7 @@ export const SessionEvaluation: React.FC<SessionEvaluationProps> = ({
     
     setIsSaving(true);
     try {
-      // Check if evaluation already exists
+      // Check if evaluation already exists using direct query instead of training_evaluations table
       const { data: existingData, error: queryError } = await supabase
         .from('training_evaluations')
         .select('id')

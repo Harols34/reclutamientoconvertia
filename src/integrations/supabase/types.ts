@@ -360,6 +360,44 @@ export type Database = {
         }
         Relationships: []
       }
+      training_evaluations: {
+        Row: {
+          areas_to_improve: string | null
+          created_at: string
+          id: string
+          recommendations: string | null
+          session_id: string
+          strengths: string | null
+          updated_at: string
+        }
+        Insert: {
+          areas_to_improve?: string | null
+          created_at?: string
+          id?: string
+          recommendations?: string | null
+          session_id: string
+          strengths?: string | null
+          updated_at?: string
+        }
+        Update: {
+          areas_to_improve?: string | null
+          created_at?: string
+          id?: string
+          recommendations?: string | null
+          session_id?: string
+          strengths?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "training_evaluations_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: true
+            referencedRelation: "training_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       training_messages: {
         Row: {
           content: string
@@ -451,6 +489,23 @@ export type Database = {
           p_resume_url: string
         }
         Returns: string
+      }
+      get_complete_training_session: {
+        Args: { p_session_id: string }
+        Returns: {
+          id: string
+          candidate_name: string
+          started_at: string
+          ended_at: string
+          score: number
+          feedback: string
+          public_visible: boolean
+          training_code: string
+          messages: Json
+          strengths: string
+          areas_to_improve: string
+          recommendations: string
+        }[]
       }
       get_job_by_id: {
         Args: { p_job_id: string }
