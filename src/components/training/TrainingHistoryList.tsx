@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { MessageCircle, Star, Calendar, User } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
+import { Json } from '@/integrations/supabase/types';
 
 interface TrainingSession {
   id: string;
@@ -14,7 +15,12 @@ interface TrainingSession {
   ended_at: string | null;
   score: number | null;
   training_code: string;
-  messages: any[];
+  messages: Json;
+  strengths?: string | null;
+  areas_to_improve?: string | null;
+  recommendations?: string | null;
+  public_visible?: boolean;
+  feedback?: string | null;
 }
 
 export const TrainingHistoryList = () => {
@@ -107,7 +113,8 @@ export const TrainingHistoryList = () => {
                 <div className="flex items-center space-x-2">
                   <MessageCircle className="h-4 w-4 text-gray-500" />
                   <span className="text-sm text-gray-600">
-                    {session.messages?.length || 0} mensajes
+                    {Array.isArray(session.messages) ? session.messages.length : 
+                     (typeof session.messages === 'object' ? Object.keys(session.messages).length : 0)} mensajes
                   </span>
                 </div>
                 
