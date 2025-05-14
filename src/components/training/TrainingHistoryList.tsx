@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Eye, RefreshCcw, MessageSquare, Star } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
-import { toast } from '@/components/ui/use-toast';
+import { toast } from '@/hooks/use-toast';
 
 interface TrainingSession {
   id: string;
@@ -27,6 +27,7 @@ export const TrainingHistoryList: React.FC = () => {
   const loadSessions = async () => {
     try {
       setLoading(true);
+      console.log("Fetching training sessions...");
       
       // Call the updated RPC function without parameters to get all sessions
       const { data, error } = await supabase
@@ -36,6 +37,8 @@ export const TrainingHistoryList: React.FC = () => {
         console.error('Error al cargar sesiones:', error);
         throw error;
       }
+      
+      console.log("Sessions data received:", data);
       
       // Process sessions for display
       const processedSessions = data ? data.map((session: any) => ({
@@ -97,8 +100,16 @@ export const TrainingHistoryList: React.FC = () => {
 
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle>Historial de Sesiones</CardTitle>
+        <Button 
+          variant="outline" 
+          size="sm" 
+          onClick={loadSessions}
+        >
+          <RefreshCcw className="h-4 w-4 mr-2" />
+          Actualizar
+        </Button>
       </CardHeader>
       <CardContent>
         {loading ? (

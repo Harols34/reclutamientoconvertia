@@ -7,7 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ArrowLeft, RefreshCcw, MessageSquare, Star } from 'lucide-react';
-import { toast } from '@/components/ui/use-toast';
+import { toast } from '@/hooks/use-toast';
 import { SessionEvaluation } from './SessionEvaluation';
 
 interface SessionMessage {
@@ -261,7 +261,8 @@ export const SessionDetailView: React.FC = () => {
                 initialData={{
                   strengths: session.strengths || '',
                   areas_to_improve: session.areas_to_improve || '',
-                  recommendations: session.recommendations || ''
+                  recommendations: session.recommendations || '',
+                  score: session.score || 50
                 }}
                 onSaved={loadSessionData}
               />

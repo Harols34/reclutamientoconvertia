@@ -1,11 +1,12 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { toast } from '@/components/ui/use-toast';
+import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { Slider } from '@/components/ui/slider';
 
 interface SessionEvaluationProps {
   sessionId: string;
@@ -13,18 +14,22 @@ interface SessionEvaluationProps {
     strengths?: string;
     areas_to_improve?: string;
     recommendations?: string;
+    score?: number;
   };
   onSaved?: () => void;
+  readOnly?: boolean;
 }
 
 export const SessionEvaluation: React.FC<SessionEvaluationProps> = ({ 
   sessionId, 
   initialData,
-  onSaved
+  onSaved,
+  readOnly = false
 }) => {
   const [strengths, setStrengths] = useState(initialData?.strengths || '');
   const [areasToImprove, setAreasToImprove] = useState(initialData?.areas_to_improve || '');
   const [recommendations, setRecommendations] = useState(initialData?.recommendations || '');
+  const [score, setScore] = useState<number>(initialData?.score || 50);
   const [isSaving, setIsSaving] = useState(false);
 
   const handleSave = async () => {
@@ -70,6 +75,18 @@ export const SessionEvaluation: React.FC<SessionEvaluationProps> = ({
         throw result.error;
       }
       
+      // Now let's update the score in the training_sessions table
+      const scoreResult = await supabase
+        .from('training_sessions')
+        .update({
+          score
+        })
+        .eq('id', sessionId);
+        
+      if (scoreResult.error) {
+        throw scoreResult.error;
+      }
+      
       toast({
         title: "Éxito",
         description: "Evaluación guardada correctamente",
@@ -94,6 +111,19 @@ export const SessionEvaluation: React.FC<SessionEvaluationProps> = ({
         <CardTitle>Evaluación de la Sesión</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
+        <div className="space-y-2">
+          <Label htmlFor="score">Puntuación {score}/100</Label>
+          <Slider
+            id="score"
+            defaultValue={[score]}
+            max={100}
+            step={1}
+            className="py-4"
+            disabled={readOnly}
+            onValueChange={(value) => setScore(value[0])}
+          />
+        </div>
+        
         <div>
           <Label htmlFor="strengths">Fortalezas</Label>
           <Textarea
@@ -102,6 +132,7 @@ export const SessionEvaluation: React.FC<SessionEvaluationProps> = ({
             value={strengths}
             onChange={(e) => setStrengths(e.target.value)}
             className="min-h-[100px]"
+            disabled={readOnly}
           />
         </div>
         
@@ -113,6 +144,7 @@ export const SessionEvaluation: React.FC<SessionEvaluationProps> = ({
             value={areasToImprove}
             onChange={(e) => setAreasToImprove(e.target.value)}
             className="min-h-[100px]"
+            disabled={readOnly}
           />
         </div>
         
@@ -124,16 +156,19 @@ export const SessionEvaluation: React.FC<SessionEvaluationProps> = ({
             value={recommendations}
             onChange={(e) => setRecommendations(e.target.value)}
             className="min-h-[100px]"
+            disabled={readOnly}
           />
         </div>
         
-        <Button 
-          onClick={handleSave} 
-          disabled={isSaving}
-          className="w-full"
-        >
-          {isSaving ? 'Guardando...' : 'Guardar Evaluación'}
-        </Button>
+        {!readOnly && (
+          <Button 
+            onClick={handleSave} 
+            disabled={isSaving}
+            className="w-full"
+          >
+            {isSaving ? 'Guardando...' : 'Guardar Evaluación'}
+          </Button>
+        )}
       </CardContent>
     </Card>
   );
