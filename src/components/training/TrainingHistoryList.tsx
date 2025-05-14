@@ -4,7 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { MessageCircle, Star, Calendar, User } from 'lucide-react';
+import { MessageCircle, Star, Calendar, User, RefreshCcw } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { Json } from '@/integrations/supabase/types';
 
@@ -30,6 +30,7 @@ export const TrainingHistoryList = () => {
   const loadSessions = async () => {
     try {
       console.log('Fetching training sessions...');
+      setLoading(true);
       
       // First try to update the function to ensure it exists with the correct signature
       try {
@@ -46,14 +47,75 @@ export const TrainingHistoryList = () => {
         // Continue anyway, in case the function already exists
       }
       
-      // Now fetch all sessions using the updated function
-      const { data, error } = await supabase
-        .rpc('get_complete_training_session');
+      // Now fetch all sessions from training_sessions directly
+      const { data: sessionsData, error: sessionsError } = await supabase
+        .from('training_sessions')
+        .select(`
+          id, 
+          candidate_name, 
+          started_at, 
+          ended_at, 
+          score, 
+          feedback, 
+          public_visible,
+          training_code_id,
+          training_codes(code)
+        `)
+        .order('started_at', { ascending: false });
       
-      if (error) throw error;
+      if (sessionsError) throw sessionsError;
       
-      console.log('Training sessions loaded:', data?.length || 0);
-      setSessions(data || []);
+      if (!sessionsData || sessionsData.length === 0) {
+        console.log('No training sessions found');
+        setSessions([]);
+        setLoading(false);
+        return;
+      }
+      
+      // Transform data and get messages
+      const transformedSessions = await Promise.all(
+        sessionsData.map(async (session) => {
+          // Get messages for each session
+          const { data: messagesData, error: messagesError } = await supabase
+            .from('training_messages')
+            .select('*')
+            .eq('session_id', session.id)
+            .order('sent_at', { ascending: true });
+            
+          if (messagesError) {
+            console.error(`Error fetching messages for session ${session.id}:`, messagesError);
+          }
+
+          // Get evaluation for each session
+          const { data: evaluationData, error: evaluationError } = await supabase
+            .from('training_evaluations')
+            .select('*')
+            .eq('session_id', session.id)
+            .single();
+            
+          if (evaluationError && evaluationError.code !== 'PGRST116') { // Ignore not found error
+            console.error(`Error fetching evaluation for session ${session.id}:`, evaluationError);
+          }
+
+          return {
+            id: session.id,
+            candidate_name: session.candidate_name,
+            started_at: session.started_at,
+            ended_at: session.ended_at,
+            score: session.score,
+            feedback: session.feedback,
+            public_visible: session.public_visible,
+            training_code: session.training_codes?.code || '',
+            messages: messagesData || [],
+            strengths: evaluationData?.strengths || null,
+            areas_to_improve: evaluationData?.areas_to_improve || null,
+            recommendations: evaluationData?.recommendations || null
+          };
+        })
+      );
+      
+      console.log('Training sessions loaded:', transformedSessions.length);
+      setSessions(transformedSessions);
     } catch (error) {
       console.error('Error al cargar sesiones:', error);
       toast({
@@ -82,19 +144,32 @@ export const TrainingHistoryList = () => {
   };
   
   if (loading) {
-    return <div className="text-center py-8">Cargando...</div>;
+    return (
+      <div className="flex justify-center items-center py-12">
+        <RefreshCcw className="h-8 w-8 animate-spin text-blue-600" />
+      </div>
+    );
   }
   
   if (sessions.length === 0) {
     return (
       <div className="text-center py-8">
         <p className="text-gray-500 mb-4">No hay sesiones de entrenamiento disponibles.</p>
+        <Button onClick={loadSessions} variant="outline" className="flex items-center gap-2">
+          <RefreshCcw className="h-4 w-4" /> Refrescar
+        </Button>
       </div>
     );
   }
   
   return (
     <div className="space-y-4">
+      <div className="flex justify-end mb-4">
+        <Button onClick={loadSessions} variant="outline" className="flex items-center gap-2">
+          <RefreshCcw className="h-4 w-4" /> Refrescar
+        </Button>
+      </div>
+      
       {sessions.map((session) => (
         <Card key={session.id} className="hover:bg-gray-50 transition-colors">
           <CardContent className="p-6">

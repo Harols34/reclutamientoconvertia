@@ -45,80 +45,29 @@ export const SessionDetailView: React.FC = () => {
     try {
       console.log('Cargando datos para sesión:', sessionId);
       
-      // Primero, intentar actualizar la función
-      try {
-        await fetch('https://kugocdtesaczbfrwblsi.supabase.co/functions/v1/update_training_function', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'apikey': "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt1Z29jZHRlc2FjemJmcndibHNpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDY1NzA0MjUsImV4cCI6MjA2MjE0NjQyNX0.nHNWlTMfxuwAKYaiw145IFTAx3R3sbfWygviPVSH-Zc"
-          }
-        });
-        console.log('Función actualizada correctamente');
-      } catch (updateError) {
-        console.error('Error al actualizar función:', updateError);
-      }
-
-      // Use the get_complete_training_session function
-      const { data, error } = await supabase
-        .rpc('get_complete_training_session', { p_session_id: sessionId });
-
-      if (error) {
-        console.error('Error al cargar datos de sesión:', error);
-        throw error;
+      // Fetch the basic session data first
+      const { data: sessionData, error: sessionError } = await supabase
+        .from('training_sessions')
+        .select(`
+          id,
+          candidate_name,
+          started_at,
+          ended_at,
+          score,
+          feedback,
+          public_visible,
+          training_code_id,
+          training_codes(code)
+        `)
+        .eq('id', sessionId)
+        .single();
+      
+      if (sessionError) {
+        console.error('Error al cargar datos de sesión:', sessionError);
+        throw sessionError;
       }
       
-      console.log('Datos obtenidos:', data);
-      
-      if (data && data.length > 0) {
-        // Process the data to ensure proper type conversion
-        const sessionData = data[0];
-        
-        // Parse the JSON messages and ensure they conform to SessionMessage[]
-        let processedMessages: SessionMessage[] = [];
-        if (sessionData.messages) {
-          try {
-            // If messages is a string, parse it; otherwise, assume it's already an array
-            const messagesArray = typeof sessionData.messages === 'string' 
-              ? JSON.parse(sessionData.messages) 
-              : sessionData.messages;
-            
-            // Map to ensure all fields are present and correctly typed
-            processedMessages = Array.isArray(messagesArray) 
-              ? messagesArray.map((msg: any) => ({
-                  id: msg.id || '',
-                  sender_type: msg.sender_type || '',
-                  content: msg.content || '',
-                  sent_at: msg.sent_at || ''
-                }))
-              : [];
-            
-            console.log('Mensajes procesados:', processedMessages.length);
-          } catch (e) {
-            console.error('Error al procesar mensajes:', e);
-            processedMessages = [];
-          }
-        }
-
-        // Create a properly typed SessionData object
-        const typedSession: SessionData = {
-          id: sessionData.id,
-          candidate_name: sessionData.candidate_name,
-          started_at: sessionData.started_at,
-          ended_at: sessionData.ended_at,
-          score: sessionData.score,
-          feedback: sessionData.feedback,
-          public_visible: sessionData.public_visible,
-          training_code: sessionData.training_code,
-          messages: processedMessages,
-          strengths: sessionData.strengths,
-          areas_to_improve: sessionData.areas_to_improve,
-          recommendations: sessionData.recommendations
-        };
-        
-        console.log('Sesión procesada:', typedSession);
-        setSession(typedSession);
-      } else {
+      if (!sessionData) {
         console.error('No se encontró la sesión con ID:', sessionId);
         toast({
           title: 'Error',
@@ -126,7 +75,49 @@ export const SessionDetailView: React.FC = () => {
           variant: 'destructive',
         });
         navigate('/admin/training-sessions');
+        return;
       }
+      
+      // Fetch messages for this session
+      const { data: messagesData, error: messagesError } = await supabase
+        .from('training_messages')
+        .select('*')
+        .eq('session_id', sessionId)
+        .order('sent_at', { ascending: true });
+        
+      if (messagesError) {
+        console.error('Error al cargar mensajes:', messagesError);
+      }
+      
+      // Fetch evaluation data
+      const { data: evalData, error: evalError } = await supabase
+        .from('training_evaluations')
+        .select('*')
+        .eq('session_id', sessionId)
+        .single();
+        
+      if (evalError && evalError.code !== 'PGRST116') {
+        console.error('Error al cargar evaluación:', evalError);
+      }
+      
+      // Create a properly typed SessionData object
+      const typedSession: SessionData = {
+        id: sessionData.id,
+        candidate_name: sessionData.candidate_name,
+        started_at: sessionData.started_at,
+        ended_at: sessionData.ended_at,
+        score: sessionData.score,
+        feedback: sessionData.feedback,
+        public_visible: sessionData.public_visible || false,
+        training_code: sessionData.training_codes?.code || '',
+        messages: messagesData || [],
+        strengths: evalData?.strengths || null,
+        areas_to_improve: evalData?.areas_to_improve || null,
+        recommendations: evalData?.recommendations || null
+      };
+      
+      console.log('Sesión procesada:', typedSession);
+      setSession(typedSession);
     } catch (error) {
       console.error('Error al cargar sesión:', error);
       toast({
