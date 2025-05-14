@@ -1,12 +1,10 @@
 
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Eye, RefreshCcw, MessageSquare, Star } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { Link } from 'react-router-dom';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { MessageCircle, Star, Calendar, User } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 
 interface TrainingSession {
@@ -16,151 +14,120 @@ interface TrainingSession {
   ended_at: string | null;
   score: number | null;
   training_code: string;
-  public_visible: boolean;
+  messages: any[];
 }
 
-export const TrainingHistoryList: React.FC = () => {
+export const TrainingHistoryList = () => {
   const [sessions, setSessions] = useState<TrainingSession[]>([]);
   const [loading, setLoading] = useState(true);
-  const navigate = useNavigate();
 
   const loadSessions = async () => {
     try {
-      setLoading(true);
-      console.log("Fetching training sessions...");
+      console.log('Fetching training sessions...');
       
-      // Call the updated RPC function without parameters to get all sessions
-      const { data, error } = await supabase
-        .rpc('get_complete_training_session');
-
-      if (error) {
-        console.error('Error al cargar sesiones:', error);
-        throw error;
+      // First try to update the function to ensure it exists with the correct signature
+      try {
+        await fetch('https://kugocdtesaczbfrwblsi.supabase.co/functions/v1/update_training_function', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt1Z29jZHRlc2FjemJmcndibHNpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDY1NzA0MjUsImV4cCI6MjA2MjE0NjQyNX0.nHNWlTMfxuwAKYaiw145IFTAx3R3sbfWygviPVSH-Zc"
+          }
+        });
+        console.log('Function updated successfully');
+      } catch (updateError) {
+        console.error('Error updating function:', updateError);
+        // Continue anyway, in case the function already exists
       }
       
-      console.log("Sessions data received:", data);
+      // Now fetch all sessions using the updated function
+      const { data, error } = await supabase
+        .rpc('get_complete_training_session');
       
-      // Process sessions for display
-      const processedSessions = data ? data.map((session: any) => ({
-        id: session.id,
-        candidate_name: session.candidate_name,
-        started_at: session.started_at,
-        ended_at: session.ended_at,
-        score: session.score,
-        training_code: session.training_code,
-        public_visible: session.public_visible
-      })) : [];
+      if (error) throw error;
       
-      setSessions(processedSessions);
+      console.log('Training sessions loaded:', data?.length || 0);
+      setSessions(data || []);
     } catch (error) {
       console.error('Error al cargar sesiones:', error);
       toast({
-        title: 'Error',
-        description: 'No se pudieron cargar las sesiones de entrenamiento',
-        variant: 'destructive',
+        title: "Error",
+        description: "No se pudieron cargar las sesiones de entrenamiento",
+        variant: "destructive",
       });
     } finally {
       setLoading(false);
     }
   };
-
+  
   useEffect(() => {
     loadSessions();
   }, []);
 
-  const viewSessionDetails = (sessionId: string) => {
-    navigate(`/admin/training-sessions/${sessionId}`);
+  const formatDate = (dateString: string) => {
+    const options: Intl.DateTimeFormatOptions = { 
+      year: 'numeric', 
+      month: 'short', 
+      day: 'numeric', 
+      hour: '2-digit', 
+      minute: '2-digit' 
+    };
+    return new Date(dateString).toLocaleDateString(undefined, options);
   };
-
-  // Format date for display
-  const formatDate = (dateString: string | null) => {
-    if (!dateString) return '---';
-    return new Date(dateString).toLocaleDateString(undefined, {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
-
-  // Format duration between dates
-  const formatDuration = (startDateString: string, endDateString: string | null) => {
-    if (!endDateString) return 'En progreso';
-    
-    const startDate = new Date(startDateString);
-    const endDate = new Date(endDateString);
-    const durationMs = endDate.getTime() - startDate.getTime();
-    
-    const minutes = Math.floor(durationMs / 60000);
-    const seconds = Math.floor((durationMs % 60000) / 1000);
-    
-    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
-  };
-
+  
+  if (loading) {
+    return <div className="text-center py-8">Cargando...</div>;
+  }
+  
+  if (sessions.length === 0) {
+    return (
+      <div className="text-center py-8">
+        <p className="text-gray-500 mb-4">No hay sesiones de entrenamiento disponibles.</p>
+      </div>
+    );
+  }
+  
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle>Historial de Sesiones</CardTitle>
-        <Button 
-          variant="outline" 
-          size="sm" 
-          onClick={loadSessions}
-        >
-          <RefreshCcw className="h-4 w-4 mr-2" />
-          Actualizar
-        </Button>
-      </CardHeader>
-      <CardContent>
-        {loading ? (
-          <div className="flex justify-center py-8">
-            <RefreshCcw className="h-6 w-6 animate-spin text-hrm-dark-cyan" />
-          </div>
-        ) : sessions.length > 0 ? (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Candidato</TableHead>
-                <TableHead>Código</TableHead>
-                <TableHead>Inicio</TableHead>
-                <TableHead>Duración</TableHead>
-                <TableHead>Puntuación</TableHead>
-                <TableHead>Acción</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {sessions.map((session) => (
-                <TableRow key={session.id}>
-                  <TableCell className="font-medium">{session.candidate_name}</TableCell>
-                  <TableCell className="font-mono">{session.training_code}</TableCell>
-                  <TableCell>{formatDate(session.started_at)}</TableCell>
-                  <TableCell>{formatDuration(session.started_at, session.ended_at)}</TableCell>
-                  <TableCell>
-                    {session.score ? (
-                      <div className="flex items-center">
-                        <Star className="h-4 w-4 text-yellow-500 mr-1" />
-                        <span>{session.score}/100</span>
-                      </div>
-                    ) : '---'}
-                  </TableCell>
-                  <TableCell>
-                    <Button 
-                      variant="ghost" 
-                      size="sm"
-                      onClick={() => viewSessionDetails(session.id)}
-                      title="Ver detalles"
-                    >
-                      <Eye className="h-4 w-4 text-hrm-dark-cyan" />
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        ) : (
-          <p className="text-center text-gray-500 py-8">No hay sesiones de entrenamiento registradas.</p>
-        )}
-      </CardContent>
-    </Card>
+    <div className="space-y-4">
+      {sessions.map((session) => (
+        <Card key={session.id} className="hover:bg-gray-50 transition-colors">
+          <CardContent className="p-6">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between">
+              <div className="space-y-2">
+                <div className="flex items-center space-x-2">
+                  <User className="h-4 w-4 text-gray-500" />
+                  <span className="font-medium">{session.candidate_name}</span>
+                </div>
+                
+                <div className="flex items-center space-x-2">
+                  <Calendar className="h-4 w-4 text-gray-500" />
+                  <span className="text-sm text-gray-600">{formatDate(session.started_at)}</span>
+                </div>
+                
+                <div className="flex items-center space-x-2">
+                  <MessageCircle className="h-4 w-4 text-gray-500" />
+                  <span className="text-sm text-gray-600">
+                    {session.messages?.length || 0} mensajes
+                  </span>
+                </div>
+                
+                {session.score !== null && (
+                  <div className="flex items-center space-x-2">
+                    <Star className="h-4 w-4 text-yellow-500" />
+                    <span className="text-sm">{session.score}/100</span>
+                  </div>
+                )}
+              </div>
+              
+              <div className="mt-4 md:mt-0">
+                <Link to={`/admin/training-sessions/${session.id}`}>
+                  <Button variant="outline">Ver detalle</Button>
+                </Link>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      ))}
+    </div>
   );
 };

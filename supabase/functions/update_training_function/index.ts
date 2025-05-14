@@ -27,7 +27,7 @@ serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // SQL function to update
+    // SQL function to update - Modified to accept NULL parameter
     const sql = `
     CREATE OR REPLACE FUNCTION public.get_complete_training_session(p_session_id uuid DEFAULT NULL)
     RETURNS TABLE(id uuid, candidate_name text, started_at timestamp with time zone, ended_at timestamp with time zone, score numeric, feedback text, public_visible boolean, training_code text, messages json, strengths text, areas_to_improve text, recommendations text)

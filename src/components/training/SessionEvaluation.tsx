@@ -37,6 +37,9 @@ export const SessionEvaluation: React.FC<SessionEvaluationProps> = ({
     
     setIsSaving(true);
     try {
+      console.log('Guardando evaluación para sesión:', sessionId);
+      console.log('Datos a guardar:', { strengths, areasToImprove, recommendations, score });
+      
       // Check if evaluation already exists
       const { data: existingData, error: queryError } = await supabase
         .from('training_evaluations')
@@ -44,11 +47,15 @@ export const SessionEvaluation: React.FC<SessionEvaluationProps> = ({
         .eq('session_id', sessionId)
         .maybeSingle();
       
-      if (queryError) throw queryError;
+      if (queryError) {
+        console.error('Error al consultar evaluación existente:', queryError);
+        throw queryError;
+      }
       
       let result;
       
       if (existingData) {
+        console.log('Actualizando evaluación existente:', existingData.id);
         // Update existing evaluation
         result = await supabase
           .from('training_evaluations')
@@ -58,8 +65,9 @@ export const SessionEvaluation: React.FC<SessionEvaluationProps> = ({
             recommendations,
             updated_at: new Date().toISOString()
           })
-          .eq('session_id', sessionId);
+          .eq('id', existingData.id);
       } else {
+        console.log('Creando nueva evaluación');
         // Create new evaluation
         result = await supabase
           .from('training_evaluations')
@@ -72,9 +80,11 @@ export const SessionEvaluation: React.FC<SessionEvaluationProps> = ({
       }
       
       if (result.error) {
+        console.error('Error al guardar evaluación:', result.error);
         throw result.error;
       }
       
+      console.log('Evaluación guardada, actualizando puntuación:', score);
       // Now let's update the score in the training_sessions table
       const scoreResult = await supabase
         .from('training_sessions')
@@ -84,9 +94,11 @@ export const SessionEvaluation: React.FC<SessionEvaluationProps> = ({
         .eq('id', sessionId);
         
       if (scoreResult.error) {
+        console.error('Error al guardar puntuación:', scoreResult.error);
         throw scoreResult.error;
       }
       
+      console.log('Evaluación completa guardada con éxito');
       toast({
         title: "Éxito",
         description: "Evaluación guardada correctamente",

@@ -43,11 +43,32 @@ export const SessionDetailView: React.FC = () => {
     
     setLoading(true);
     try {
+      console.log('Cargando datos para sesión:', sessionId);
+      
+      // Primero, intentar actualizar la función
+      try {
+        await fetch('https://kugocdtesaczbfrwblsi.supabase.co/functions/v1/update_training_function', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt1Z29jZHRlc2FjemJmcndibHNpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDY1NzA0MjUsImV4cCI6MjA2MjE0NjQyNX0.nHNWlTMfxuwAKYaiw145IFTAx3R3sbfWygviPVSH-Zc"
+          }
+        });
+        console.log('Función actualizada correctamente');
+      } catch (updateError) {
+        console.error('Error al actualizar función:', updateError);
+      }
+
       // Use the get_complete_training_session function
       const { data, error } = await supabase
         .rpc('get_complete_training_session', { p_session_id: sessionId });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error al cargar datos de sesión:', error);
+        throw error;
+      }
+      
+      console.log('Datos obtenidos:', data);
       
       if (data && data.length > 0) {
         // Process the data to ensure proper type conversion
@@ -71,8 +92,10 @@ export const SessionDetailView: React.FC = () => {
                   sent_at: msg.sent_at || ''
                 }))
               : [];
+            
+            console.log('Mensajes procesados:', processedMessages.length);
           } catch (e) {
-            console.error('Error parsing messages:', e);
+            console.error('Error al procesar mensajes:', e);
             processedMessages = [];
           }
         }
@@ -93,8 +116,10 @@ export const SessionDetailView: React.FC = () => {
           recommendations: sessionData.recommendations
         };
         
+        console.log('Sesión procesada:', typedSession);
         setSession(typedSession);
       } else {
+        console.error('No se encontró la sesión con ID:', sessionId);
         toast({
           title: 'Error',
           description: 'No se encontró la sesión solicitada',
