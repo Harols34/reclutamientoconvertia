@@ -5,7 +5,7 @@ import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { MessageCircle, Star, Calendar, User, RefreshCcw } from 'lucide-react';
-import { toast } from '@/components/ui/use-toast';
+import { toast } from '@/hooks/use-toast';
 import { Json } from '@/integrations/supabase/types';
 
 interface TrainingSession {
@@ -21,6 +21,7 @@ interface TrainingSession {
   recommendations?: string | null;
   public_visible?: boolean;
   feedback?: string | null;
+  message_count?: number;
 }
 
 export const TrainingHistoryList = () => {
@@ -32,77 +33,43 @@ export const TrainingHistoryList = () => {
       console.log('Fetching training sessions...');
       setLoading(true);
       
-      // Fetch all sessions from training_sessions table directly
-      const { data: sessionsData, error: sessionsError } = await supabase
-        .from('training_sessions')
-        .select(`
-          id, 
-          candidate_name, 
-          started_at, 
-          ended_at, 
-          score, 
-          feedback, 
-          public_visible,
-          training_code_id,
-          training_codes(code)
-        `)
-        .order('started_at', { ascending: false });
+      // Enable realtime for the tables we need
+      await supabase.rpc('enable_realtime_for_training');
       
-      if (sessionsError) {
-        console.error('Error fetching sessions:', sessionsError);
-        throw sessionsError;
+      // Fetch all sessions data with a comprehensive query
+      const { data, error } = await supabase
+        .rpc('get_complete_training_sessions');
+        
+      if (error) {
+        console.error('Error fetching sessions data:', error);
+        throw error;
       }
       
-      console.log('Sessions data:', sessionsData);
+      console.log('Complete sessions data received:', data);
       
-      if (!sessionsData || sessionsData.length === 0) {
+      if (!data || data.length === 0) {
         console.log('No training sessions found');
         setSessions([]);
         setLoading(false);
         return;
       }
-      
-      // Transform data and get messages and evaluations
-      const transformedSessions = await Promise.all(
-        sessionsData.map(async (session) => {
-          // Get messages for each session
-          const { data: messagesData, error: messagesError } = await supabase
-            .from('training_messages')
-            .select('*')
-            .eq('session_id', session.id)
-            .order('sent_at', { ascending: true });
-            
-          if (messagesError) {
-            console.error(`Error fetching messages for session ${session.id}:`, messagesError);
-          }
 
-          // Get evaluation for each session
-          const { data: evaluationData, error: evaluationError } = await supabase
-            .from('training_evaluations')
-            .select('*')
-            .eq('session_id', session.id)
-            .single();
-            
-          if (evaluationError && evaluationError.code !== 'PGRST116') { // Ignore not found error
-            console.error(`Error fetching evaluation for session ${session.id}:`, evaluationError);
-          }
-
-          return {
-            id: session.id,
-            candidate_name: session.candidate_name,
-            started_at: session.started_at,
-            ended_at: session.ended_at,
-            score: session.score,
-            feedback: session.feedback,
-            public_visible: session.public_visible,
-            training_code: session.training_codes?.code || '',
-            messages: messagesData || [],
-            strengths: evaluationData?.strengths || null,
-            areas_to_improve: evaluationData?.areas_to_improve || null,
-            recommendations: evaluationData?.recommendations || null
-          };
-        })
-      );
+      // Transform the data to match our expected format
+      const transformedSessions: TrainingSession[] = data.map(session => ({
+        id: session.id,
+        candidate_name: session.candidate_name,
+        started_at: session.started_at,
+        ended_at: session.ended_at,
+        score: session.score,
+        training_code: session.training_code,
+        messages: session.messages,
+        message_count: Array.isArray(session.messages) ? session.messages.length : 0,
+        strengths: session.strengths,
+        areas_to_improve: session.areas_to_improve,
+        recommendations: session.recommendations,
+        public_visible: session.public_visible,
+        feedback: session.feedback
+      }));
       
       console.log('Training sessions loaded:', transformedSessions.length);
       setSessions(transformedSessions);
@@ -120,6 +87,30 @@ export const TrainingHistoryList = () => {
   
   useEffect(() => {
     loadSessions();
+    
+    // Set up realtime subscription
+    const channel = supabase
+      .channel('training_changes')
+      .on('postgres_changes', { 
+        event: '*', 
+        schema: 'public', 
+        table: 'training_sessions' 
+      }, () => {
+        // Reload data when changes happen
+        loadSessions();
+      })
+      .on('postgres_changes', { 
+        event: '*', 
+        schema: 'public', 
+        table: 'training_evaluations' 
+      }, () => {
+        loadSessions();
+      })
+      .subscribe();
+      
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const formatDate = (dateString: string) => {
@@ -178,7 +169,7 @@ export const TrainingHistoryList = () => {
                 <div className="flex items-center space-x-2">
                   <MessageCircle className="h-4 w-4 text-gray-500" />
                   <span className="text-sm text-gray-600">
-                    {Array.isArray(session.messages) ? session.messages.length : 
+                    {session.message_count || Array.isArray(session.messages) ? session.messages.length : 
                      (typeof session.messages === 'object' && session.messages ? Object.keys(session.messages).length : 0)} mensajes
                   </span>
                 </div>
@@ -187,6 +178,12 @@ export const TrainingHistoryList = () => {
                   <div className="flex items-center space-x-2">
                     <Star className="h-4 w-4 text-yellow-500" />
                     <span className="text-sm">{session.score}/100</span>
+                  </div>
+                )}
+                
+                {session.strengths && (
+                  <div className="text-sm text-green-600">
+                    <strong>Fortalezas:</strong> {session.strengths.length > 50 ? `${session.strengths.substring(0, 50)}...` : session.strengths}
                   </div>
                 )}
               </div>

@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { ArrowLeft, RefreshCcw, MessageSquare, Star } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { SessionEvaluation } from './SessionEvaluation';
+import { Json } from '@/integrations/supabase/types';
 
 interface SessionMessage {
   id: string;
@@ -26,7 +27,7 @@ interface SessionData {
   feedback: string | null;
   public_visible: boolean;
   training_code: string;
-  messages: SessionMessage[];
+  messages: Json;
   strengths: string | null;
   areas_to_improve: string | null;
   recommendations: string | null;
@@ -45,29 +46,18 @@ export const SessionDetailView: React.FC = () => {
     try {
       console.log('Cargando datos para sesión:', sessionId);
       
-      // Fetch the basic session data first
-      const { data: sessionData, error: sessionError } = await supabase
-        .from('training_sessions')
-        .select(`
-          id,
-          candidate_name,
-          started_at,
-          ended_at,
-          score,
-          feedback,
-          public_visible,
-          training_code_id,
-          training_codes(code)
-        `)
+      // Get complete session data using our new function
+      const { data, error } = await supabase
+        .rpc('get_complete_training_sessions')
         .eq('id', sessionId)
-        .single();
-      
-      if (sessionError) {
-        console.error('Error al cargar datos de sesión:', sessionError);
-        throw sessionError;
+        .maybeSingle();
+        
+      if (error) {
+        console.error('Error al cargar datos de sesión:', error);
+        throw error;
       }
       
-      if (!sessionData) {
+      if (!data) {
         console.error('No se encontró la sesión con ID:', sessionId);
         toast({
           title: 'Error',
@@ -78,46 +68,8 @@ export const SessionDetailView: React.FC = () => {
         return;
       }
       
-      // Fetch messages for this session
-      const { data: messagesData, error: messagesError } = await supabase
-        .from('training_messages')
-        .select('*')
-        .eq('session_id', sessionId)
-        .order('sent_at', { ascending: true });
-        
-      if (messagesError) {
-        console.error('Error al cargar mensajes:', messagesError);
-      }
-      
-      // Fetch evaluation data
-      const { data: evalData, error: evalError } = await supabase
-        .from('training_evaluations')
-        .select('*')
-        .eq('session_id', sessionId)
-        .single();
-        
-      if (evalError && evalError.code !== 'PGRST116') {
-        console.error('Error al cargar evaluación:', evalError);
-      }
-      
-      // Create a properly typed SessionData object
-      const typedSession: SessionData = {
-        id: sessionData.id,
-        candidate_name: sessionData.candidate_name,
-        started_at: sessionData.started_at,
-        ended_at: sessionData.ended_at,
-        score: sessionData.score,
-        feedback: sessionData.feedback,
-        public_visible: sessionData.public_visible || false,
-        training_code: sessionData.training_codes?.code || '',
-        messages: messagesData || [],
-        strengths: evalData?.strengths || null,
-        areas_to_improve: evalData?.areas_to_improve || null,
-        recommendations: evalData?.recommendations || null
-      };
-      
-      console.log('Sesión procesada:', typedSession);
-      setSession(typedSession);
+      console.log('Sesión procesada:', data);
+      setSession(data);
     } catch (error) {
       console.error('Error al cargar sesión:', error);
       toast({
@@ -132,6 +84,39 @@ export const SessionDetailView: React.FC = () => {
 
   useEffect(() => {
     loadSessionData();
+    
+    // Set up realtime subscription
+    const channel = supabase
+      .channel('session_detail_changes')
+      .on('postgres_changes', { 
+        event: '*', 
+        schema: 'public', 
+        table: 'training_sessions', 
+        filter: `id=eq.${sessionId}` 
+      }, () => {
+        loadSessionData();
+      })
+      .on('postgres_changes', { 
+        event: '*', 
+        schema: 'public', 
+        table: 'training_evaluations', 
+        filter: `session_id=eq.${sessionId}` 
+      }, () => {
+        loadSessionData();
+      })
+      .on('postgres_changes', { 
+        event: '*', 
+        schema: 'public', 
+        table: 'training_messages', 
+        filter: `session_id=eq.${sessionId}` 
+      }, () => {
+        loadSessionData();
+      })
+      .subscribe();
+      
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [sessionId]);
 
   const formatDate = (dateString: string | null) => {
@@ -157,6 +142,16 @@ export const SessionDetailView: React.FC = () => {
     const seconds = Math.floor((durationMs % 60000) / 1000);
     
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+  };
+
+  const getMessages = (messagesJson: Json): SessionMessage[] => {
+    if (!messagesJson) return [];
+    
+    if (Array.isArray(messagesJson)) {
+      return messagesJson as SessionMessage[];
+    }
+    
+    return [];
   };
 
   return (
@@ -231,8 +226,8 @@ export const SessionDetailView: React.FC = () => {
               <Card>
                 <CardContent className="pt-6">
                   <div className="space-y-4">
-                    {session.messages && session.messages.length > 0 ? (
-                      session.messages.map((message) => (
+                    {session.messages && Array.isArray(session.messages) && session.messages.length > 0 ? (
+                      getMessages(session.messages).map((message) => (
                         <div 
                           key={message.id} 
                           className={`flex ${message.sender_type === 'candidate' ? 'justify-end' : 'justify-start'}`}
@@ -284,6 +279,14 @@ export const SessionDetailView: React.FC = () => {
               />
             </TabsContent>
           </Tabs>
+
+          <Button 
+            variant="outline" 
+            onClick={loadSessionData} 
+            className="flex items-center gap-2 mt-4"
+          >
+            <RefreshCcw className="h-4 w-4" /> Actualizar datos
+          </Button>
         </div>
       ) : (
         <p className="text-center text-gray-500 py-8">No se encontró la sesión solicitada.</p>
