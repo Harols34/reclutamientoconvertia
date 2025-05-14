@@ -5,7 +5,7 @@ import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { MessageCircle, Star, Calendar, User, RefreshCcw } from 'lucide-react';
-import { toast } from '@/hooks/use-toast';
+import { toast } from '@/components/ui/use-toast';
 import { Json } from '@/integrations/supabase/types';
 
 interface TrainingSession {
@@ -32,22 +32,7 @@ export const TrainingHistoryList = () => {
       console.log('Fetching training sessions...');
       setLoading(true);
       
-      // First try to update the function to ensure it exists with the correct signature
-      try {
-        await fetch('https://kugocdtesaczbfrwblsi.supabase.co/functions/v1/update_training_function', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'apikey': "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt1Z29jZHRlc2FjemJmcndibHNpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDY1NzA0MjUsImV4cCI6MjA2MjE0NjQyNX0.nHNWlTMfxuwAKYaiw145IFTAx3R3sbfWygviPVSH-Zc"
-          }
-        });
-        console.log('Function updated successfully');
-      } catch (updateError) {
-        console.error('Error updating function:', updateError);
-        // Continue anyway, in case the function already exists
-      }
-      
-      // Now fetch all sessions from training_sessions directly
+      // Fetch all sessions from training_sessions table directly
       const { data: sessionsData, error: sessionsError } = await supabase
         .from('training_sessions')
         .select(`
@@ -63,7 +48,12 @@ export const TrainingHistoryList = () => {
         `)
         .order('started_at', { ascending: false });
       
-      if (sessionsError) throw sessionsError;
+      if (sessionsError) {
+        console.error('Error fetching sessions:', sessionsError);
+        throw sessionsError;
+      }
+      
+      console.log('Sessions data:', sessionsData);
       
       if (!sessionsData || sessionsData.length === 0) {
         console.log('No training sessions found');
@@ -72,7 +62,7 @@ export const TrainingHistoryList = () => {
         return;
       }
       
-      // Transform data and get messages
+      // Transform data and get messages and evaluations
       const transformedSessions = await Promise.all(
         sessionsData.map(async (session) => {
           // Get messages for each session
@@ -117,7 +107,7 @@ export const TrainingHistoryList = () => {
       console.log('Training sessions loaded:', transformedSessions.length);
       setSessions(transformedSessions);
     } catch (error) {
-      console.error('Error al cargar sesiones:', error);
+      console.error('Error loading sessions:', error);
       toast({
         title: "Error",
         description: "No se pudieron cargar las sesiones de entrenamiento",
@@ -189,7 +179,7 @@ export const TrainingHistoryList = () => {
                   <MessageCircle className="h-4 w-4 text-gray-500" />
                   <span className="text-sm text-gray-600">
                     {Array.isArray(session.messages) ? session.messages.length : 
-                     (typeof session.messages === 'object' ? Object.keys(session.messages).length : 0)} mensajes
+                     (typeof session.messages === 'object' && session.messages ? Object.keys(session.messages).length : 0)} mensajes
                   </span>
                 </div>
                 

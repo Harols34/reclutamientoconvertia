@@ -1,12 +1,6 @@
 
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
-import { Button } from '@/components/ui/button';
-import { Eye, RefreshCcw } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
-import { useToast } from '@/hooks/use-toast';
+import React from 'react';
+import { Card } from '@/components/ui/card';
 import { TrainingHistoryList } from '@/components/training/TrainingHistoryList';
 
 const TrainingHistory = () => {
