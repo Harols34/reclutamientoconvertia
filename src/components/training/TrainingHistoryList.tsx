@@ -31,7 +31,7 @@ export const TrainingHistoryList = () => {
     try {
       setLoading(true);
 
-      // Use `as any` since function is not in types file
+      // Use as any since the RPC is not typed by Supabase client types
       const { data, error } = await (supabase.rpc as any)(
         'get_complete_training_sessions'
       );
@@ -45,7 +45,7 @@ export const TrainingHistoryList = () => {
         return;
       }
 
-      // Filter only objects that satisfy TrainingSession-at-minimum shape
+      // Solo tomamos objetos que cumplen con la forma de TrainingSession
       const validSessions = data.filter(
         (item): item is TrainingSession =>
           item &&
@@ -137,6 +137,7 @@ export const TrainingHistoryList = () => {
         <Card key={session.id} className="hover:bg-gray-50 transition-colors">
           <CardContent className="p-6">
             <div className="flex flex-col md:flex-row md:items-center md:justify-between">
+              {/* BLOQUE: DATOS CANDIDATO Y FECHA */}
               <div className="space-y-2">
                 <div className="flex items-center space-x-2">
                   <User className="h-4 w-4 text-gray-500" />
@@ -152,18 +153,47 @@ export const TrainingHistoryList = () => {
                     {typeof session.message_count === 'number' ? session.message_count : 0} mensajes
                   </span>
                 </div>
-                {session.score !== null && (
-                  <div className="flex items-center space-x-2">
-                    <Star className="h-4 w-4 text-yellow-500" />
-                    <span className="text-sm">{session.score}/100</span>
-                  </div>
-                )}
-                {session.strengths && (
-                  <div className="text-sm text-green-600">
-                    <strong>Fortalezas:</strong> {session.strengths.length > 50 ? `${session.strengths.substring(0, 50)}...` : session.strengths}
+
+                {/* BLOQUE: RESUMEN GLOBAL */}
+                <div className="mt-2">
+                  <p className="font-semibold text-gray-700">Resumen global</p>
+                  {session.score !== null && (
+                    <div className="flex items-center space-x-2">
+                      <Star className="h-4 w-4 text-yellow-500" />
+                      <span className="text-sm font-medium">{session.score}/100</span>
+                    </div>
+                  )}
+                  {session.feedback && (
+                    <div className="text-xs text-gray-600 mt-1">{session.feedback.length > 80 ? (
+                      <span title={session.feedback}>{session.feedback.substring(0, 80)}...</span>
+                    ) : session.feedback}
+                    </div>
+                  )}
+                </div>
+
+                {/* BLOQUE: EVALUACIÓN DETALLADA */}
+                {(session.strengths || session.areas_to_improve || session.recommendations) && (
+                  <div className="mt-2">
+                    <div className="font-semibold text-gray-700">Evaluación detallada</div>
+                    {session.strengths && (
+                      <div className="text-xs text-green-700">
+                        <strong>Fortalezas:</strong> {session.strengths.length > 60 ? `${session.strengths.substring(0, 60)}...` : session.strengths}
+                      </div>
+                    )}
+                    {session.areas_to_improve && (
+                      <div className="text-xs text-amber-700">
+                        <strong>Áreas a mejorar:</strong> {session.areas_to_improve.length > 60 ? `${session.areas_to_improve.substring(0, 60)}...` : session.areas_to_improve}
+                      </div>
+                    )}
+                    {session.recommendations && (
+                      <div className="text-xs text-blue-700">
+                        <strong>Recomendaciones:</strong> {session.recommendations.length > 60 ? `${session.recommendations.substring(0, 60)}...` : session.recommendations}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
+              {/* BLOQUE: BOTÓN ACCIÓN */}
               <div className="mt-4 md:mt-0">
                 <Link to={`/admin/training-sessions/${session.id}`}>
                   <Button variant="outline">Ver detalle</Button>
