@@ -27,7 +27,7 @@ interface SessionData {
   feedback: string | null;
   public_visible: boolean;
   training_code: string;
-  messages: Json;
+  messages: Json; // will be array, but keep as Json for parsing
   strengths: string | null;
   areas_to_improve: string | null;
   recommendations: string | null;
@@ -41,24 +41,17 @@ export const SessionDetailView: React.FC = () => {
 
   const loadSessionData = async () => {
     if (!sessionId) return;
-    
+
     setLoading(true);
     try {
-      console.log('Cargando datos para sesión:', sessionId);
-      
-      // Get complete session data using our new function
+      // Use the single session function (do NOT use new function meant for listing)
       const { data, error } = await supabase
-        .rpc('get_complete_training_sessions')
-        .eq('id', sessionId)
+        .rpc('get_complete_training_session', { p_session_id: sessionId })
         .maybeSingle();
-        
-      if (error) {
-        console.error('Error al cargar datos de sesión:', error);
-        throw error;
-      }
-      
-      if (!data) {
-        console.error('No se encontró la sesión con ID:', sessionId);
+
+      if (error) throw error;
+
+      if (!data || !data.id) {
         toast({
           title: 'Error',
           description: 'No se encontró la sesión solicitada',
@@ -67,11 +60,9 @@ export const SessionDetailView: React.FC = () => {
         navigate('/admin/training-sessions');
         return;
       }
-      
-      console.log('Sesión procesada:', data);
-      setSession(data);
+
+      setSession(data as SessionData);
     } catch (error) {
-      console.error('Error al cargar sesión:', error);
       toast({
         title: 'Error',
         description: 'No se pudo cargar la información de la sesión',
@@ -84,86 +75,79 @@ export const SessionDetailView: React.FC = () => {
 
   useEffect(() => {
     loadSessionData();
-    
-    // Set up realtime subscription
+
+    // Realtime for session, evaluations, and messages
     const channel = supabase
       .channel('session_detail_changes')
-      .on('postgres_changes', { 
-        event: '*', 
-        schema: 'public', 
-        table: 'training_sessions', 
-        filter: `id=eq.${sessionId}` 
-      }, () => {
-        loadSessionData();
-      })
-      .on('postgres_changes', { 
-        event: '*', 
-        schema: 'public', 
-        table: 'training_evaluations', 
-        filter: `session_id=eq.${sessionId}` 
-      }, () => {
-        loadSessionData();
-      })
-      .on('postgres_changes', { 
-        event: '*', 
-        schema: 'public', 
-        table: 'training_messages', 
-        filter: `session_id=eq.${sessionId}` 
-      }, () => {
-        loadSessionData();
-      })
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'training_sessions',
+        filter: sessionId ? `id=eq.${sessionId}` : undefined
+      }, loadSessionData)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'training_evaluations',
+        filter: sessionId ? `session_id=eq.${sessionId}` : undefined
+      }, loadSessionData)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'training_messages',
+        filter: sessionId ? `session_id=eq.${sessionId}` : undefined
+      }, loadSessionData)
       .subscribe();
-      
+
     return () => {
       supabase.removeChannel(channel);
     };
+    // eslint-disable-next-line
   }, [sessionId]);
 
   const formatDate = (dateString: string | null) => {
     if (!dateString) return '---';
-    const options: Intl.DateTimeFormatOptions = { 
-      year: 'numeric', 
-      month: 'short', 
-      day: 'numeric', 
-      hour: '2-digit', 
-      minute: '2-digit' 
+    const options: Intl.DateTimeFormatOptions = {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
     };
     return new Date(dateString).toLocaleDateString(undefined, options);
   };
 
   const formatDuration = (startDateString: string, endDateString: string | null) => {
     if (!endDateString) return 'En progreso';
-    
     const startDate = new Date(startDateString);
     const endDate = new Date(endDateString);
     const durationMs = endDate.getTime() - startDate.getTime();
-    
     const minutes = Math.floor(durationMs / 60000);
     const seconds = Math.floor((durationMs % 60000) / 1000);
-    
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   };
 
   const getMessages = (messagesJson: Json): SessionMessage[] => {
     if (!messagesJson) return [];
-    
     if (Array.isArray(messagesJson)) {
-      return messagesJson as SessionMessage[];
+      // Defensive: filter for valid session message shape
+      return (messagesJson as any[]).filter(
+        (msg) => msg && typeof msg.id === 'string' && typeof msg.sender_type === 'string'
+      ) as SessionMessage[];
     }
-    
     return [];
   };
 
   return (
     <div className="container max-w-5xl mx-auto py-8">
-      <Button 
-        variant="outline" 
+      <Button
+        variant="outline"
         onClick={() => navigate('/admin/training-sessions')}
         className="mb-4"
       >
         <ArrowLeft className="h-4 w-4 mr-2" /> Volver
       </Button>
-      
+
       {loading ? (
         <div className="flex justify-center py-8">
           <RefreshCcw className="h-6 w-6 animate-spin text-hrm-dark-cyan" />
@@ -179,7 +163,7 @@ export const SessionDetailView: React.FC = () => {
                     Código: <span className="font-mono">{session.training_code}</span>
                   </CardDescription>
                 </div>
-                <Badge 
+                <Badge
                   className={session.public_visible ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}
                 >
                   {session.public_visible ? 'Pública' : 'Privada'}
@@ -212,7 +196,7 @@ export const SessionDetailView: React.FC = () => {
               </div>
             </CardContent>
           </Card>
-          
+
           <Tabs defaultValue="conversation">
             <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="conversation">
@@ -221,18 +205,18 @@ export const SessionDetailView: React.FC = () => {
               <TabsTrigger value="feedback">Retroalimentación</TabsTrigger>
               <TabsTrigger value="evaluation">Evaluación</TabsTrigger>
             </TabsList>
-            
+
             <TabsContent value="conversation" className="pt-4">
               <Card>
                 <CardContent className="pt-6">
                   <div className="space-y-4">
                     {session.messages && Array.isArray(session.messages) && session.messages.length > 0 ? (
                       getMessages(session.messages).map((message) => (
-                        <div 
-                          key={message.id} 
+                        <div
+                          key={message.id}
                           className={`flex ${message.sender_type === 'candidate' ? 'justify-end' : 'justify-start'}`}
                         >
-                          <div 
+                          <div
                             className={`max-w-md rounded-lg p-3 ${
                               message.sender_type === 'candidate'
                                 ? 'bg-hrm-steel-blue text-white'
@@ -253,7 +237,7 @@ export const SessionDetailView: React.FC = () => {
                 </CardContent>
               </Card>
             </TabsContent>
-            
+
             <TabsContent value="feedback" className="pt-4">
               <Card>
                 <CardContent className="pt-6">
@@ -265,9 +249,9 @@ export const SessionDetailView: React.FC = () => {
                 </CardContent>
               </Card>
             </TabsContent>
-            
+
             <TabsContent value="evaluation" className="pt-4">
-              <SessionEvaluation 
+              <SessionEvaluation
                 sessionId={session.id}
                 initialData={{
                   strengths: session.strengths || '',
@@ -280,9 +264,9 @@ export const SessionDetailView: React.FC = () => {
             </TabsContent>
           </Tabs>
 
-          <Button 
-            variant="outline" 
-            onClick={loadSessionData} 
+          <Button
+            variant="outline"
+            onClick={loadSessionData}
             className="flex items-center gap-2 mt-4"
           >
             <RefreshCcw className="h-4 w-4" /> Actualizar datos
