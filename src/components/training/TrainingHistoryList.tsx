@@ -31,8 +31,11 @@ export const TrainingHistoryList = () => {
     try {
       setLoading(true);
 
-      // Use the correct RPC function we just created
-      const { data, error } = await supabase.rpc('get_complete_training_sessions');
+      // Use `as any` since function is not in types file
+      const { data, error } = await (supabase.rpc as any)(
+        'get_complete_training_sessions'
+      );
+
       if (error) {
         throw error;
       }
@@ -42,15 +45,17 @@ export const TrainingHistoryList = () => {
         return;
       }
 
-      // Defensive: simple type guard
+      // Filter only objects that satisfy TrainingSession-at-minimum shape
       const validSessions = data.filter(
-        (item) =>
+        (item): item is TrainingSession =>
+          item &&
           typeof item.id === 'string' &&
-          typeof item.candidate_name === 'string'
+          typeof item.candidate_name === 'string' &&
+          typeof item.started_at === 'string' &&
+          Object.prototype.hasOwnProperty.call(item, 'training_code') &&
+          Object.prototype.hasOwnProperty.call(item, 'message_count')
       );
-
-      // Defensive fallback... might be overkill, but prevents noise in UI
-      setSessions(validSessions as TrainingSession[]);
+      setSessions(validSessions);
     } catch (error) {
       toast({
         title: "Error",
