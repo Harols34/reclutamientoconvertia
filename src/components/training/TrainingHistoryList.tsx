@@ -7,7 +7,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { MessageCircle, Star, Calendar, User, RefreshCcw } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 
-// Session item structure (without full messages array)
+// Ajuste: Incluye siempre los fields opcionales
 interface TrainingSession {
   id: string;
   candidate_name: string;
@@ -15,12 +15,12 @@ interface TrainingSession {
   ended_at: string | null;
   score: number | null;
   training_code: string;
+  feedback: string | null;
   message_count: number;
   strengths?: string | null;
   areas_to_improve?: string | null;
   recommendations?: string | null;
   public_visible?: boolean;
-  feedback?: string | null;
 }
 
 export const TrainingHistoryList = () => {
@@ -31,7 +31,7 @@ export const TrainingHistoryList = () => {
     try {
       setLoading(true);
 
-      // Use as any since the RPC is not typed by Supabase client types
+      // Uso correcto de la función RPC y type assertion seguro
       const { data, error } = await (supabase.rpc as any)(
         'get_complete_training_sessions'
       );
@@ -45,15 +45,14 @@ export const TrainingHistoryList = () => {
         return;
       }
 
-      // Solo tomamos objetos que cumplen con la forma de TrainingSession
+      // Tomar sólo los objetos válidos
       const validSessions = data.filter(
         (item): item is TrainingSession =>
           item &&
           typeof item.id === 'string' &&
           typeof item.candidate_name === 'string' &&
           typeof item.started_at === 'string' &&
-          Object.prototype.hasOwnProperty.call(item, 'training_code') &&
-          Object.prototype.hasOwnProperty.call(item, 'message_count')
+          Object.prototype.hasOwnProperty.call(item, 'training_code')
       );
       setSessions(validSessions);
     } catch (error) {
@@ -70,7 +69,7 @@ export const TrainingHistoryList = () => {
   useEffect(() => {
     loadSessions();
 
-    // Set up realtime subscription for all 3 tables
+    // Real-time updates para tablas de entrenamiento
     const channel = supabase
       .channel('training_changes')
       .on('postgres_changes', {
@@ -96,6 +95,7 @@ export const TrainingHistoryList = () => {
   }, []);
 
   const formatDate = (dateString: string) => {
+    if (!dateString) return '---';
     const options: Intl.DateTimeFormatOptions = {
       year: 'numeric',
       month: 'short',
@@ -117,7 +117,7 @@ export const TrainingHistoryList = () => {
   if (sessions.length === 0) {
     return (
       <div className="text-center py-8">
-        <p className="text-gray-500 mb-4">No hay sesiones de entrenamiento disponibles.</p>
+        <p className="text-gray-500 mb-4">No hay sesiones de entrenamiento registradas.</p>
         <Button onClick={loadSessions} variant="outline" className="flex items-center gap-2">
           <RefreshCcw className="h-4 w-4" /> Refrescar
         </Button>
@@ -137,7 +137,7 @@ export const TrainingHistoryList = () => {
         <Card key={session.id} className="hover:bg-gray-50 transition-colors">
           <CardContent className="p-6">
             <div className="flex flex-col md:flex-row md:items-center md:justify-between">
-              {/* BLOQUE: DATOS CANDIDATO Y FECHA */}
+              {/* DATOS SESIÓN y CANDIDATO */}
               <div className="space-y-2">
                 <div className="flex items-center space-x-2">
                   <User className="h-4 w-4 text-gray-500" />
@@ -154,7 +154,7 @@ export const TrainingHistoryList = () => {
                   </span>
                 </div>
 
-                {/* BLOQUE: RESUMEN GLOBAL */}
+                {/* RESUMEN SESIÓN */}
                 <div className="mt-2">
                   <p className="font-semibold text-gray-700">Resumen global</p>
                   {session.score !== null && (
@@ -171,8 +171,8 @@ export const TrainingHistoryList = () => {
                   )}
                 </div>
 
-                {/* BLOQUE: EVALUACIÓN DETALLADA */}
-                {(session.strengths || session.areas_to_improve || session.recommendations) && (
+                {/* INFORME DE EVALUACIÓN */}
+                {(session.strengths || session.areas_to_improve || session.recommendations) ? (
                   <div className="mt-2">
                     <div className="font-semibold text-gray-700">Evaluación detallada</div>
                     {session.strengths && (
@@ -191,9 +191,13 @@ export const TrainingHistoryList = () => {
                       </div>
                     )}
                   </div>
+                ) : (
+                  <div className="mt-2 text-xs italic text-gray-400">
+                    Sin evaluación registrada aún para esta sesión.
+                  </div>
                 )}
               </div>
-              {/* BLOQUE: BOTÓN ACCIÓN */}
+              {/* BOTÓN ACCESO DETALLADO */}
               <div className="mt-4 md:mt-0">
                 <Link to={`/admin/training-sessions/${session.id}`}>
                   <Button variant="outline">Ver detalle</Button>
@@ -206,3 +210,4 @@ export const TrainingHistoryList = () => {
     </div>
   );
 };
+
