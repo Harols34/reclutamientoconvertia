@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
@@ -244,7 +243,9 @@ export const SessionDetailView: React.FC = () => {
                   {session.feedback ? (
                     <div className="whitespace-pre-line">{session.feedback}</div>
                   ) : (
-                    <p className="text-center text-gray-500">No hay retroalimentación disponible para esta sesión.</p>
+                    <div className="text-center text-gray-500">
+                      No hay retroalimentación disponible para esta sesión. Si creas o actualizas una evaluación, la retroalimentación aparecerá aquí.
+                    </div>
                   )}
                 </CardContent>
               </Card>
@@ -261,6 +262,13 @@ export const SessionDetailView: React.FC = () => {
                 }}
                 onSaved={loadSessionData}
               />
+              {(!session.strengths && !session.areas_to_improve && !session.recommendations) && (
+                <div className="mt-4 text-center text-gray-500 text-sm">
+                  Aún no hay una evaluación guardada.<br />
+                  Usa el formulario para agregar una evaluación a esta sesión.<br />
+                  <span className="italic">¡Los permisos ya están configurados y la evaluación se guardará correctamente!</span>
+                </div>
+              )}
             </TabsContent>
           </Tabs>
 
