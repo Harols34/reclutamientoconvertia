@@ -507,6 +507,23 @@ export type Database = {
           recommendations: string
         }[]
       }
+      get_complete_training_sessions: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          id: string
+          candidate_name: string
+          started_at: string
+          ended_at: string
+          score: number
+          feedback: string
+          public_visible: boolean
+          training_code: string
+          messages: Json
+          strengths: string
+          areas_to_improve: string
+          recommendations: string
+        }[]
+      }
       get_job_by_id: {
         Args: { p_job_id: string }
         Returns: {

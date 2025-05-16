@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Link } from 'react-router-dom';
@@ -164,9 +163,10 @@ export const TrainingHistoryList = () => {
                     </div>
                   )}
                   {session.feedback && (
-                    <div className="text-xs text-gray-600 mt-1">{session.feedback.length > 80 ? (
-                      <span title={session.feedback}>{session.feedback.substring(0, 80)}...</span>
-                    ) : session.feedback}
+                    <div className="text-xs text-gray-600 mt-1">
+                      {session.feedback.length > 80 ? (
+                        <span title={session.feedback}>{session.feedback.substring(0, 80)}...</span>
+                      ) : session.feedback}
                     </div>
                   )}
                 </div>
@@ -210,4 +210,3 @@ export const TrainingHistoryList = () => {
     </div>
   );
 };
-
