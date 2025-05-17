@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { NavLink, Link, useNavigate } from 'react-router-dom';
 import { Calendar, Database, File, Home, LogOut, MessageCircle, Search, Settings, Users, Code, History } from 'lucide-react';
@@ -58,7 +57,7 @@ const AdminSidebar = () => {
         title: "Sesión cerrada",
         description: "Has cerrado sesión correctamente"
       });
-      navigate('/admin/login');
+      window.location.href = "/admin/login";
     } catch (error) {
       console.error('Error al cerrar sesión:', error);
       toast({
@@ -68,11 +67,11 @@ const AdminSidebar = () => {
       });
     }
   };
-  return <Sidebar className="border-r border-hrm-light-gray bg-hrm-dark-cyan">
+  return (
+    <Sidebar className="border-r border-hrm-light-gray bg-hrm-dark-cyan">
       <SidebarHeader className="h-14 border-b border-hrm-light-gray/20 bg-teal-950">
         <div className="flex items-center justify-center h-full px-4">
           <ConvertIALogo className="h-10" />
-          
         </div>
       </SidebarHeader>
       <SidebarContent className="bg-teal-950">
@@ -101,7 +100,8 @@ const AdminSidebar = () => {
           </button>
         </div>
       </SidebarFooter>
-    </Sidebar>;
+    </Sidebar>
+  );
 };
 
 export default AdminSidebar;

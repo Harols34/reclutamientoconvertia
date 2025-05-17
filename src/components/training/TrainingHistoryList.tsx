@@ -30,28 +30,25 @@ export const TrainingHistoryList = () => {
   const loadSessions = async () => {
     try {
       setLoading(true);
+      console.log("Intentando cargar historial por RPC get_complete_training_sessions...");
 
-      // For debugging payload:
-      console.log("Llamando get_complete_training_sessions...");
-
-      // Uso correcto de la función RPC y type assertion seguro
-      const { data, error } = await (supabase.rpc as any)(
-        'get_complete_training_sessions'
-      );
+      // Llamada RPC
+      const { data, error } = await supabase.rpc('get_complete_training_sessions');
 
       if (error) {
-        console.error("Error cargando sesiones:", error);
-        throw error;
+        console.error("Error RPC get_complete_training_sessions:", error);
+        setSessions([]);
+        setLoading(false);
+        return;
       }
       if (!data || !Array.isArray(data)) {
+        console.warn("Data no es un array:", data);
         setSessions([]);
         setLoading(false);
         return;
       }
 
-      console.log("Sesiones recibidas:", data);
-
-      // Tomar sólo los objetos válidos, siempre agregando message_count aunque sea 0
+      // Validación adicional de los campos
       const validSessions = data.filter(
         (item): item is TrainingSession =>
           item &&
@@ -69,10 +66,10 @@ export const TrainingHistoryList = () => {
 
       setSessions(validSessions);
     } catch (error: any) {
-      console.error("Excepción al cargar sesiones:", error);
+      console.error("Catch al cargar sesiones:", error);
       toast({
         title: "Error",
-        description: "No se pudieron cargar las sesiones de entrenamiento",
+        description: `No se pudieron cargar las sesiones: ${error.message}`,
         variant: "destructive",
       });
     } finally {
@@ -83,7 +80,7 @@ export const TrainingHistoryList = () => {
   useEffect(() => {
     loadSessions();
 
-    // Real-time updates para tablas de entrenamiento
+    // Suscripción en tiempo real
     const channel = supabase
       .channel('training_changes')
       .on('postgres_changes', {

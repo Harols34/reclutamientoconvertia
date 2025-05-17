@@ -44,19 +44,19 @@ function App() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Verificar si hay una sesión activa
+    // Setup auth listener first
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, currentSession) => {
+      setSession(currentSession);
+      setLoading(false);
+    });
+
+    // THEN check for existing session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setLoading(false);
     });
 
-    // Suscribirse a cambios en el estado de autenticación
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      setLoading(false);
-    });
-
-    return () => subscription.unsubscribe();
+    return () => subscription?.unsubscribe();
   }, []);
 
   // Componente para proteger rutas de administrador
@@ -66,11 +66,14 @@ function App() {
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-hrm-dark-cyan"></div>
       </div>;
     }
-    
+
     if (!session) {
-      return <Navigate to="/admin/login" replace />;
+      // Solo redirigir si realmente NO estamos autenticados y NO estamos ya en /admin/login
+      const path = window.location.pathname;
+      if (!path.startsWith("/admin/login")) {
+        return <Navigate to="/admin/login" replace />;
+      }
     }
-    
     return <>{children}</>;
   };
 
@@ -125,6 +128,6 @@ function App() {
       </QueryClientProvider>
     </StrictMode>
   );
-};
+}
 
 export default App;
