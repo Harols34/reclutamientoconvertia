@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Link } from 'react-router-dom';
@@ -6,7 +7,6 @@ import { Card, CardContent } from '@/components/ui/card';
 import { MessageCircle, Star, Calendar, User, RefreshCcw } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 
-// Ajuste: Incluye siempre los fields opcionales
 interface TrainingSession {
   id: string;
   candidate_name: string;
@@ -19,8 +19,22 @@ interface TrainingSession {
   strengths?: string | null;
   areas_to_improve?: string | null;
   recommendations?: string | null;
-  public_visible?: boolean;
-  messages?: any[]; // <-- Added this line
+  public_visible: boolean;
+  messages: any[];
+}
+
+// Utilidad para transformar el campo messages correctamente:
+function parseMessages(raw: any): any[] {
+  if (Array.isArray(raw)) return raw;
+  if (typeof raw === "string") {
+    try {
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
 }
 
 export const TrainingHistoryList = () => {
@@ -30,11 +44,8 @@ export const TrainingHistoryList = () => {
   const loadSessions = async () => {
     try {
       setLoading(true);
-      console.log("Intentando cargar historial por RPC get_complete_training_sessions...");
-
-      // Llamada RPC
+      // RPC devuelve "messages" como string o Json, y fields pueden estar undefined si el trigger no ha llenado la evaluación
       const { data, error } = await supabase.rpc('get_complete_training_sessions');
-
       if (error) {
         console.error("Error RPC get_complete_training_sessions:", error);
         setSessions([]);
@@ -42,29 +53,35 @@ export const TrainingHistoryList = () => {
         return;
       }
       if (!data || !Array.isArray(data)) {
-        console.warn("Data no es un array:", data);
         setSessions([]);
         setLoading(false);
         return;
       }
 
-      // Validación adicional de los campos
-      const validSessions = data.filter(
-        (item): item is TrainingSession =>
-          item &&
-          typeof item.id === 'string' &&
-          typeof item.candidate_name === 'string' &&
-          typeof item.started_at === 'string' &&
-          Object.prototype.hasOwnProperty.call(item, 'training_code')
-      ).map(raw => ({
-        ...raw,
-        message_count: (Array.isArray(raw.messages) && raw.messages.length) ? raw.messages.length : 0,
-        strengths: 'strengths' in raw ? raw.strengths : null,
-        areas_to_improve: 'areas_to_improve' in raw ? raw.areas_to_improve : null,
-        recommendations: 'recommendations' in raw ? raw.recommendations : null
-      }));
+      // Transformamos cada sesión al tipo estricto esperado
+      const mapped: TrainingSession[] = data.map((raw: any) => {
+        // Fallback a false si está undefined
+        const public_visible = typeof raw.public_visible === "boolean" ? raw.public_visible : false;
+        // Asegurar que messages es un array
+        const messages: any[] = parseMessages(raw.messages);
+        return {
+          id: String(raw.id),
+          candidate_name: raw.candidate_name || '',
+          started_at: raw.started_at || '',
+          ended_at: raw.ended_at || null,
+          score: raw.score !== undefined ? Number(raw.score) : null,
+          training_code: raw.training_code || '',
+          feedback: raw.feedback || null,
+          message_count: messages.length,
+          strengths: raw.strengths ?? null,
+          areas_to_improve: raw.areas_to_improve ?? null,
+          recommendations: raw.recommendations ?? null,
+          public_visible,
+          messages,
+        };
+      });
 
-      setSessions(validSessions);
+      setSessions(mapped);
     } catch (error: any) {
       console.error("Catch al cargar sesiones:", error);
       toast({
@@ -79,8 +96,6 @@ export const TrainingHistoryList = () => {
 
   useEffect(() => {
     loadSessions();
-
-    // Suscripción en tiempo real
     const channel = supabase
       .channel('training_changes')
       .on('postgres_changes', {
@@ -143,7 +158,6 @@ export const TrainingHistoryList = () => {
           <RefreshCcw className="h-4 w-4" /> Refrescar
         </Button>
       </div>
-
       {sessions.map((session) => (
         <Card key={session.id} className="hover:bg-gray-50 transition-colors">
           <CardContent className="p-6">
@@ -164,7 +178,6 @@ export const TrainingHistoryList = () => {
                     {typeof session.message_count === 'number' ? session.message_count : 0} mensajes
                   </span>
                 </div>
-
                 {/* RESUMEN SESIÓN */}
                 <div className="mt-2">
                   <p className="font-semibold text-gray-700">Resumen global</p>
@@ -182,7 +195,6 @@ export const TrainingHistoryList = () => {
                     </div>
                   )}
                 </div>
-
                 {/* INFORME DE EVALUACIÓN */}
                 {(session.strengths || session.areas_to_improve || session.recommendations) ? (
                   <div className="mt-2">
