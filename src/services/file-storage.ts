@@ -1,205 +1,110 @@
 
-import { supabase, checkBucketExists, verifyBucketAccess, ensureBucketExists as ensureBucketExistsFromClient } from '@/integrations/supabase/client';
+import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/components/ui/sonner';
 
 /**
- * Uploads a file to the specified storage bucket with improved error handling and retry mechanism
- * @param {File} file - The file to upload
- * @param {string} bucketName - The name of the bucket to upload to
- * @returns {Promise<string|null>} - The public URL of the uploaded file or null on failure
+ * Sube un archivo al bucket de Supabase Storage
+ * @param {File} file - Archivo a subir
+ * @param {string} bucketName - Nombre del bucket
+ * @returns {Promise<string|null>} - URL pública del archivo subido o null
  */
 export const uploadFile = async (file: File, bucketName: string = 'resumes'): Promise<string | null> => {
   try {
-    // Validate file
+    // Validaciones básicas
     if (!file) {
-      console.error('No file provided for upload');
+      toast.error('No se ha seleccionado ningún archivo');
       return null;
     }
 
-    // Validate file type
-    const allowedTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+    // Validar tipo
+    const allowedTypes = [
+      'application/pdf',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    ];
     if (!allowedTypes.includes(file.type)) {
       toast.error('Tipo de archivo no válido. Por favor, sube un PDF, DOC o DOCX.');
       return null;
     }
-
-    // Validate file size (10MB max)
-    const maxSize = 10 * 1024 * 1024; // 10MB in bytes
-    if (file.size > maxSize) {
-      toast.error('El archivo es demasiado grande. El tamaño máximo permitido es 10MB.');
+    // Validar peso máximo 10MB
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error('El archivo es demasiado grande. Máximo permitido: 10MB.');
       return null;
     }
 
-    // Clean the file name to avoid path issues
-    const fileExt = file.name.split('.').pop() || '';
+    // Crear un nombre seguro para el archivo
     const sanitizedFileName = file.name.replace(/[^a-zA-Z0-9._]/g, '_');
     const fileName = `${Date.now()}_${sanitizedFileName}`;
-    
-    console.log(`Uploading file ${fileName} to ${bucketName} bucket`);
-    
-    // Ensure bucket exists and is accessible
-    console.log('Checking bucket availability...');
-    let bucketExists = await checkBucketExists(bucketName);
-    
-    if (!bucketExists) {
-      console.warn(`Bucket '${bucketName}' does not exist. Attempting to create it...`);
-      // Try to create the bucket if it doesn't exist
-      const created = await ensureBucketExists(bucketName);
-      if (created) {
-        console.log(`Successfully created and configured bucket '${bucketName}'`);
-        bucketExists = true;
-      } else {
-        console.error(`Cannot create bucket '${bucketName}'.`);
-      }
-    }
-    
-    // Even if bucket doesn't appear in listing, try to access it directly
-    const canAccessBucket = await verifyBucketAccess(bucketName);
-    
-    if (!canAccessBucket) {
-      console.error(`Cannot access bucket '${bucketName}'. File upload will fail.`);
-      toast.error('El sistema de almacenamiento no está disponible en este momento.');
-      return null;
-    }
-    
-    console.log(`Bucket '${bucketName}' is accessible, proceeding with upload...`);
-    
-    // Implement retry mechanism
-    const maxRetries = 3;
-    let attempt = 0;
+
+    // Intentar subir el archivo hasta 3 veces (retry simple)
     let uploadError = null;
-    
-    while (attempt < maxRetries) {
-      attempt++;
-      try {
-        console.log(`Upload attempt ${attempt} of ${maxRetries}...`);
-        // Attempt to upload the file
-        const { data, error } = await supabase.storage
+    let urlData = null;
+
+    for (let i = 0; i < 3; i++) {
+      const { data, error } = await supabase.storage
+        .from(bucketName)
+        .upload(fileName, file, {
+          cacheControl: '3600',
+          upsert: false,
+          contentType: file.type
+        });
+      if (!error) {
+        const { data: urlObj } = supabase.storage
           .from(bucketName)
-          .upload(fileName, file, {
-            cacheControl: '3600',
-            upsert: false,
-            contentType: file.type
-          });
-        
-        // If successful, break out of retry loop
-        if (!error) {
-          // Get the public URL
-          const { data: urlData } = supabase.storage
-            .from(bucketName)
-            .getPublicUrl(fileName);
-            
-          if (urlData?.publicUrl) {
-            console.log('File uploaded successfully:', urlData.publicUrl);
-            toast.success('CV subido correctamente');
-            return urlData.publicUrl;
-          }
-          
-          return null;
+          .getPublicUrl(fileName);
+        if (urlObj?.publicUrl) {
+          toast.success('CV subido correctamente');
+          return urlObj.publicUrl;
         }
-        
-        // Store error for potential reporting
-        uploadError = error;
-        console.error(`Upload attempt ${attempt} failed:`, error);
-        
-        // Wait before retrying
-        if (attempt < maxRetries) {
-          const delay = Math.pow(2, attempt) * 500; // Exponential backoff
-          console.log(`Retrying in ${delay}ms...`);
-          await new Promise(resolve => setTimeout(resolve, delay));
-        }
-      } catch (err) {
-        console.error(`Unexpected error during upload attempt ${attempt}:`, err);
-        uploadError = err;
-        
-        // Wait before retrying
-        if (attempt < maxRetries) {
-          const delay = Math.pow(2, attempt) * 500; // Exponential backoff
-          console.log(`Retrying in ${delay}ms...`);
-          await new Promise(resolve => setTimeout(resolve, delay));
-        }
-      }
-    }
-    
-    // If we reach this point, all attempts have failed
-    if (uploadError) {
-      console.error('All upload attempts failed:', uploadError);
-      
-      // Show specific error message based on the error type
-      if (uploadError.message?.includes('Authentication')) {
-        toast.error('Error de autenticación al subir el archivo');
-      } else if (uploadError.message?.includes('Permission denied')) {
-        toast.error('Permiso denegado para subir el archivo');
-      } else if (uploadError.message?.includes('storage quota')) {
-        toast.error('Cuota de almacenamiento excedida');
+        break;
       } else {
-        toast.error(`Error al subir: ${uploadError.message || 'Error desconocido'}`);
+        uploadError = error;
+        // Esperar antes de reintentar
+        if (i < 2) await new Promise(res => setTimeout(res, 800 * (i + 1)));
       }
     }
-    
+
+    if (uploadError) {
+      toast.error(`Error al subir: ${uploadError?.message || 'Desconocido'}`);
+    }
     return null;
   } catch (err: any) {
-    console.error('Unexpected error during file upload:', err);
     toast.error(`No se pudo subir el archivo: ${err.message || 'Error desconocido'}`);
     return null;
   }
 };
 
 /**
- * Checks if the resumes bucket exists and is properly configured
- * @returns {Promise<boolean>} - Whether the resumes bucket is properly configured
+ * Verifica si el bucket 'resumes' está accesible
+ * @returns {Promise<boolean>}
  */
 export const checkResumesBucketStatus = async (): Promise<boolean> => {
   try {
-    console.log('Checking resume bucket status...');
-    
-    // Check if bucket exists
-    const bucketExists = await checkBucketExists('resumes');
-    
-    if (!bucketExists) {
-      console.log('Resumes bucket does not exist in listing.');
-      
-      // Even if it's not listed, try to access it directly
-      const canAccess = await verifyBucketAccess('resumes');
-      
-      if (canAccess) {
-        console.log('Bucket appears to be accessible even though not listed.');
-        return true;
-      }
-      
-      console.log('Cannot access resumes bucket. It needs to be created.');
-      return false;
-    }
-    
-    // Verify access permissions
-    const hasAccess = await verifyBucketAccess('resumes');
-    
-    if (!hasAccess) {
-      console.error('Bucket exists but cannot be accessed.');
-      return false;
-    }
-    
-    console.log('Resumes bucket is properly configured and accessible.');
-    return true;
-  } catch (err) {
-    console.error('Error checking resume bucket status:', err);
+    // Se intenta obtener una lista de archivos (aunque esté vacía) para verificar acceso
+    const { error } = await supabase.storage.from('resumes').list('', { limit: 1 });
+    return !error;
+  } catch {
     return false;
   }
 };
 
 /**
- * Ensures that a bucket exists by creating it if needed
- * @param {string} bucketName - The name of the bucket to ensure exists
- * @returns {Promise<boolean>} - Whether the bucket exists or was created successfully
+ * Asegura que un bucket exista (crea si necesario)
+ * @param {string} bucketName 
+ * @returns {Promise<boolean>}
  */
 export const ensureBucketExists = async (bucketName: string): Promise<boolean> => {
   try {
-    return await ensureBucketExistsFromClient(bucketName);
-  } catch (err) {
-    console.error(`Error ensuring bucket ${bucketName} exists:`, err);
+    // Intentar crear el bucket (si ya existe no pasa nada)
+    const { error } = await supabase.storage.createBucket(bucketName, { public: true });
+    if (!error) return true;
+    // Si error es "already exists", igual lo consideramos disponible
+    if (error.message?.includes('exists')) return true;
+    return false;
+  } catch {
     return false;
   }
 };
 
-// Export the ensureBucketExists function from the client
+// Para mantener compatibilidad con imports previos
 export { ensureBucketExists as ensureBucketExistsFromClient };
