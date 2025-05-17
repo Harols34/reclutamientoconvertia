@@ -20,6 +20,7 @@ interface TrainingSession {
   areas_to_improve?: string | null;
   recommendations?: string | null;
   public_visible?: boolean;
+  messages?: any[]; // <-- Added this line
 }
 
 export const TrainingHistoryList = () => {
