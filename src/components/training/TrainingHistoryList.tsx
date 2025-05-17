@@ -30,12 +30,16 @@ export const TrainingHistoryList = () => {
     try {
       setLoading(true);
 
+      // For debugging payload:
+      console.log("Llamando get_complete_training_sessions...");
+
       // Uso correcto de la función RPC y type assertion seguro
       const { data, error } = await (supabase.rpc as any)(
         'get_complete_training_sessions'
       );
 
       if (error) {
+        console.error("Error cargando sesiones:", error);
         throw error;
       }
       if (!data || !Array.isArray(data)) {
@@ -44,7 +48,9 @@ export const TrainingHistoryList = () => {
         return;
       }
 
-      // Tomar sólo los objetos válidos
+      console.log("Sesiones recibidas:", data);
+
+      // Tomar sólo los objetos válidos, siempre agregando message_count aunque sea 0
       const validSessions = data.filter(
         (item): item is TrainingSession =>
           item &&
@@ -52,9 +58,17 @@ export const TrainingHistoryList = () => {
           typeof item.candidate_name === 'string' &&
           typeof item.started_at === 'string' &&
           Object.prototype.hasOwnProperty.call(item, 'training_code')
-      );
+      ).map(raw => ({
+        ...raw,
+        message_count: (Array.isArray(raw.messages) && raw.messages.length) ? raw.messages.length : 0,
+        strengths: 'strengths' in raw ? raw.strengths : null,
+        areas_to_improve: 'areas_to_improve' in raw ? raw.areas_to_improve : null,
+        recommendations: 'recommendations' in raw ? raw.recommendations : null
+      }));
+
       setSessions(validSessions);
-    } catch (error) {
+    } catch (error: any) {
+      console.error("Excepción al cargar sesiones:", error);
       toast({
         title: "Error",
         description: "No se pudieron cargar las sesiones de entrenamiento",
