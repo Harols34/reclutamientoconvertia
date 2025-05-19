@@ -1,94 +1,66 @@
 
 import React, { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { MessageCircle, Star, Calendar, User, RefreshCcw } from 'lucide-react';
+import { Table, TableHeader, TableHead, TableRow, TableCell, TableBody } from '@/components/ui/table';
+import { Card } from '@/components/ui/card';
+import { Calendar, RefreshCcw } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 
-interface TrainingSession {
+interface SessionRow {
   id: string;
   candidate_name: string;
   started_at: string;
   ended_at: string | null;
   score: number | null;
-  training_code: string;
-  feedback: string | null;
-  message_count: number;
-  strengths?: string | null;
-  areas_to_improve?: string | null;
-  recommendations?: string | null;
   public_visible: boolean;
-  messages: any[];
-}
-
-// Utilidad para transformar el campo messages correctamente:
-function parseMessages(raw: any): any[] {
-  if (Array.isArray(raw)) return raw;
-  if (typeof raw === "string") {
-    try {
-      const parsed = JSON.parse(raw);
-      return Array.isArray(parsed) ? parsed : [];
-    } catch {
-      return [];
-    }
-  }
-  return [];
+  feedback: string | null;
+  training_code: string;
 }
 
 export const TrainingHistoryList = () => {
-  const [sessions, setSessions] = useState<TrainingSession[]>([]);
+  const [sessions, setSessions] = useState<SessionRow[]>([]);
   const [loading, setLoading] = useState(true);
 
   const loadSessions = async () => {
+    setLoading(true);
     try {
-      setLoading(true);
-      // RPC devuelve "messages" como string o Json, y fields pueden estar undefined si el trigger no ha llenado la evaluación
-      const { data, error } = await supabase.rpc('get_complete_training_sessions');
+      // Hacemos join a training_codes para obtener el código de entrenamiento si existe
+      const { data, error } = await supabase
+        .from('training_sessions')
+        .select('id,candidate_name,started_at,ended_at,score,public_visible,feedback,training_code_id,training_codes(code)')
+        .order('started_at', { ascending: false });
+
       if (error) {
-        console.error("Error RPC get_complete_training_sessions:", error);
+        toast({
+          title: "Error",
+          description: "No se pudieron cargar las sesiones: " + error.message,
+          variant: "destructive",
+        });
         setSessions([]);
-        setLoading(false);
-        return;
-      }
-      if (!data || !Array.isArray(data)) {
-        setSessions([]);
-        setLoading(false);
         return;
       }
 
-      // Transformamos cada sesión al tipo estricto esperado
-      const mapped: TrainingSession[] = data.map((raw: any) => {
-        // Fallback a false si está undefined
-        const public_visible = typeof raw.public_visible === "boolean" ? raw.public_visible : false;
-        // Asegurar que messages es un array
-        const messages: any[] = parseMessages(raw.messages);
-        return {
-          id: String(raw.id),
-          candidate_name: raw.candidate_name || '',
-          started_at: raw.started_at || '',
-          ended_at: raw.ended_at || null,
-          score: raw.score !== undefined ? Number(raw.score) : null,
-          training_code: raw.training_code || '',
-          feedback: raw.feedback || null,
-          message_count: messages.length,
-          strengths: raw.strengths ?? null,
-          areas_to_improve: raw.areas_to_improve ?? null,
-          recommendations: raw.recommendations ?? null,
-          public_visible,
-          messages,
-        };
-      });
+      // Mapear y preparar los campos
+      const mapped: SessionRow[] = (data ?? []).map((row: any) => ({
+        id: row.id,
+        candidate_name: row.candidate_name,
+        started_at: row.started_at,
+        ended_at: row.ended_at,
+        score: row.score !== undefined && row.score !== null ? Number(row.score) : null,
+        public_visible: row.public_visible === true,
+        feedback: row.feedback ?? null,
+        training_code: row.training_codes?.code ?? '-',
+      }));
 
       setSessions(mapped);
-    } catch (error: any) {
-      console.error("Catch al cargar sesiones:", error);
+    } catch (err: any) {
       toast({
         title: "Error",
-        description: `No se pudieron cargar las sesiones: ${error.message}`,
+        description: "No se pudieron cargar las sesiones: " + err.message,
         variant: "destructive",
       });
+      setSessions([]);
     } finally {
       setLoading(false);
     }
@@ -96,31 +68,9 @@ export const TrainingHistoryList = () => {
 
   useEffect(() => {
     loadSessions();
-    const channel = supabase
-      .channel('training_changes')
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'training_sessions'
-      }, loadSessions)
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'training_evaluations'
-      }, loadSessions)
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'training_messages'
-      }, loadSessions)
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
   }, []);
 
-  const formatDate = (dateString: string) => {
+  const formatDate = (dateString: string | null) => {
     if (!dateString) return '---';
     const options: Intl.DateTimeFormatOptions = {
       year: 'numeric',
@@ -132,105 +82,81 @@ export const TrainingHistoryList = () => {
     return new Date(dateString).toLocaleDateString(undefined, options);
   };
 
-  if (loading) {
-    return (
-      <div className="flex justify-center items-center py-12">
-        <RefreshCcw className="h-8 w-8 animate-spin text-blue-600" />
-      </div>
-    );
-  }
-
-  if (sessions.length === 0) {
-    return (
-      <div className="text-center py-8">
-        <p className="text-gray-500 mb-4">No hay sesiones de entrenamiento registradas.</p>
-        <Button onClick={loadSessions} variant="outline" className="flex items-center gap-2">
-          <RefreshCcw className="h-4 w-4" /> Refrescar
-        </Button>
-      </div>
-    );
-  }
-
   return (
-    <div className="space-y-4">
-      <div className="flex justify-end mb-4">
+    <Card className="p-4">
+      <div className="flex justify-between mb-4">
+        <h2 className="text-lg font-semibold">Informe de Sesiones de Entrenamiento</h2>
         <Button onClick={loadSessions} variant="outline" className="flex items-center gap-2">
           <RefreshCcw className="h-4 w-4" /> Refrescar
         </Button>
       </div>
-      {sessions.map((session) => (
-        <Card key={session.id} className="hover:bg-gray-50 transition-colors">
-          <CardContent className="p-6">
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between">
-              {/* DATOS SESIÓN y CANDIDATO */}
-              <div className="space-y-2">
-                <div className="flex items-center space-x-2">
-                  <User className="h-4 w-4 text-gray-500" />
-                  <span className="font-medium">{session.candidate_name}</span>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Calendar className="h-4 w-4 text-gray-500" />
-                  <span className="text-sm text-gray-600">{formatDate(session.started_at)}</span>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <MessageCircle className="h-4 w-4 text-gray-500" />
-                  <span className="text-sm text-gray-600">
-                    {typeof session.message_count === 'number' ? session.message_count : 0} mensajes
-                  </span>
-                </div>
-                {/* RESUMEN SESIÓN */}
-                <div className="mt-2">
-                  <p className="font-semibold text-gray-700">Resumen global</p>
-                  {session.score !== null && (
-                    <div className="flex items-center space-x-2">
-                      <Star className="h-4 w-4 text-yellow-500" />
-                      <span className="text-sm font-medium">{session.score}/100</span>
-                    </div>
-                  )}
-                  {session.feedback && (
-                    <div className="text-xs text-gray-600 mt-1">
-                      {session.feedback.length > 80 ? (
-                        <span title={session.feedback}>{session.feedback.substring(0, 80)}...</span>
-                      ) : session.feedback}
-                    </div>
-                  )}
-                </div>
-                {/* INFORME DE EVALUACIÓN */}
-                {(session.strengths || session.areas_to_improve || session.recommendations) ? (
-                  <div className="mt-2">
-                    <div className="font-semibold text-gray-700">Evaluación detallada</div>
-                    {session.strengths && (
-                      <div className="text-xs text-green-700">
-                        <strong>Fortalezas:</strong> {session.strengths.length > 60 ? `${session.strengths.substring(0, 60)}...` : session.strengths}
-                      </div>
-                    )}
-                    {session.areas_to_improve && (
-                      <div className="text-xs text-amber-700">
-                        <strong>Áreas a mejorar:</strong> {session.areas_to_improve.length > 60 ? `${session.areas_to_improve.substring(0, 60)}...` : session.areas_to_improve}
-                      </div>
-                    )}
-                    {session.recommendations && (
-                      <div className="text-xs text-blue-700">
-                        <strong>Recomendaciones:</strong> {session.recommendations.length > 60 ? `${session.recommendations.substring(0, 60)}...` : session.recommendations}
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <div className="mt-2 text-xs italic text-gray-400">
-                    Sin evaluación registrada aún para esta sesión.
-                  </div>
-                )}
-              </div>
-              {/* BOTÓN ACCESO DETALLADO */}
-              <div className="mt-4 md:mt-0">
-                <Link to={`/admin/training-sessions/${session.id}`}>
-                  <Button variant="outline">Ver detalle</Button>
-                </Link>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      ))}
-    </div>
+      {loading ? (
+        <div className="flex justify-center items-center py-8">
+          <RefreshCcw className="h-7 w-7 animate-spin text-blue-600" />
+          <span className="ml-2 text-sm text-blue-700">Cargando sesiones...</span>
+        </div>
+      ) : (
+        <>
+        {sessions.length === 0 ? (
+          <p className="text-center text-gray-500 py-6">No se encontraron sesiones registradas.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Nombre</TableHead>
+                  <TableHead>Código</TableHead>
+                  <TableHead>Inicio</TableHead>
+                  <TableHead>Fin</TableHead>
+                  <TableHead>Puntuación</TableHead>
+                  <TableHead>Visible</TableHead>
+                  <TableHead>Feedback</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {sessions.map((s) => (
+                  <TableRow key={s.id}>
+                    <TableCell>{s.candidate_name}</TableCell>
+                    <TableCell>{s.training_code}</TableCell>
+                    <TableCell>
+                      <span className="flex items-center gap-1">
+                        <Calendar className="h-4 w-4 text-gray-500" /> {formatDate(s.started_at)}
+                      </span>
+                    </TableCell>
+                    <TableCell>{formatDate(s.ended_at)}</TableCell>
+                    <TableCell>
+                      {s.score !== null ? (
+                        <span className="font-medium">{s.score}/100</span>
+                      ) : (
+                        <span className="text-gray-400">---</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <span
+                        className={
+                          s.public_visible
+                            ? "inline-block rounded bg-green-200 text-green-800 px-2 py-1 text-xs"
+                            : "inline-block rounded bg-gray-200 text-gray-500 px-2 py-1 text-xs"
+                        }
+                      >
+                        {s.public_visible ? "Sí" : "No"}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      {s.feedback ? (
+                        s.feedback.length > 60
+                          ? <span title={s.feedback}>{s.feedback.substring(0,60)}...</span>
+                          : s.feedback
+                      ) : <span className="text-gray-400 italic">Sin feedback</span>}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+        </>
+      )}
+    </Card>
   );
 };

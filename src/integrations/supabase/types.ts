@@ -543,6 +543,10 @@ export type Database = {
           application_count: number
         }[]
       }
+      migrate_sessions_to_evaluations: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never
