@@ -1,4 +1,3 @@
-
 import { StrictMode, useEffect, useState } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -36,6 +35,10 @@ import TrainingCodes from "./pages/admin/TrainingCodes"; // Nueva página de có
 import TrainingSessions from "./pages/admin/TrainingSessions"; // Nueva página de sesiones
 import TrainingHistory from "./pages/admin/TrainingHistory"; // Nueva página de historial
 import SessionDetail from './pages/admin/SessionDetail';
+
+// RRHH Pages
+import RRHHIndex from "./pages/rrhh/Index";
+import RRHHLogin from "./pages/rrhh/Login";
 
 const queryClient = new QueryClient();
 
@@ -93,6 +96,8 @@ function App() {
                 <Route path="postularse/:jobId" element={<ApplicationForm />} />
                 <Route path="gracias" element={<ThankYou />} />
                 <Route path="entrenamiento" element={<TrainingChat />} />
+                <Route path="rrhh" element={<RRHHIndex />} />
+                <Route path="rrhh/login" element={<RRHHLogin />} />
               </Route>
 
               {/* Admin Routes */}

@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Outlet, Link } from 'react-router-dom';
+import { Outlet, Link, useNavigate } from 'react-router-dom';
 import Chatbot from '../chatbot/Chatbot';
 const PublicLayout = () => {
   return <div className="min-h-screen flex flex-col bg-white">
@@ -30,6 +30,11 @@ const PublicLayout = () => {
               <li>
                 <Link to="/admin/login" className="text-gray-600 hover:text-hrm-dark-cyan">
                   Admin
+                </Link>
+              </li>
+              <li>
+                <Link to="/rrhh" className="text-gray-600 hover:text-purple-800 px-2 py-1 rounded-md border border-hrm-light-gray hover:border-purple-500 transition-colors">
+                  RRHH
                 </Link>
               </li>
             </ul>
