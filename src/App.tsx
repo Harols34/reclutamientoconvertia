@@ -10,6 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 // Layouts
 import PublicLayout from "./components/layout/PublicLayout";
 import AdminLayout from "./components/layout/AdminLayout";
+import RRHHLayout from "./pages/rrhh/RRHHLayout";
 
 // Public Pages
 import Home from "./pages/public/Home";
@@ -42,6 +43,9 @@ import RRHHLogin from "./pages/rrhh/Login";
 import RRHHDashboard from "./pages/rrhh/Dashboard";
 import RRHHRegister from "./pages/rrhh/Register";
 import RRHHOrganizacion from "./pages/rrhh/Organizacion";
+import Empleados from "./pages/rrhh/Empleados";
+import Departamentos from "./pages/rrhh/Departamentos";
+import Perfil from "./pages/rrhh/Perfil";
 
 const queryClient = new QueryClient();
 
@@ -100,11 +104,16 @@ function App() {
                 <Route path="gracias" element={<ThankYou />} />
                 <Route path="entrenamiento" element={<TrainingChat />} />
                 {/* RRHH: Módulo 100% separado */}
-                <Route path="rrhh" element={<RRHHIndex />} />
                 <Route path="rrhh/login" element={<RRHHLogin />} />
-                <Route path="rrhh/dashboard" element={<RRHHDashboard />} />
                 <Route path="rrhh/registro" element={<RRHHRegister />} />
-                <Route path="rrhh/organizacion" element={<RRHHOrganizacion />} />
+                <Route path="rrhh" element={<RRHHLayout />}>
+                  <Route path="dashboard" element={<RRHHDashboard />} />
+                  <Route path="empleados" element={<Empleados />} />
+                  <Route path="departamentos" element={<Departamentos />} />
+                  <Route path="perfil" element={<Perfil />} />
+                  <Route path="organizacion" element={<RRHHOrganizacion />} />
+                  <Route index element={<RRHHDashboard />} />
+                </Route>
               </Route>
 
               {/* Admin Routes */}
