@@ -39,6 +39,8 @@ import SessionDetail from './pages/admin/SessionDetail';
 // RRHH Pages
 import RRHHIndex from "./pages/rrhh/Index";
 import RRHHLogin from "./pages/rrhh/Login";
+import RRHHDashboard from "./pages/rrhh/Dashboard";
+import RRHHRegister from "./pages/rrhh/Register";
 
 const queryClient = new QueryClient();
 
@@ -98,6 +100,8 @@ function App() {
                 <Route path="entrenamiento" element={<TrainingChat />} />
                 <Route path="rrhh" element={<RRHHIndex />} />
                 <Route path="rrhh/login" element={<RRHHLogin />} />
+                <Route path="rrhh/dashboard" element={<RRHHDashboard />} />
+                <Route path="rrhh/registro" element={<RRHHRegister />} />
               </Route>
 
               {/* Admin Routes */}
