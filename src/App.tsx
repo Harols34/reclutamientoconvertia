@@ -41,6 +41,7 @@ import RRHHIndex from "./pages/rrhh/Index";
 import RRHHLogin from "./pages/rrhh/Login";
 import RRHHDashboard from "./pages/rrhh/Dashboard";
 import RRHHRegister from "./pages/rrhh/Register";
+import RRHHOrganizacion from "./pages/rrhh/Organizacion";
 
 const queryClient = new QueryClient();
 
@@ -98,10 +99,12 @@ function App() {
                 <Route path="postularse/:jobId" element={<ApplicationForm />} />
                 <Route path="gracias" element={<ThankYou />} />
                 <Route path="entrenamiento" element={<TrainingChat />} />
+                {/* RRHH: Módulo 100% separado */}
                 <Route path="rrhh" element={<RRHHIndex />} />
                 <Route path="rrhh/login" element={<RRHHLogin />} />
                 <Route path="rrhh/dashboard" element={<RRHHDashboard />} />
                 <Route path="rrhh/registro" element={<RRHHRegister />} />
+                <Route path="rrhh/organizacion" element={<RRHHOrganizacion />} />
               </Route>
 
               {/* Admin Routes */}
