@@ -1,6 +1,6 @@
 
 import React, { useState } from "react";
-import { rrhhLogin, getRRHHUser } from "../../utils/rrhh-auth";
+import { rrhhLogin, getRRHHUser, rrhhClient, hashPassword } from "../../utils/rrhh-auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useNavigate } from "react-router-dom";
@@ -21,9 +21,38 @@ const RRHHLogin = () => {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-    const user = await rrhhLogin(email, password);
-    if (!user) setError("Credenciales incorrectas o usuario inactivo.");
-    else navigate("/rrhh/dashboard");
+
+    // 1. Busca el usuario por email
+    const { data: user, error: userError } = await rrhhClient
+      .from("rrhh_users")
+      .select("*")
+      .eq("email", email)
+      .maybeSingle();
+
+    if (!user) {
+      setError("Usuario no encontrado en RRHH.");
+      return;
+    }
+
+    if (user.status !== "active") {
+      setError("El usuario está INACTIVO.");
+      return;
+    }
+
+    // 2. Compara los hashes de password
+    const password_hash = await hashPassword(password);
+    if (user.password_hash !== password_hash) {
+      setError("Contraseña incorrecta.");
+      return;
+    }
+
+    // 3. Si todo bien, llama login normal para guardar la sesión y redirigir
+    const login = await rrhhLogin(email, password);
+    if (!login) {
+      setError("Error inesperado al iniciar sesión.");
+    } else {
+      navigate("/rrhh/dashboard");
+    }
   };
 
   return (
