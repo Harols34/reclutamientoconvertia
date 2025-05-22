@@ -46,6 +46,7 @@ import RRHHOrganizacion from "./pages/rrhh/Organizacion";
 import Empleados from "./pages/rrhh/Empleados";
 import Departamentos from "./pages/rrhh/Departamentos";
 import Perfil from "./pages/rrhh/Perfil";
+import RRHHUsuarios from "./pages/rrhh/Usuarios";
 
 const queryClient = new QueryClient();
 
@@ -112,6 +113,7 @@ function App() {
                   <Route path="departamentos" element={<Departamentos />} />
                   <Route path="perfil" element={<Perfil />} />
                   <Route path="organizacion" element={<RRHHOrganizacion />} />
+                  <Route path="usuarios" element={<RRHHUsuarios />} />
                   <Route index element={<RRHHDashboard />} />
                 </Route>
               </Route>
