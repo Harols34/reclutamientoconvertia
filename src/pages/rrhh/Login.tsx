@@ -22,32 +22,42 @@ const RRHHLogin = () => {
     e.preventDefault();
     setError("");
 
-    // 1. Busca el usuario por email
+    const emailToFind = email.trim().toLowerCase();
+    console.log("Intentando login RRHH:", { emailToFind });
+
+    // Busca el usuario ignorando Mayúsculas/Minúsculas
     const { data: user, error: userError } = await rrhhClient
       .from("rrhh_users")
       .select("*")
-      .eq("email", email)
+      .filter("email", "ilike", emailToFind)
       .maybeSingle();
 
-    if (!user) {
-      setError("Usuario no encontrado en RRHH.");
+    console.log("Resultado búsqueda usuario RRHH:", { user, userError });
+
+    if (userError) {
+      setError("Error de conexión con base de datos: " + userError.message);
       return;
     }
 
-    if (user.status !== "active") {
+    if (!user) {
+      setError("Usuario no encontrado en RRHH. ¿Seguro que está registrado?");
+      return;
+    }
+
+    if ((user.status || "").toLowerCase() !== "active") {
       setError("El usuario está INACTIVO.");
       return;
     }
 
-    // 2. Compara los hashes de password
+    // Compara los hashes de password
     const password_hash = await hashPassword(password);
     if (user.password_hash !== password_hash) {
       setError("Contraseña incorrecta.");
       return;
     }
 
-    // 3. Si todo bien, llama login normal para guardar la sesión y redirigir
-    const login = await rrhhLogin(email, password);
+    // Si todo bien, guarda la sesión y redirige
+    const login = await rrhhLogin(user.email, password);
     if (!login) {
       setError("Error inesperado al iniciar sesión.");
     } else {
