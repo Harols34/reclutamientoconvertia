@@ -10,14 +10,13 @@ import { supabase } from "@/integrations/supabase/client";
 // Layouts
 import PublicLayout from "./components/layout/PublicLayout";
 import AdminLayout from "./components/layout/AdminLayout";
-import RRHHLayout from "./pages/rrhh/RRHHLayout";
 
 // Public Pages
 import Home from "./pages/public/Home";
 import JobsList from "./pages/public/JobsList";
 import JobDetail from "./pages/public/JobDetail";
 import ThankYou from "./pages/public/ThankYou";
-import ApplicationForm from "./components/candidates/ApplicationForm";
+import ApplicationForm from "@/components/candidates/ApplicationForm";
 import TrainingChat from "./pages/public/TrainingChat"; // Nueva página de entrenamiento
 
 // Admin Pages
@@ -93,9 +92,12 @@ function App() {
                 <Route path="postularse/:jobId" element={<ApplicationForm />} />
                 <Route path="gracias" element={<ThankYou />} />
                 <Route path="entrenamiento" element={<TrainingChat />} />
+                {/* 
+                  Eliminamos la ruta antigua de RRHH. 
+                  Más adelante agregaremos aquí la nueva página Nexus Clone en reemplazo de /rrhh.
+                */}
               </Route>
-
-              {/* Admin Routes */}
+              {/* Admin Routes (igual) */}
               <Route path="/admin/login" element={<Login />} />
               <Route path="/admin" element={
                 <ProtectedRoute>
@@ -119,7 +121,6 @@ function App() {
                 <Route path="training-history" element={<TrainingHistory />} /> {/* New Training History Page */}
                 <Route path="training-sessions/:sessionId" element={<SessionDetail />} />
               </Route>
-
               {/* Catch all */}
               <Route path="*" element={<NotFound />} />
             </Routes>
