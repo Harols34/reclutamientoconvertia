@@ -15,6 +15,12 @@ import RRHHLogin from "./pages/rrhh/Login";
 import RRHHDashboard from "./pages/rrhh/Dashboard";
 import RRHHEmpleados from "./pages/rrhh/Empleados";
 import RequireRRHHAuth from "./pages/rrhh/RequireRRHHAuth";
+import Usuarios from "./pages/rrhh/Usuarios";
+import Modulos from "./pages/rrhh/Modulos";
+import Departamentos from "./pages/rrhh/Departamentos";
+import Ausencias from "./pages/rrhh/Ausencias";
+import Noticias from "./pages/rrhh/Noticias";
+import Feedback from "./pages/rrhh/Feedback";
 
 // Public Pages
 import Home from "./pages/public/Home";
@@ -126,7 +132,7 @@ function App() {
                 <Route path="training-history" element={<TrainingHistory />} /> {/* New Training History Page */}
                 <Route path="training-sessions/:sessionId" element={<SessionDetail />} />
               </Route>
-              {/* RRHH Nexus Clone ROUTES */}
+              {/* RRHH Nexus Clone EXTENDIDO */}
               <Route path="/rrhh/login" element={<RRHHLogin />} />
               <Route path="/rrhh" element={
                 <RequireRRHHAuth>
@@ -135,6 +141,12 @@ function App() {
               }>
                 <Route index element={<RRHHDashboard />} />
                 <Route path="empleados" element={<RRHHEmpleados />} />
+                <Route path="usuarios" element={<Usuarios />} />
+                <Route path="modulos" element={<Modulos />} />
+                <Route path="departamentos" element={<Departamentos />} />
+                <Route path="ausencias" element={<Ausencias />} />
+                <Route path="noticias" element={<Noticias />} />
+                <Route path="feedback" element={<Feedback />} />
               </Route>
               {/* Catch all */}
               <Route path="*" element={<NotFound />} />

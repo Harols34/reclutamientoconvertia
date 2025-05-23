@@ -1,12 +1,15 @@
-
 import React from "react";
 import { Link, useLocation } from "react-router-dom";
-import { Users, Home, LogOut } from "lucide-react";
+import { Users, Home, LogOut, FileText, Building, Settings, Calendar, Newspaper } from "lucide-react";
 
 const navItems = [
-  { label: "Inicio", path: "/rrhh", icon: Home },
-  { label: "Empleados", path: "/rrhh/empleados", icon: Users },
-  // Agrega más secciones como 'Departamentos', 'Roles', etc si deseas
+  { label: "Dashboard", path: "/rrhh", icon: Home },
+  { label: "Empleados", path: "/rrhh/empleados", icon: FileText },
+  { label: "Usuarios", path: "/rrhh/usuarios", icon: Users },
+  { label: "Módulos", path: "/rrhh/modulos", icon: Settings },
+  { label: "Departamentos", path: "/rrhh/departamentos", icon: Building },
+  { label: "Ausencias", path: "/rrhh/ausencias", icon: Calendar },
+  { label: "Noticias", path: "/rrhh/noticias", icon: Newspaper },
 ];
 
 export default function RRHHSidenav() {
