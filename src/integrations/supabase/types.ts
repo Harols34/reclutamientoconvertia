@@ -336,6 +336,44 @@ export type Database = {
         }
         Relationships: []
       }
+      rrhh_absences: {
+        Row: {
+          created_at: string | null
+          end_date: string
+          id: string
+          start_date: string
+          status: string | null
+          type: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          end_date: string
+          id?: string
+          start_date: string
+          status?: string | null
+          type: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          end_date?: string
+          id?: string
+          start_date?: string
+          status?: string | null
+          type?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rrhh_absences_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "rrhh_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       rrhh_departments: {
         Row: {
           description: string | null
@@ -353,6 +391,38 @@ export type Database = {
           name?: string
         }
         Relationships: []
+      }
+      rrhh_documents: {
+        Row: {
+          id: string
+          name: string
+          uploaded_at: string | null
+          url: string
+          user_id: string | null
+        }
+        Insert: {
+          id?: string
+          name: string
+          uploaded_at?: string | null
+          url: string
+          user_id?: string | null
+        }
+        Update: {
+          id?: string
+          name?: string
+          uploaded_at?: string | null
+          url?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rrhh_documents_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "rrhh_users"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       rrhh_employees: {
         Row: {
@@ -406,6 +476,38 @@ export type Database = {
           },
         ]
       }
+      rrhh_feedback: {
+        Row: {
+          created_at: string | null
+          id: string
+          message: string
+          type: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          message: string
+          type: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          message?: string
+          type?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rrhh_feedback_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "rrhh_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       rrhh_modules: {
         Row: {
           description: string | null
@@ -423,6 +525,146 @@ export type Database = {
           name?: string
         }
         Relationships: []
+      }
+      rrhh_news: {
+        Row: {
+          content: string
+          created_at: string | null
+          id: string
+          title: string
+        }
+        Insert: {
+          content: string
+          created_at?: string | null
+          id?: string
+          title: string
+        }
+        Update: {
+          content?: string
+          created_at?: string | null
+          id?: string
+          title?: string
+        }
+        Relationships: []
+      }
+      rrhh_notifications: {
+        Row: {
+          created_at: string | null
+          id: string
+          is_read: boolean | null
+          message: string
+          type: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          is_read?: boolean | null
+          message: string
+          type: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          is_read?: boolean | null
+          message?: string
+          type?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rrhh_notifications_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "rrhh_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rrhh_organigram: {
+        Row: {
+          id: string
+          level: number | null
+          parent_id: string | null
+          position: string | null
+          user_id: string | null
+        }
+        Insert: {
+          id?: string
+          level?: number | null
+          parent_id?: string | null
+          position?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          id?: string
+          level?: number | null
+          parent_id?: string | null
+          position?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rrhh_organigram_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "rrhh_organigram"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rrhh_organigram_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "rrhh_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rrhh_performance_reviews: {
+        Row: {
+          created_at: string | null
+          feedback: string | null
+          id: string
+          period: string | null
+          reviewer_id: string | null
+          score: number | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          feedback?: string | null
+          id?: string
+          period?: string | null
+          reviewer_id?: string | null
+          score?: number | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          feedback?: string | null
+          id?: string
+          period?: string | null
+          reviewer_id?: string | null
+          score?: number | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rrhh_performance_reviews_reviewer_id_fkey"
+            columns: ["reviewer_id"]
+            isOneToOne: false
+            referencedRelation: "rrhh_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rrhh_performance_reviews_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "rrhh_users"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       rrhh_permissions: {
         Row: {
@@ -453,6 +695,51 @@ export type Database = {
             columns: ["role_id"]
             isOneToOne: false
             referencedRelation: "rrhh_roles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rrhh_personal: {
+        Row: {
+          department: string | null
+          hire_date: string | null
+          id: string
+          position: string | null
+          status: string | null
+          supervisor_id: string | null
+          user_id: string | null
+        }
+        Insert: {
+          department?: string | null
+          hire_date?: string | null
+          id?: string
+          position?: string | null
+          status?: string | null
+          supervisor_id?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          department?: string | null
+          hire_date?: string | null
+          id?: string
+          position?: string | null
+          status?: string | null
+          supervisor_id?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rrhh_personal_supervisor_id_fkey"
+            columns: ["supervisor_id"]
+            isOneToOne: false
+            referencedRelation: "rrhh_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rrhh_personal_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "rrhh_users"
             referencedColumns: ["id"]
           },
         ]
@@ -497,6 +784,41 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "rrhh_sessions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "rrhh_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rrhh_time_tracking: {
+        Row: {
+          check_in: string | null
+          check_out: string | null
+          date: string
+          hours_worked: number | null
+          id: string
+          user_id: string | null
+        }
+        Insert: {
+          check_in?: string | null
+          check_out?: string | null
+          date: string
+          hours_worked?: number | null
+          id?: string
+          user_id?: string | null
+        }
+        Update: {
+          check_in?: string | null
+          check_out?: string | null
+          date?: string
+          hours_worked?: number | null
+          id?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rrhh_time_tracking_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "rrhh_users"

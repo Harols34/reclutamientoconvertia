@@ -37,17 +37,6 @@ import TrainingSessions from "./pages/admin/TrainingSessions"; // Nueva página 
 import TrainingHistory from "./pages/admin/TrainingHistory"; // Nueva página de historial
 import SessionDetail from './pages/admin/SessionDetail';
 
-// RRHH Pages
-import RRHHIndex from "./pages/rrhh/Index";
-import RRHHLogin from "./pages/rrhh/Login";
-import RRHHDashboard from "./pages/rrhh/Dashboard";
-import RRHHRegister from "./pages/rrhh/Register";
-import RRHHOrganizacion from "./pages/rrhh/Organizacion";
-import Empleados from "./pages/rrhh/Empleados";
-import Departamentos from "./pages/rrhh/Departamentos";
-import Perfil from "./pages/rrhh/Perfil";
-import RRHHUsuarios from "./pages/rrhh/Usuarios";
-
 const queryClient = new QueryClient();
 
 function App() {
@@ -104,18 +93,6 @@ function App() {
                 <Route path="postularse/:jobId" element={<ApplicationForm />} />
                 <Route path="gracias" element={<ThankYou />} />
                 <Route path="entrenamiento" element={<TrainingChat />} />
-                {/* RRHH: Módulo 100% separado */}
-                <Route path="rrhh/login" element={<RRHHLogin />} />
-                <Route path="rrhh/registro" element={<RRHHRegister />} />
-                <Route path="rrhh" element={<RRHHLayout />}>
-                  <Route path="dashboard" element={<RRHHDashboard />} />
-                  <Route path="empleados" element={<Empleados />} />
-                  <Route path="departamentos" element={<Departamentos />} />
-                  <Route path="perfil" element={<Perfil />} />
-                  <Route path="organizacion" element={<RRHHOrganizacion />} />
-                  <Route path="usuarios" element={<RRHHUsuarios />} />
-                  <Route index element={<RRHHDashboard />} />
-                </Route>
               </Route>
 
               {/* Admin Routes */}
