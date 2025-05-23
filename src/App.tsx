@@ -10,6 +10,11 @@ import { supabase } from "@/integrations/supabase/client";
 // Layouts
 import PublicLayout from "./components/layout/PublicLayout";
 import AdminLayout from "./components/layout/AdminLayout";
+import RRHHLayout from "./pages/rrhh/RRHHLayout";
+import RRHHLogin from "./pages/rrhh/Login";
+import RRHHDashboard from "./pages/rrhh/Dashboard";
+import RRHHEmpleados from "./pages/rrhh/Empleados";
+import RequireRRHHAuth from "./pages/rrhh/RequireRRHHAuth";
 
 // Public Pages
 import Home from "./pages/public/Home";
@@ -120,6 +125,16 @@ function App() {
                 <Route path="training-sessions" element={<TrainingSessions />} />
                 <Route path="training-history" element={<TrainingHistory />} /> {/* New Training History Page */}
                 <Route path="training-sessions/:sessionId" element={<SessionDetail />} />
+              </Route>
+              {/* RRHH Nexus Clone ROUTES */}
+              <Route path="/rrhh/login" element={<RRHHLogin />} />
+              <Route path="/rrhh" element={
+                <RequireRRHHAuth>
+                  <RRHHLayout />
+                </RequireRRHHAuth>
+              }>
+                <Route index element={<RRHHDashboard />} />
+                <Route path="empleados" element={<RRHHEmpleados />} />
               </Route>
               {/* Catch all */}
               <Route path="*" element={<NotFound />} />
